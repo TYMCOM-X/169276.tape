@@ -1,0 +1,166 @@
+        TITLE   RSROP
+        TWOSEG
+        RELOC   ^O400000
+;
+;  SPECIAL RELATIONAL OPERATORS  ( =# , >> , << )
+;
+        ENTRY   RSROP
+        EXTERN  EPS,.CDIV,.SQRT
+        RADIX   10
+;
+        OPDEF   ERROR   [^O32B8]
+;
+R0==0
+R1==1
+R2==2
+R3==3
+R4==4
+R5==5
+R6==6
+R7==7
+R8==8
+R9==9
+R10==10
+R11==11
+RXP==15
+;
+;
+RSROP:
+;  .1
+        HLRZ    R6,R5           ; LH(R5)
+        HRRZ    R5,R5
+        SUBI    R5,16           ; RH(R5)
+        SETZ    R7,             ;RSLT
+;  .2
+        CAIL    R5,2
+        JRST    RSR4
+;  .3.1,2,3
+        DMOVE   R8,R1
+        JUMPE   R5,.+2
+        DMOVE   R8,R3
+;  .3.4
+        JRST    @TYPT1(R6)
+;
+TYPT1:  RSR312                  ;0 - LOGICAL
+        RSR5                    ;1 - INTEGER
+        RSR35                   ;2 - REAL
+        RSR38                   ;3 - DOUBLE
+        RSR312                  ;4 - COMPLEX
+        RSR312                  ;5 - STRING
+;  .3.5
+RSR35:  FADR    R1,R3
+        JFCL
+;  .3.6
+        CAMN    R1,R8
+;  .3.7
+        MOVEI   R7,1
+        JRST    RSR5
+;  .3.8
+RSR38:  DFAD    R1,R3
+        JFCL
+;  .3.9
+        CAME    R1,R8
+        JRST    RSR5
+;  .3.10
+        CAMN    R2,R9
+;  .3.11
+        MOVEI   R7,1
+        JRST    RSR5
+;  .3.12
+RSR312: ERROR   MFE19
+;  .4.1
+RSR4:   JRST    @TYPT2(R6)
+;
+TYPT2:  RSR410                  ;0 - LOGICAL
+        RSR42                   ;1 - INTEGER
+        RSR42                   ;2 - REAL
+        RSR42                   ;3 - DOUBLE
+        RSR49                   ;4 - COMPLEX
+        RSR410                  ;5 - STRING
+;  .4.2
+RSR42:  JUMPE   R1,RSR47
+        JUMPE   R3,RSR47
+;  .4.3
+        CAIE    R6,1
+        JRST    RSR46
+;  .4.4
+        CAMN    R1,R3
+;  .4.5
+        MOVEI   R7,1
+        JRST    RSR5
+;  .4.6.1
+RSR46:  CAIN    R6,3
+        JRST    RSR465
+;  .4.6.2
+        FDVR    R1,R3
+        JFCL
+        FSBRI   R1,^O201400     ;R1+1.0
+        MOVM    R1,R1
+;  .4.6.3
+        CAMGE   R1,EPS
+;  .4.6.4
+        MOVEI   R7,1
+        JRST    RSR5
+;  .4.6.5
+RSR465: DFDV    R1,R3
+        JFCL
+        DFSB    R1,[EXP 1.0,0]
+        JUMPGE  R1,.+2
+        DMOVN   R1,R1
+;  .4.6.6
+        CAML    R1,EPS
+        JRST    RSR468
+;  .4.6.7
+        MOVEI   R7,1
+        JRST    RSR5
+;  .4.6.8
+RSR468: CAMLE   R1,EPS
+        JRST    RSR5
+;  .4.6.9
+        JUMPN   R1,RSR5
+;  .4.6.10
+        MOVEI   R7,1
+        JRST    RSR5
+;  .4.7
+RSR47:  IOR     R1,R3
+        JUMPN   R1,RSR5
+;  .4.8
+        MOVEI   R7,1
+        JRST    RSR5
+;  .4.9.1
+RSR49:  JUMPN   R1,.+2
+        JUMPE   R2,RSR492
+        JUMPN   R3,RSR494
+        JUMPN   R4,RSR494
+;  .4.9.2
+RSR492: IOR     R1,R2
+        IOR     R1,R3
+        IOR     R1,R4
+        JUMPN   R1,RSR5
+;  .4.9.3
+        MOVEI   R7,1
+        JRST    RSR5
+;  .4.9.4
+RSR494: PUSHJ   RXP,.CDIV
+;  .4.9.5
+        FSBRI   R1,^O201400     ;R1+1.0
+        FMPR    R1,R1
+        FMPR    R2,R2
+        FADR    R1,R2
+;  .4.9.6
+        MOVEI   R3,2
+        PUSHJ   RXP,.SQRT
+;  .4.9.7
+        CAMGE   R1,EPS
+;  .4.9.8
+        MOVEI   R7,1
+        JRST    RSR5
+;  .4.10
+RSR410: ERROR   MFE19
+;  .5
+RSR5:   MOVE    R1,R7
+;
+        POPJ    RXP,
+;
+;
+        END
