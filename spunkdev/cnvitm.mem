@@ -1,0 +1,107 @@
+April 5, 1980
+To:   Sherman Gavette
+From: Samuel Feldman
+
+This memo attempts to answer each item of Ron Goldstein's
+memo to Sherman Gavette and to Ken Holcomb.
+
+1. RUN
+
+- Use CALL RUNUUO to run SHR files
+
+- Use .TMP files to pass values between .SHR files if necessary
+
+- If real-time WEAVING is necessary, as in
+
+   COM "RUN PROG1,PROG2"
+
+   then we will want to generate a command file containing
+ 
+    GET PROG1
+    MERGE PROG2
+    RUN
+    QUIT
+
+    and run TBA, putting a "DO" commmand into the input buffer.
+
+    Note: in general, WEAVING should not be necessary. If there are
+    common pieces of source code, they can be made
+    into modules and loaded into several different .SHR files.
+
+2. RWP - There is no distinction of "privilege" in Tymcom-X.
+
+3. EXECUTE - EXECUTE has been superseded by RUN on CALL/370 according
+   to the documentation.
+
+4. and 5. WEAVE, WVR - MERGE does the same thing.
+
+6. OUTPUT name, OUTPUT TERM
+
+    Use OPEN "name",OUTPUT,-2    and   CLOSE -2
+
+7. PICK - Open a .TMP file, read 1 value, and close the file.
+
+8. FET functions.
+
+    CPUL  -  assuming a job needs to know whether or not it is running
+             in Tymshare's "Deffered" processing mode, a subroutine
+             may be written that executes a GETLCH UUO, and returns
+             TRUE if the command port is an auxiliary circuit.
+
+    USER  -  use XLIB subroutine to get username
+
+    PROJ  -  use TBATLIB subroutine
+
+9. RESUME to statement following error.
+
+   if necessary, I will implement a callable function
+   to replace this feature.
+
+   However, I can see no SBC BASIC feature or statement that does this.
+
+10. PAUSE
+ 
+   Use    INPUT IF FORM "R": F$   where "F$" is a variable
+   name not used anywhere else in the program.
+
+11. CNC  -  Use .TMP files (we can use TMPCOR files later
+            if we need to get fancy)
+
+12. Simultaneous File Access
+
+This is the most difficult problem.
+
+One alternative is to enhance the file I/O within Tymbasic to recognise
+a particular file as "sharable" and to use the Tymcom-X "club" facility
+to lock file pages and provide a sleep if busy/wake when free mechanism.
+Both MAGNUM and APL have used such a mechanism, and it is possible 
+that some or their code may be borrowed.
+
+Another alternative is an enhancement to Tymcom-X to provide a page-lock
+mechanism. In this case, it will still be necessary to enhance
+Tymbasic, but not to the extent required above. My manpower estimate
+for this task, very very roughly, is 4 and 3 weeks, respectively,
+assuming a programmer who is conversant with assembly language on the 10,
+with Tymcom-X system calls, and somewhat familiar with the internal
+functioning of Tymbasic.
+
+A third alternative is to write a subroutine that simply loops, attempting
+to open a file. This method is only acceptable if it happens that
+programs in the PO system only do short bursts of I/O to these
+shared files.
+
+13. RESET  -  use LOCATE
+
+14. POINT  -  use LOCATE
+
+15. APPEND mode I/O
+
+    Use RANDOM OUTPUT   and   LOCATE
+
+16. ON DIV BY ZER GOTO
+
+    Use ON MATH GOTO n
+
+    and at line n, check for Division by Zero; if the error code is other
+    than this, print the standard system error message and halt
+    execution, or do any other necessary processing.
