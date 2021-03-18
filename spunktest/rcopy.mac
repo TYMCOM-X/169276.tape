@@ -1,0 +1,177 @@
+        TITLE   RCOPY   copy from one file to another
+
+        TWOSEG
+        RELOC   400000
+
+        EXTERN  TRANSFER, .OPEN, .LNDRY, PUBFER, CLOSEF, TDO, .CREL2
+        EXTERN  LGTHOF, GETREP, ALLSP, RELSP
+
+        DCL     RCOPY,<,STRD1,STRD2,,,STRCOD>,<STR1,STR2,CUR1,CUR2,LEN1,TTYFLG,CODE1,CODE2,<BLK6.1,SXSIZ>,<BLK6.2,SXSIZ>,DSAPTR>,<4>
+
+        MOVE    R1,(R1)         ;addr of str 1
+        MOVEM   R1,STR1
+        MOVE    R2,(R2)         ;addr of str 2
+        MOVEM   R2,STR2
+
+        HRLZI   R2,CP1FIL
+        CALL    .LNDRY,<$,STR1,0>
+        MOVEM   R1,CODE1
+        HRL     R2,R2
+        HRRI    R2,BLK6.1
+        BLT     R2,3+BLK6.1
+        JUMPLE  R1,RCOP1                ;no syntactic errors in first file name
+
+        CALL    COPREL                  ;release strings
+        HRREI   R2,CP1FIL
+        CALL    PUBFER,<$,STR1,$,CODE1> ;publish file error
+
+RCOP1:  HRLZI   R2,CP2FIL
+        CALL    .LNDRY,<$,STR2,0>
+        MOVEM   R1,CODE2
+        HRL     R2,R2
+        HRRI    R2,BLK6.2
+        BLT     R2,3+BLK6.2
+        CALL    COPREL
+        SKIPG   CODE2
+        JRST    RCOP2
+
+        HRREI   R2,CP2FIL
+        HRREI   R2,CP2FIL
+        CALL    PUBFER,<$,STR2,$,CODE2>
+
+RCOP2:  SKIPE   CODE1                   ;from TERMINAL?
+        JRST    TTYFIL
+        PUSHJ   P,COPFIL
+        JRST    RCOP$$
+RCOP$$: RETURN  RCOPY
+
+TTYFIL: OPEN    BLK6.2,0,SUPERSEDE,CP2FIL,<IM,RF,RZ,CN>
+        MOVEM   R2,CUR2
+
+        JUMPE   R1,TTYFI1       ;all ok
+        HRREI   R1,CP2FIL
+        FILE    PG,RGSMSG+^D9   ;TERMINAL may not be specified twice
+
+TTYFI1: SETZM   LEN(R3)
+        PUSHJ   P,RWFILE
+        CALL    CLOSEF,<$,CUR2>
+        JRST    RCOP$$
+
+COPREL: CALL    .CREL2,<,$,-1+STRD1,$,-1+STRD2,$,-1+STRCOD>
+        POPJ    P,
+
+RWFILE: MOVE    R11,-1+CUR2
+        READCR  R11,7
+RWFIL2: CALL    GETREP,<0,1,0,1,0,0>
+        JUMPG   R1,RWFGO
+        HRREI   R1,CP2FIL
+        FILE    RGSMSG+8;	Never returns
+
+rwfgo:		; We have file cursor in R11, buffer address in R2
+	move	r10,r2	; fabricate a source byte pointer in R10
+	hrli	r10,( point 7,)
+	hrrz	r0,r2	; setup for call to LGTHOF, which
+	call	lgthof	;   returns length of line in R1.
+	move	r12,r1
+		; We have made the world safe for OUTC calls by 
+		; hiding in registers 10-12.
+	ildb	r3,r10	; fetch the first character. If it's
+	cain	r3,"&"	;    an ampersand,
+	caie	r12,1	;    and alone on the line,
+	jrst	rwfil5
+	jrst	rwfeof	; We have end of file.
+
+rwfil3:		; Here only if this is the last char of the line
+	cain	r3,"&"	; Skip if not a continuation character.
+	jrst	rwfil6	; Omit this char AND the CRLF.
+rwfil4:		; Character is cleared for output
+	outcr	r3,r11
+	ildb	r3,r10	; Fetch next char (maybe null)
+rwfil5:	sojg	r12,rwfil4	; Loop if not last char
+	jumpe	r12,rwfil3	; Last char we look at special
+
+		; Fall through to here when count goes negative -- we
+		; have to write a CRLF.
+	movei	r3,15
+	outcr	r3,r11
+	movei	r3,12
+	outcr	r3,r11
+
+rwfil6:	jrst	rwfil2
+
+rwfeof:		; End of file, folks.
+        WRITCR  R11
+        POPJ    P,
+
+COPFIL: OPEN    -1+BLK6.1,0,READ,CP1FIL,<IM,TE,RF,RZ>
+        MOVEM   R2,-1+CUR1
+        MOVE    R3,LEN(R3)
+        MOVEM   R3,-1+LEN1
+
+        OPEN    -1+BLK6.2,,SUPERSEDE,CP2FIL,<IM,RF,RZ,CN>
+        MOVEM   R2,-1+CUR2
+
+        SETZM   -1+TTYFLG
+        SKIPE   R1
+        SETOM   -1+TTYFLG
+        PUSHJ   P,FILDUP
+        POPJ    P,
+
+FILDUP: SETZM   LEN(R3)
+        PUSHJ   P,PAGCOP
+        CALL    CLOSEF,<$,-2+CUR1>
+        SKIPE   -2+TTYFLG
+        JRST    FILDU$
+        CALL    CLOSEF,<$,-2+CUR2>
+FILDU$: POPJ    P,
+
+PAGCOP: MOVE    R12,-3+LEN1
+        IDIVI   R12,PSIZE
+        MOVEI   R0,1(R13)               ;partial page + trailing zero
+        SKIPE   R12                     ;full page of data?
+        MOVEI   R0,PSIZE+1              ;yes, size=fullpage+ trailing zero
+
+;Get DSA space using DSAPTR as forward pointer. Get full or partial page.
+
+        SETZM   -3+DSAPTR
+        CALL    ALLSP,<,-3+DSAPTR,0>    ;R0 already set up (size)
+        JUMPE   R12,PGCP11              ;if only partial page skip full logic
+
+PAGCP3: CALL    TRANSFER,<$,-3+DSAPTR,$,-3+CUR1,PSIZE,0>
+                                        ;to (DSAPTR) from CUR1, psize wds, read core
+        SKIPN   -3+TTYFLG
+        JRST    PAGCP7
+
+        MOVE    R10,-3+DSAPTR
+        SETZM   PSIZE(R10)              ;put zero to make ASCIZ string
+        CALL    TDO,<$,-3+DSAPTR,2>     ;output to Tout Dest
+        JRST    PAGCP9
+
+PAGCP7: CALL    TRANSFER,<$,-3+DSAPTR,$,-3+CUR2,PSIZE,1>
+                                        ;from (DSAPTR) to CUR2,psize wds write
+        MOVEI   R1,PSIZE                ;update cursor
+        ADDB    R1,-3+CUR2
+
+PAGCP9: MOVEI   R1,PSIZE                ;update cursor 1
+        ADDB    R1,-3+CUR1
+        SOJG    R12,PAGCP3
+
+;put out the last, partial page, if any
+
+PGCP11: JUMPE   R13,PGCP$$              ;no partial page
+        CALL    TRANSFER,<$,-3+DSAPTR,$,-3+CUR1,$,R13,0>
+                                        ;to (DSAPTR) from CUR1 (R13) wds read
+        SKIPN   -3+TTYFLG
+        JRST    PGCP16
+
+        ADD     R13,-3+DSAPTR           ;addr after last word
+        SETZM   (R13)                   ;make ASCIZ
+        CALL    TDO,<$,-3+DSAPTR,2>
+        JRST    PGCP$$
+
+PGCP16: CALL    TRANSFER,<$,-3+DSAPTR,$,-3+CUR2,$,R13,1>
+
+PGCP$$: CALL    RELSP,<,$,-3+DSAPTR>
+        POPJ    P,
+
+        END
