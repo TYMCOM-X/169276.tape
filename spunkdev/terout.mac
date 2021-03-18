@@ -1,0 +1,412 @@
+        TITLE   TEROUT  Terminal Output routines
+
+        RADIX   8
+        TWOSEG
+        RELOC   400000
+
+        OPDEF   GETTMC [CALLI -16]
+
+..type==0;      turn off externs in TYPE/TYPEC macros
+
+        extern  cifcit
+        EXTERN  CMFCMT, TDFTDT, CEFCET, ISF, OSF, LEVEL, IVA, CCODE, SW, OVA
+        EXTERN  CEF, CIF, CIT, CMF, CMT, CTDF, CTDT, EC
+        EXTERN  FCBVEC, LINLEN, LNCNT, OBP, TABTBL
+        EXTERN  CLOSEF
+
+        DCL     CXMO
+MO10:   LDB     R2,CMFCMT
+        CALL    OUTMSG
+MO20:   RETURN  CXMO
+;***********************************************************************
+        DCL     TDO
+TD10:   LDB     R2,TDFTDT
+        CALL    OUTMSG
+TD20:   RETURN  TDO
+;***********************************************************************
+        DCL     CXTDO,<V0>
+TDO10:  MOVE    R1,V0
+        LDB     R0,TDFTDT
+        CALL    CXOUT
+TDO20:  RETURN  CXTDO
+;***********************************************************************
+        DCL     CXER1
+R110:   CALL    CXR1,<,2>
+R120:   RETURN  CXER1
+;***********************************************************************
+        DCL     CXR1
+ER110:  LDB     R2,CEFCET
+        CALL    OUTMSG
+ER120:  RETURN  CXR1
+;***********************************************************************
+        DCL     CXER3
+        CALL    CXR1,<,1>               ;type CRLF before message
+        RETURN  CXER3
+;***********************************************************************
+        DCL     CXER4
+        CALL    CXR2,<,1>               ;type CRLF before message
+        RETURN  CXER4
+;***********************************************************************
+        DCL     CXER2
+R210:   CALL    CXR2,<,2>
+R220:   RETURN  CXER2
+;***********************************************************************
+        DCL     CXR2
+        LDB     R2,CEFCET
+        CALL    OUTMSG
+        call    .fatal
+        RETURN  CXR2
+;***********************************************************************
+        DCL     OUTMSG,<V0,V1,V2>,<V3,V5>
+
+;Output a string to terminal and/or file.
+;Input: R0 - address of string
+;       R1 - 1 = print CRLF before ASCIZ string
+;            2 = print ASCIZ string
+;            3 = print string from dope vector
+;       R2 - control code: bit34 ==> output to file, bit35 ==> output to term
+
+        SEXTERN .OTBUF
+        SKIPE   [.OTBUF]
+        CALL    .OTBUF
+
+        MOVE    R0,V0
+        MOVE    R1,V1
+        MOVE    R2,V2
+        jrst    .(R1)
+        jrst    MSG20
+        jrst    MSG40
+        jrst    MSG80
+
+MSG20:  CALL    CXOUT,<$,R2,^O015>
+MSG30:  CALL    CXOUT,<$,V2,^O012>
+
+MSG40:  HRLZI   R1,(point 7,0)
+        HLLM    R1,V0           ; V3 IN V0
+MSG50:  ILDB    R1,V0
+MSG60:  JUMPE   R1,MSG140
+MSG70:  CALL    CXOUT,<$,V2>
+        jrst    MSG50
+MSG80:  MOVE    R1,R0
+        MOVE    R2,TSB(R1)
+        HRLI    R2,(point 7,0)
+        MOVEM   R2,V3
+MSG90:  HLRZ    R1,TSL(R1)
+        MOVEM   R1,V5           ; V5 IN R1
+MSG100: JUMPE   R1,MSG140
+MSG110: ILDB    R1,V3           ; V4 IN R1
+MSG120: CALL    CXOUT,<$,V2>
+MSG130: SOS     R1,V5
+        JUMPN   R1,MSG110
+MSG140: RETURN  OUTMSG
+;***********************************************************************
+        dclne   CXOUT
+
+;Print character at file and/or terminal.
+;Input: R0 - control code as in OUTMSG
+;       R1 - character
+        exch    r0,r1
+        call    cout
+        return  cxout
+;***********************************************************************
+        DCL     DEC
+DEC10:  SETZM   R2
+        SETZM   R3              ; V1, V2 IN R2, R3
+DEC20:  IDIVI   R0,^D10
+DEC30:  ADDI    R1,^O060
+DEC40:  ROT     R1,-7
+        LSHC    R2,-7
+        OR      R2,R1
+DEC50:  JUMPN   R0,DEC20
+DEC60:  LSHC    R2,-1
+        LSH     R2,1
+        RETURN  DEC,<$,R2,$,R3>
+;+
+;.SKIP
+;  LGTHOF(ADDRESS)
+;  Arguments:
+;  #0, Address of a buffer in core
+;  Function: return, as single value return, the number of characters
+;  found to be in the specified buffer (count until 0 byte seen)
+;-
+        DCL     LGTHOF,,,2
+;+
+;.SKIP
+;  LGTHOF argument/locals:
+;    #0 ADDRESS --} R0
+;  Locals: none
+;  Registers saved: R10,R11
+;-
+
+        HRLI    R0,(POINT 7,0)          ;fudge address to 7-bit byte pointer
+        SETZ    R10,                    ;Count to 0
+
+LGTH0:  ILDB    R11,R0                  ;Get next character
+        SKIPE   R11                     ;null byte finished
+        AOJA    R10,LGTH0               ;bump char count and loop
+        MOVE    R1,R10                  ;put count in return register
+        RETURN  LGTHOF                  ;and return...
+
+;+
+;.SKIP
+; STARTER
+; This routine is called to initialize terminal I/O
+; It resets command file logic etc.  Should only
+; be called from command side .or run side if a SAVE BINARY program
+; Need be called only once.
+;-
+
+        DCL     STARTER
+ST10:   MOVEI   R1,^O25
+        MOVEM   R1,SW
+ST20:   SETZM   LEVEL
+ST30:   MOVEI   R1,^D16         ;LENGTH OF TABLE=16
+        MOVEM   R1,TABTBL       ;SET LNGTH FIELD
+ST35:   MOVE    R2,R1           ;FILL TABLE FROM BOTTOM UP
+        IMULI   R2,^D8
+        ADDI    R2,1            ;TABS ARE MULTIPLES OF 8 (+1)
+        MOVEM   R2,TABTBL(R1)
+        SOJG    R1,ST35
+ST40:
+ST50:   HRREI   R1,-1
+        GETLCH  R1
+        HRRZ    R1,R1
+        GETTMC  R1,
+        LSH     R1,-^D23
+        ANDI    R1,^O377
+        MOVEM   R1,LINLEN
+ST60:   MOVEI   R1,4
+        MOVEM   R1,FCBVEC+<FCBLEN*TERNUM>+TERFLG
+        RETURN  STARTER
+
+        LIT
+
+        RELOC
+        ENTRY LINBUF
+LINBUF: BLOCK   BFWRDS
+
+        RELOC
+        subttl  terminal output entry points
+;
+;
+;       *** entry level TERMINAL output routines
+;
+;
+
+        dcl     pr.com
+        ldb     r1,cifcit
+        call    prtout
+        return  pr.com
+
+        dcl     pr.msg
+        ldb     r1,cmfcmt
+        call    prtout
+        return  pr.msg
+
+        dcl     pr.trm
+        ldb     r1,tdftdt
+        call    prtout
+        return  pr.trm
+
+        dcl     pr.wrn
+        ldb     r1,cefcet
+        call    prtout
+        return  pr.wrn
+
+        dcl     pr.err
+        call    pr.wrn
+        call    .fatal
+        return  pr.err
+
+        dcl     ch.com
+        ldb     r1,cifcit
+        call    cout
+        return  ch.com
+
+        dcl     ch.msg
+        ldb     r1,cmfcmt
+        call    cout
+        return  ch.msg
+
+        dcl     ch.trm
+        ldb     r1,tdftdt
+        call    cout
+        return  ch.trm
+
+        dcl     ch.wrn
+        ldb     r1,cefcet
+        call    cout
+        return  ch.wrn
+
+        dcl     ch.err
+        call    ch.wrn
+        call    .fatal
+        return  ch.err
+        subttl  terminal output subroutines
+;
+;
+;       *** low level TERMINAL output routines ***
+;
+;
+.tout==1                ;terminal output
+.fout==2                ;file output
+
+cbits==r2
+dbits==r1
+
+        extern  obp,t.pos,f.pos
+
+        dcl     prtout,<s.addr>
+
+        sextern .otbuf
+        skipn   [.otbuf]
+        jrst    prt0
+        push    p,r2
+        push    p,r1
+        call    .otbuf
+        pop     p,r1
+        pop     p,r2
+
+prt0:   trne    cbits,.gcrb
+        call    grntee
+
+        trne    cbits,.crb
+        call    force
+
+        movei   r0,(point 7,0)
+        hrlm    r0,s.addr
+
+        trne    dbits,.tout
+        outptr  s.addr
+
+prt1:   ildb    r0,s.addr
+        jumpe   r0,prt3
+
+        trnn    dbits,.tout
+        jrst    prt2
+        cain    r0,^o15
+        setom   t.pos
+        caie    r0,^o12
+        aos     t.pos
+
+prt2:   call    fc.out
+        jrst    prt1
+
+prt3:   trne    cbits,.gcra
+        call    grntee
+
+        trne    cbits,.cra
+        call    force
+
+        return  prtout
+
+
+        dclne   grntee
+        skipe   t.pos
+        call    t.crlf
+        skipe   f.pos
+        call    f.crlf
+        return  grntee
+
+        dclne   force
+        call    t.crlf
+        call    f.crlf
+        return  force
+
+        dclne   t.crlf
+        trnn    dbits,.tout
+        return  t.crlf
+        outchi  ^o15
+        outchi  ^o12
+        setzm   t.pos
+        return  t.crlf
+
+        dclne   f.crlf
+        call    fc.out,<^o15>
+        call    fc.out,<^o12>
+        return  f.crlf
+
+        dclne   fc.out
+        trnn    dbits,.fout
+        return  fc.out
+        cain    r0,^o15
+        setom   f.pos
+        caie    r0,^o12
+        aos     f.pos
+        push    p,r1
+        push    p,r2
+        move    r1,obp
+        idpbv   r0,r1
+        movem   r1,obp
+        pop     p,r2
+        pop     p,r1
+        return  fc.out
+
+        dclne   tc.out
+        trnn    dbits,.tout
+        popj    p,
+        cain    r0,^o15
+        setom   t.pos
+        caie    r0,^o12
+        aos     t.pos
+        outchr  r0
+        return  tc.out
+
+        dclne   cout
+        call    tc.out
+        call    fc.out
+        return  cout
+        subttl  FATAL clean-up
+        DCL     .FATAL,,<V4>
+        LDB     R1,ISF
+        JUMPE   R1,FATAL4
+        TYPE    WARNING,LINBUF,G.CRLF.B
+        LDB     R1,OSF
+        DPB     R1,[POINT       1,CCODE,^D26]
+FATAL1: TYPE    WARNING,</AT />,CRLF.B
+        LDB     R1,ISF
+        JUMPG   R1,FATAL2
+        TYPE    WARNING,</TERMINAL/>
+        JRST    FATAL3
+FATAL2: TYPE    WARNING,</LINE />
+        MOVE    R2,LEVEL
+        CALL    DEC,<$,LNCNT(R2)>,<V4>
+        TYPE    WARNING,V4
+        TYPE    WARNING,</ IN />
+        MOVE    R2,LEVEL
+        MOVE    R1,IVA(R2)
+        FCB     R1
+        MOVE    R0,R1
+        SETZ    R1,
+        EXTERN  .GARYF
+        CALL    .GARYF;          return addr in R1 of asciz string
+        TYPE    WARNING,<(R1)>,CR.A
+        MOVE    R2,LEVEL
+        CALL    CLOSEF,<$,IVA(R2)>
+FATAL3: SOS     R2,LEVEL
+        MOVE    R1,CCODE(R2)
+        MOVEM   R1,SW
+        JUMPN   R2,FATAL1
+        SETZM   R1
+        DPB     R1,ISF
+FATAL4: LDB     R2,OSF
+        JUMPE   R2,FATAL5
+        DPB     R1,OSF
+        CALL    CLOSEF,<$,OVA>
+FATAL5: SETZM   R5
+        DPB     R5,CIF
+        LDB     R1,EC            ; EC IN R1
+        LDB     R3,ISF
+        SETCAM  R3,R4
+        AND     R3,R1
+        DPB     R3,CIT
+        DPB     R5,CMF
+        OR      R1,R4
+        DPB     R1,CMT
+        DPB     R5,CTDF
+        MOVEI   R1,1
+        DPB     R1,CTDT
+        DPB     R5,CEF
+        RETURN  .FATAL
+        END
+    
