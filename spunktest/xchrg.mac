@@ -1,0 +1,241 @@
+        title   xchrg
+        twoseg
+        radix   8
+        reloc   400000
+
+;
+;       This package is used to adjust TRUs for TBA. Seperate
+;       adjustment multipliers are used for PARSE, COMPILE, and LOAD.
+;
+;       The format of a multiplier is:
+;         bits 0-25 = integer part
+;         bits 26-34 = fractional part
+;       For example, ^o1400 = 1.5 and ^o600 = .75
+;
+;       The entry point XCHG.I has a toggle switch such that a
+;       second call to XCHG.I without an intervening call to
+;       one of the XCHG.O entry point will cause XCHG.I to be a no-op.
+;       For reasons having to do with the hot-start loader, an alternate
+;       entry point, XCHG.F, is provided which is identical to
+;       XCHG.I except that it first clears the toggle.
+;
+c.par==0        ; PARSE side = 0.0
+c.cmp==0        ; COMPILE side = 0.0
+c.lod==0        ; LOAD side = 0.0
+
+        intern  xchg.i, x.par, x.cmp, x.lod,xchg.f
+
+r0==0
+r1==1
+r2==2
+r3==3
+r4==4
+r5==5
+p==17
+        subttl  xchg.i
+;
+;
+;       This routine saves the current TRU components into the job UPT
+;       area. It is intended to be used in tandem with XCHG.O
+;
+;       This routine restores ALL registers.
+;
+xchg.f: setzm   switch
+xchg.i: movem   r0,svregs
+        move    r0,[1,,svregs+1]
+        blt     r0,svregs+17
+
+        move    r0,[sixbit /BESURE/]
+        exch    r0,switch
+        camn    r0,switch
+        jrst    home.i
+
+        setzm   code.1
+        move    r1,[mask.d]
+        movem   r1,mask.1
+        move    r1,[xwd -tblen,code.1]
+        xcharg  r1,
+        halt
+
+home.i: movs    r0,[1,,svregs+1]
+        blt     r0,17
+        move    r0,svregs
+        popj    p,
+        subttl  xchg.o
+;
+;
+;       This routine sets the TRU components to the contents of the
+;       table of components saved by XCHG.I plus a specified multiplier
+;       times the delta between the saved components and the current
+;       components.
+;
+;       entry points:
+;         x.par - adjust TRUs using PARSE side multiplier (c.par)
+;         x.cmp - adjust TRUs using COMPILE side multiplier (c.cmp)
+;         x.lod - adjust TRUs using LOAD side multiplier (c.lod)
+;
+;       This routine restores ALL registers.
+;
+sgnbit==400000
+frct==^d9       ; fractional part of multiplier
+ndx==r1
+ac1.h==r2
+ac1.l==r3
+ac2.h==r4
+ac2.l==r5
+
+define use (m) <
+movem r0,svregs
+move r0,[m]
+>
+
+x.par:  use     c.par
+        jrst    do.x
+
+x.cmp:  use     c.cmp
+        jrst    do.x
+
+x.lod:  use     c.lod
+
+do.x:   movem   r0,mpy
+        move    r0,[1,,svregs+1]
+        blt     r0,svregs+17
+
+        setzm   switch
+
+; read components saved by XCHG.I
+        movei   r1,1
+        movem   r1,code.1
+        move    r1,[mask.d]
+        movem   r1,mask.1
+        move    r1,[xwd -tblen,code.1]
+        xcharg  r1,
+        halt
+
+; read current components
+        movei   r1,2
+        movem   r1,code.2
+        move    r1,[mask.d]
+        movem   r1,mask.2
+        move    r1,[xwd -tblen,code.2]
+        xcharg  r1,
+        halt
+
+        setz    ndx,
+
+xlp:    cail    ndx,tblen
+        jrst    xlpe
+
+        skipe   dbltab(ndx)
+        jrst    xdbl
+
+        move    ac1.h,data.2(ndx)
+        sub     ac1.h,data.1(ndx)
+        mul     ac1.h,mpy
+        lshc    ac1.h,-frct
+        addm    ac1.l,data.1(ndx)
+        jrst    xlpt1
+
+xdbl:   dmove   ac1.h,data.2(ndx)
+        sub     ac1.h,data.1(ndx)
+        sub     ac1.l,data.1+1(ndx)
+        tlze    ac1.l,sgnbit
+        addi    ac1.h,1
+
+        move    ac2.h,ac1.l
+        mul     ac1.h,mpy
+        mul     ac2.h,mpy
+        add     ac1.l,ac2.h
+        tlze    ac1.l,sgnbit
+        addi    ac1.h,1
+
+        move    ac2.h,ac1.l
+        lsh     ac2.l,1
+        lshc    ac2.h,-frct
+        lsh     ac2.l,-1
+        lsh     ac1.l,1
+        lshc    ac1.h,-frct
+        lsh     ac1.l,-1
+
+        addm    ac1.l,data.1(ndx)
+        add     ac2.l,data.1+1(ndx)
+        tlze    ac2.l,sgnbit
+        aos     data.1(ndx)
+        movem   ac2.l,data.1+1(ndx)
+
+        addi    ndx,1
+xlpt1:  addi    ndx,1
+        jrst    xlp
+xlpe:
+
+        movei   r1,4
+        movem   r1,code.1
+        move    r1,[mask.d]
+        movem   r1,mask.1
+        move    r1,[xwd -tblen,code.1]
+        xcharg  r1,
+        jfcl
+
+        movs    r0,[1,,svregs+1]
+        blt     r0,17
+        move    r0,svregs
+        popj    p,
+        subttl  tables
+
+define nxtbit <
+cbit==<-1>_<^d35-bitnum>
+bitnum==bitnum+1
+>
+
+define double <
+exp 1,1
+nxtbit
+nxtbit
+>
+
+define single <
+exp 0
+nxtbit
+>
+
+cbit==0
+bitnum==0
+
+dbltab:
+double;         kilo-core microcycles
+double;         microcycles
+single;         kilo-core seconds
+single;         kilo-core break chars
+single;         characters input
+single;         characters output
+single;         block io - seconds of elapsed time
+single;         block io - characters transmitted
+single;         kilo-core enters and renames
+single;         kilo-core lookups
+single;         kilo-core disk blocks read
+single;         kilo-core disk blocks written
+single;         enters and renames
+single;         lookups
+single;         disk blocks read
+single;         disk blocks written
+tblen==.-dbltab
+mask.d==cbit
+
+        lit
+        reloc
+code.1: block 1
+mask.1: block 1
+data.1: block   tblen
+
+code.2: block 1
+mask.2: block 1
+data.2: block   tblen
+
+svregs: block   20
+
+mpy:    block 1
+
+switch: block   1
+        reloc
+
+        end
