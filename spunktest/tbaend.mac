@@ -1,0 +1,402 @@
+;
+;       THIS PACKAGE CREATES *.HGH, *.SHR, *.LOW FILES
+;
+        TITLE   ENDP%$
+
+        RADIX   8               ;!!!!!!!!!!
+
+        TWOSEG
+        RELOC   0       ; THIS CODE GOES IN LOW SEG!!!
+
+
+        EXTERN  .OPEN,TFR,TRANSFER,READW,CLOSEF
+        EXTERN  RNSGNM,SAVBNM,XJOBNO
+        EXTERN  ...UBG,...UND
+        DDTMOD==DEBMOD&1
+        IFN     DDTMOD,<EXTERN DDTEND,.JBDA>
+        EXTERN  .JBDDT,.JBCOR,.JBDA,.JBFF,.JBPFI
+        EXTERN  .JBSA,.JBREL,.JBREN,.JBSYM,.JB41,.JBVER
+        EXTERN  MENTRY
+
+.JBHSA==400000
+.JBH41==400001
+.JBHCR==400002
+.JBHRN==400003
+.JBHVR==400004
+.JBHX1==400005
+.JBHSM==400006
+.JBHX2==400007
+.JBS41==122
+.JBSDD==114
+.JBHRL==115
+.JBSV==76
+
+TRUE==-1
+FALSE==0
+
+        DCL     SAVSEG
+
+; Reset .JBFF to release the low segment area that we occupy for
+; use by the Dynamic Storage Allocator (DSA)
+        MOVEI   R1,SAVSEG
+        MOVEM   R1,.JBFF
+
+; If SAVBNM is non-zero, then the user has typed a SAVE BINARY command
+; and SAVBNM contains the file name in SIXBIT (as returned by .lndry).
+; Otherwise we are doing a RUN command or some other such command
+; which needs the users' high seg dumped on a nnnSBA.SHR file.
+; In that case we manufacture the name from XJOBNO which is the
+; users' job number in SIXBIT.
+        SKIPN   SAVBNM                  ; SAVE BINARY?
+        JRST    SAVE1                   ; no, go manufacture a name
+
+        CALL    SAVTOP                  ; set up hi-seg vestigal job
+                                        ; data area before(!!) DUMPLO
+                                        ; compresses lo-seg job data area
+
+        CALL    DUMPLO                  ; dump lo-seg
+        HRLM    R1,.JBHCR               ; returns lo-seg length...
+
+; open hi-seg file
+        OPEN    SAVBNM,,SUPERCEDE,,<NO.TER,RET.ZERO>
+
+        CLRFN   SAVBNM
+        JRST    SAVE2
+
+; come here to manufacture a name for hi-seg. There will be no lo-seg.
+SAVE1:  CALL    SAVTOP                  ; set up hi-seg vestigal job data area
+        SETZ    R1,                     ; lo-seg length = zero
+        HRLM    R1,.JBHCR
+
+; manufacture file name
+        HRL     R1,XJOBNO
+        HRRI    R1,'SBA'
+        HRLZI   R2,'SHR'
+        DMOVEM  R1,WRKNAM+SXNAM
+        DMOVEM  R1,RNSGNM               ; also save here. I don't know why.
+                                        ; Seems someone needs it later...
+
+; open hi-seg file. Notice SET.TEMP which should make a temp
+; file out of this frobbie.
+        OPEN    WRKNAM,,SUPERCEDE,,<NO.TER,RET.ZERO,SET.TEMP>
+
+; come here when the hi-seg file has been opened ( we think)
+SAVE2:  JUMPE   R1,SAVE3                ; Successful open?
+        OUTSTR  [ASCIZ/Fatal system error in opening runnable highseg file/]
+        HALT
+SAVE3:  MOVEM   R2,FNUM                 ; Save virtual word zero address
+
+; Write hi-seg and close file
+        HLRZ    R2,.JBHRN
+        CALL    TRANSFER,<400000,$,FNUM,,-1>
+        CALL    CLOSEF,<$,FNUM>
+
+; Set write protect on hi-seg
+        MOVEI   R1,1
+        SETUWP  R1,
+        TRNA            ;ERROR RETURN
+        JRST    SAVE$$
+
+        OUTSTR  [ASCIZ/Fatal system error in setting write protect on highseg/]
+        HALT
+
+SAVE$$: RETURN  SAVSEG
+
+; A vanilla subroutine - sets up hi-seg vestigal job data area
+; Note use of SAVSEG to set lo-seg size...
+;
+        DCL     SAVTOP
+
+        HRRI    R1,MENTRY
+        HRLI    R1,SAVSEG
+        MOVEM   R1,.JBHSA
+
+        MOVE    R1,.JB41
+        MOVEM   R1,.JBH41
+
+        HLL     R1,.JBCOR
+        HRR     R1,.JBREL
+        MOVEM   R1,.JBHCR
+
+        HLL     R1,.JBHRL
+        HRR     R1,.JBREN
+        MOVEM   R1,.JBHRN
+
+        MOVE    R1,.JBVER
+        MOVEM   R1,.JBHVR
+
+        SETZM   .JBHX1
+        SETZM   .JBHX2
+
+        IFN     DDTMOD,<MOVE R1,.JBSYM
+                        MOVEM R1,.JBHSM>
+
+        RETURN  SAVTOP
+
+; This code dumps a lo-seg. Some amount of energy is expended to keep from
+; opening the file until we are sure we need to create a low seg. The
+; only sure test is to see what comes back from COMPRESSing the user
+; core area. Note that if we are in debug mode (DDTMOD # 0), we will
+; always create a low seg in order to save DDT.
+        DCL     DUMPLO
+
+; muck around with job data area. Note use of SAVSEG to set left
+; half of .JBSA - but this gets over-ridden by value ultimately
+; stored in right half of .JBHCR later on in main body of SAVSEG.
+        HRR     R1,.JBREL
+        HRRM    R1,.JBCOR
+        HRLI    R1,SAVSEG
+        HRRI    R1,MENTRY
+        MOVEM   R1,.JBSA
+        MOVE    R1,.JB41
+        MOVEM   R1,.JBS41
+        MOVE    R1,.JBDDT
+        MOVEM   R1,.JBSDD
+
+        COPYFN  SAVBNM,WRKNAM
+        MOVSI   R1,'LOW'                ; set extension to LOW
+        MOVEM   R1,WRKNAM+SXEXT
+
+        MOVEI   R1,FALSE                ; set FILE OPENED flag to false
+        MOVEM   R1,OPNFLG
+
+; if in debug mode, dump DDT and expand it again
+        IFN     DDTMOD,<CALL COMPRESS,<,.JBPFI,DDTEND,.JBSV>
+                        CALL XFER,<,,,.JBSV>
+                        CALL EXPAND>
+
+; compress and dump user area
+        CALL    COMPRESS,<,...UBG+1,...UND-1,...UBG>
+        CALL    XFER,<,,,...UBG>
+
+; if we have dumped something, write out a JRST MENTRY, otherwise
+; delete the LOW file.
+        MOVE    R1,OPNFLG
+        CAIE    R1,TRUE
+        JRST    LO4
+
+; write JRST MENTRY, close file, return lo-seg size
+        CALL    TFR,<1,$,CURSOR,[JRST MENTRY],-1>
+        CALL    CLOSEF,<$,FNUM>
+        HLRZ    R1,.JBHCR
+        JRST    LO5
+
+; delete file, return lo-seg size = zero.
+LO4:    OPEN    WRKNAM,,DELETE,,<NO.TER>;       attempt to delete .LOW file
+        CAIE    R1,E.NFND       ;file not found error is cool
+        SKIPN   R1              ;other errors aren't
+        JRST    LO4A
+
+;try again, maybe the error was a protection failure. we think we can
+;open this file in supercede mode (we tried it in the parser) -
+;so write a zero-length file.
+        OPEN    WRKNAM,,SUPERCEDE,,<NO.TER,CLOSE>
+        JUMPE   R1,LO4A
+        OUTSTR  [ASCIZ/Fatal system error in deleting old lowseg file/]
+        HALT
+
+LO4A:   SETZ    R1,
+
+LO5:    RETURN  DUMPLO
+
+; this code is primarily concerned with setting up a call to TFR
+; to write out a compressed chunk of lo-seg.
+;
+; If the file has not been opened then it will open the file. If we
+; are also not in debug mode (DDTMOD = 0) then it will compress
+; and dump the job data area. If we are in debug mode then the job
+; data area was compressed with DDT.
+;
+; Note BLTs to save and restore job data area. This is because OPEN
+; does a CHANIO which feels free to clobber certain undefined parts
+; of the job data area. Normally this would not affect a user but
+; we have cleverly already scrunched low core down into this area
+; and would prefer not to get clobbered....
+;
+; EFLG - TRUE = there is something to write
+; SVTOP - last address to write
+; SVBOT - first address to write
+        DCL     XFER,<,TFLG,SVTOP,SVBOT>
+
+        CAIE    R1,TRUE
+        JRST    XFREXT
+
+        MOVE    R1,OPNFLG
+        CAIN    R1,TRUE
+        JRST    XFER2
+
+        MOVE    R2,[XWD .JBSV,XJBSV] ; Protect job data area from CHANIO
+        BLT     R2,XJBEND
+        OPEN    WRKNAM,,SUPERCEDE,,<NO.TER,RET.ZERO>
+        JUMPE   R1,XFER1
+        OUTSTR  [ASCIZ/Fatal system error in opening runnable lowseg file/]
+        HALT
+
+XFER1:  MOVEM   R2,FNUM
+        CALL    READW,<,$,R2>,CURSOR
+        MOVE    R2,[XWD XJBSV,.JBSV] ;Restore job data area
+        BLT     R2,.JBDA-1
+
+        MOVEI   R1,TRUE
+        MOVEM   R1,OPNFLG
+
+        IFE     DDTMOD,<CALL COMPRESS,<,.JBPFI,.JBDA-1,.JBSV>
+                        CAIE R1,TRUE
+                        JRST XFER2
+                        PUSH P,R2
+                        MOVE R0,R2
+                        SUBI R0,.JBSV
+                        CALL TFR,<,$,CURSOR,.JBSV,-1>,CURSOR
+                        POP P,R2
+                        CALL EXPAND,<,TRUE,,.JBSV>; Expand job data area>
+
+XFER2:  MOVE    R0,SVTOP
+        SUB     R0,SVBOT
+        CALL    TFR,<,$,CURSOR,$,SVBOT,-1>,CURSOR
+
+XFREXT: RETURN  XFER,<$,TFLG,$,SVTOP,$,SVBOT>
+
+; this piece of code expands a compressed chunk of core.
+;
+; EFLG - TRUE = there is something to expand (should always be true
+;        but is included in case we ever need to use EXPAND for user core).
+; ETOP - last address to expand
+; EBOT - first address to expand plus one; however, is used within this routine
+;        to point to the highest data word in a block.
+
+        DCL     EXPAND,<,EFLG,ETOP,EBOT>
+
+        SOS     ETOP                    ;point to last data word
+
+        CAIE    R1,TRUE
+        JRST    EXPEXT
+
+EXP1:   MOVE    R1,EBOT                 ; done?
+        CAML    R1,ETOP
+        JRST    EXPEXT
+
+EXP2:   HLRE    R2,(R1)                 ; find last iowd block
+        SUB     R1,R2                   ; point to top of this block's data
+        CAMN    R1,ETOP
+        JRST    EXP3
+        ADDI    R1,1                    ; next IOWD
+        JRST    EXP2
+
+;R1 points to the top word of the current block's data
+
+EXP3:   ADDM    R2,ETOP                 ; update pointer to highest data word
+        SOS     ETOP                    ; of next block down
+
+        ADD     R1,R2                   ; get back to current iowd
+        MOVN    R2,R2                   ; get positive length
+
+        HRRZ    R4,(R1)                 ; move chunk
+        ADD     R4,R2                   ; R4 - highest addr to move to
+        HRRZ    R3,R1
+        ADD     R3,R2                   ; top of data block
+EXP4:   MOVE    R5,(R3)
+        MOVEM   R5,(R4)
+        SUBI    R3,1
+        SUBI    R4,1
+        SOSLE   R2
+        JRST    EXP4
+
+        HRR     R4,(R1)                 ; zero intervening core
+        SETZM   (R1)                    ; zero the IOWD
+        HRRZ    R3,R1                   ; IOWD address
+        CAMN    R3,R4                   ; no BLT for one word hole (IOWD only)
+        JRST    EXP1
+        HRL     R3,R1
+        ADDI    R3,1
+        BLT     R3,(R4)
+
+        JRST    EXP1
+
+EXPEXT: RETURN  EXPAND
+
+; this code compresses a chunk of core.
+; non-null after compressing...
+;
+; L.ADR - first address to compress
+; H.ADR - last address to compress
+; T.ADR - starting address to move core into (must be < L.ADR)
+;
+; Returns:
+;  R1 - TRUE if something was compressed
+;  R2 - top of compressed data
+;
+        DCL     COMPRESS,<,L.ADR,H.ADR,T.ADR>
+
+        MOVE    R1,T.ADR                ; set FINAL TOP
+        MOVEM   R1,F.TOP
+
+        MOVEI   R1,FALSE                ; clear COMPRESSED DATA flag
+        MOVEM   R1,TFLAG
+
+CMP2:   MOVE    R1,L.ADR                ; done?
+        CAMLE   R1,H.ADR
+        JRST    CMP6
+
+; find first non-zero word. Careful not to exceed H.ADR
+        MOVE    R1,L.ADR
+CMP3:   CAMLE   R1,H.ADR
+        JRST    CMP6                    ; bail out!!, bail out!!
+        SKIPE   0(R1)
+        JRST    CMP4
+        ADDI    R1,1
+        JRST    CMP3
+CMP4:   MOVEM   R1,NBASE                ; save start of non-zero data
+
+; find first zero word. careful not to exceed H.ADR
+CMP5:   ADDI    R1,1
+        CAMG    R1,H.ADR
+        SKIPN   0(R1)
+        JRST    .+2
+        JRST    CMP5
+        MOVEM   R1,L.ADR                ; reset L.ADR for next chunk
+
+        SUB     R1,NBASE                ; calculate number of words
+        MOVEM   R1,NSIZE
+
+; build iowd:  xwd -nsize,nbase-1
+        MOVN    R1,R1
+        HRL     R1,R1
+        HRR     R1,NBASE
+        SUBI    R1,1
+        MOVE    R2,F.TOP
+        MOVEM   R1,0(R2)
+
+; set up and do BLT.
+        HRL     R1,NBASE                ; from
+        HRR     R1,F.TOP                ; to
+        ADDI    R1,1
+        ADD     R2,NSIZE                ; until
+        BLT     R1,0(R2)
+
+        MOVE    R1,NSIZE                ; update FINAL TOP
+        ADDI    R1,1
+        ADDM    R1,F.TOP
+
+        MOVEI   R1,TRUE                 ; set COMPRESSED DATA flag
+        MOVEM   R1,TFLAG
+
+        JRST    CMP2
+
+CMP6:   RETURN  COMPRESS,<$,TFLAG,$,F.TOP>
+
+; GLOBAL VARIABLES
+;
+FNUM:   BLOCK   1
+TOP:    BLOCK   1
+OPNFLG: BLOCK   1
+CURSOR: BLOCK   1
+F.TOP:  BLOCK   1
+TFLAG:  BLOCK   1
+NBASE:  BLOCK   1
+NSIZE:  BLOCK   1
+WRKNAM: BLOCK   SXSIZ
+
+XJBSV:  BLOCK   41
+XJBEND: BLOCK   1
+        END
+   
