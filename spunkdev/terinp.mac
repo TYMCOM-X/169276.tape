@@ -1,0 +1,525 @@
+        TITLE   TERINP
+        RADIX   8
+        TWOSEG
+        RELOC   ^O400000
+
+;+
+;.PAPER SIZE 54, 79
+;.NOFILL
+;.NOJUSTIFY
+;.FIRST TITLE
+;.TITLE ^^TERINP.MAC Program Logic Flow
+;.NONUMBER
+;.PAGE
+;-
+
+        SEXTERNAL ESCCHK, SETALT
+
+        EXTERN  CLOSEF, I%TIE, TMPBCB
+        EXTERN  LNCNT, IVA, LEVEL, TIRE, TIREND, LINBUF
+        EXTERN  OBCB, REPBUF, TABTBL, UPBCB
+        EXTERN  CIFCIT, CXER1,CXER2, ISF, OUTMSG, TWBUF, UNSTACK
+;***********************************************************************
+
+;+
+;.SKIP
+;  GETREP(buffer.adr, retry.sw, prompt.adr, ctrl.sw, buffer.len, cmd.err.sw)
+; Arguments:
+;  0  buffer.adr - Address in memory of the buffer where the line to be
+;               input should be put.  If this is 0, TWBUF will be assumed
+;  1  retry.sw - 0 if the old line image should be null (in OBCB/REPBUF)
+;                1 if the old line image should not be altered
+;  2  prompt.adr - Address in memory of the ascii text that is a prompt
+;               for the line to be input.  If this is 0, no prompt is issued
+;  3  ctrl.sw - 0 if control characters are illegal on input (RING BELL)
+;               1 if control characters are legal on input (w/ ^V)
+;  4  buffer.len - length of the buffer for the new line (in words)
+;               If this is 0, BFWRDS (standard buffer length)
+;               is assumed
+;  5  cmd.err.sw - 0 if input should proceed normally,
+;                  1 if ISF _# 0 then return with code=-1 (ERROR return)
+;.SKIP
+;  Returns 
+;   Val#1 (R1) Return code from GETLIN
+;   Val#2 (R2) Address of the buffer where we put things
+;.SKIP
+; Arguments to
+;  buffer.adr -} R0, %BFA
+;  retry.sw -} R1, %RTY
+;  prompt.adr -} R2, %PRM
+;  ctrl.sw -} R3, %CTL
+;  buffer.len -} R4, %BFL
+;  cmd.err.sw -} R5, %CMD
+; Locals used: %COD
+; Externals used: TMPBCB(0:4), OBCB(0:4), REPBUF(BFWRDS)
+;-
+        DCL     GETREP,<%BFA,%RTY,%PRM,%CTL,%BFL,%CMD,,SAVR7>,<%COD>
+
+REP10:  JUMPN   R1,REP14        ;Jumpe if old line image good as is
+REP12:  SETZM   OBCB+2          ;Wants null old line,
+        SETZM   OBCB+3          ;Zero out the character counts
+        SETZM   OBCB+4          ;in the old line BCB
+
+REP14:  MOVEI   R1,REPBUF       ; make sure OBCB points to the right REPBUF
+        MOVEM   R1,OBCB         ; RMBR thers one in DATAC and one in DATAR
+        MOVEI   R1,LINMAX       ; and set up yhe buffer length
+        MOVEM   R1,OBCB+1
+        LDB     R1,ISF          ;R1=1 if commands from file, 0 if term
+        AND     R1,%CMD         ;R1 and %CMD ::= 1 if error, else 0
+        JUMPE   R1,REP20        ;0 - from commands file still ok
+REP16:  CALL    CXER2,<[ASCIZ ""]>
+        SETO    R1,             ;Return code is -1
+        JRST    REP90           ;and return
+
+REP20:  JUMPN   R4,.+2          ;If R4 is nonzero, use it
+        MOVEI   R4,BFWRDS       ;else use standard word count
+        MOVEM   R4,%BFL         ;save for later
+        IMULI   R4,5            ;character count
+        CAILE   R4,LINMAX       ;but not more than the max
+        MOVEI   R4,LINMAX
+
+REP30:  SKIPN   R1,%BFA         ;If %BFA is nonzero, use it
+        MOVEI   R1,TWBUF        ;Else use standard buffer
+        MOVEM   R1,%BFA         ;Save for return
+        SETZM   (R1)
+
+REP40:  MOVEM   R1,TMPBCB+0     ;Set ADR to use for input
+        MOVEM   R4,TMPBCB+1     ;Set CHAR.SIZE to use for input
+        SETZM   TMPBCB+2        ;and reset character counts
+        SETZM   TMPBCB+3        ;...
+        SETZM   TMPBCB+4        ;...
+
+REP50:  CALL    GETLIN,<0,OBCB,TMPBCB,$,%PRM,$,%CTL>,<%COD>
+
+        CAIE    R1,6            ;^J? (split line)
+        JRST    REP60
+        MOVE    R1,1            ;make a normal return but skip over old-line setup
+        JRST    REP90
+REP60:  MOVE    R1,[TMPBCB+2,,OBCB+2]   ;Copy character counts
+        BLT     R1,OBCB+4       ;From NBCB to OBCB
+REP70:  HRL     R1,%BFA         ;Lh=%BFA buffer address of new line
+        HRR     R1,OBCB         ;Rh=buffer address of old line
+        MOVE    R2,%BFL         ;BLT the stuff down
+        CAILE   R2,BFWRDS-1     ;Use lesser of given & default lengths
+        MOVEI   R2,BFWRDS-1
+        ADD     R2,OBCB
+        BLT     R1,(R2)
+
+REP80:  MOVE    R1,%COD         ;Get the return code
+        CAIN    R1,2            ;Code # 2 ?
+REP85:  MOVEI   R1,1            ;Yes, code 2 is converted to code 1
+
+REP90:  MOVE    R2,%BFA         ;Return the buffer addr as return val  #2
+        MOVE    R7,SAVR7
+        RETURN  GETREP
+
+;***********************************************************************
+        DEFINE  PTR     (REG)
+        <IDIVI  REG,5
+        IMULI   REG+1,-^O70000
+        HRLI    REG,^O440700(REG+1)
+        >
+;***********************************************************************
+
+;+
+; GETLIN(0, UOBCB, UNBCB, PROMPT, CTRL)
+; Arguments:
+; #1, UOBCB - User Old-line Buffer Control Block     (as per TIE
+; #2, UNBCB - User New-line Buffer Control Block     specifications)
+; #3, prompt to type out (argument for TIE, ASCIZ string)
+; #4, CTRL is =1 if control chars are allowable on input, else 0
+; Function - Getline to buffers specified from current command source
+; looks at CIFCIT and ISF to determine source
+;-
+
+        DCL     GETLIN,<,V0,V1,V2,V8>,<V3,V4,V5,V7,CTRLER>,7
+
+; Tire defs
+I%COUNT==0
+I%RETCOD==1
+I%UOBCB==2
+I%UNBCB==3
+I%GETPROM==4
+I%TABS==5
+I%SETALT==6
+I%ACT==7
+I%ATXTP==^D8
+I%ACTCHAR==^D9
+I%ADP==^D10
+I%AQP==^D11
+I%ARINGP==^D12
+I%AMARK==^D13
+I%BUFNUM==^D14
+I%OLWORK==^D15
+I%NLWORK==^D16
+I%GETCHAR==^D17
+I%OUTCHAR==^D18
+I%CHARSP==^D19
+I%CGP==^D20
+I%LCONTP==^D21
+
+;+
+;.SKIP
+; GETLIN argument/locals
+; Arguments:
+;   #1 UOBCB --} R1, V0
+;   #2 UNBCB --} R2, V1
+;   #3 PROMPT --} R3, V2
+;   #4 CTRL --} R4, V8
+; Locals: V3, V5, V7
+; CTRLER SET TO -1 IF ILLEGAL CONTROL CHARS FOUND IN COMMAND FILE
+;               TIE WILL HANDLE BAD CONTROL CHARACTERS FROM TERMINAL
+; V3 is return code.
+; Registers saved: R10-R16 (7)
+;-
+
+LIN10:  LDB     R3,CIFCIT       ; COPY INPUT TO FILE/ COPY INPUT TO TERMINAL
+        MOVEM   R3,V7
+        SETZM   CTRLER
+        MOVE    R2,V1           ; R2 TO HOLD ADDR. OF BUFFER CONTROL BLOCK
+
+        ; SOMTHINNG TO DO WITH LINE CONTINUATIONS WHICH ARE HANDELED BY CALLING
+        ; GETLIN ONCE FOR EACH APPARENT LINE. SO I THINK WE ARE TRYING
+        ; HERE TO SET UP A BYTE POINNTER TO A BUFFER THAT MAY ALREADY HAVE HALF A
+        ; LINE IN IT.
+
+        MOVE    R3,2(R2)        ; GET COUNT OF CHARS. TO LEFT OF THE LINE IMAGE
+        PTR     R3
+        ADD     R3,(R2)         ;pointer to beginning of input line
+
+        LDB     R4,ISF  ; IS THE INPUT STREAM A FILE?
+        JUMPG   R4,LIN90        ; YES, GO GET A LINE FROM A COMMAND FILE
+
+;+
+; LIN50: GETLIN REQUESTED FROM TERMINAL, PREPARE AND CALL I%TIE
+;  SAVE COMPUTED BUFFER POINTER (IN R3) --TO--} V4
+;  SET UP TIRE AND CALL I%TIE
+;-
+LIN50:  MOVEM   R3,V4
+        SETZM   TIRE            ;BLT ZERO THE ENTIRE TIRE
+        MOVE    R1,[TIRE,,TIRE+1]
+        BLT     R1,TIREND       ;ZERO IT OUT
+        MOVEI   R1,^D21         ;SET UP ARGUMENT COUNT IN TIRE
+        MOVEM   R1,TIRE+0       ;...
+                                ;+1 RETURN.CODE PRESET TO 0
+        MOVE    R1,V0           ;GET ADR OF UOBCB
+        MOVEM   R1,TIRE+I%UOBCB ;SET IN TIRE
+        MOVE    R1,V1           ;GET ADR OF UNBCB
+        MOVEM   R1,TIRE+I%UNBCB ;SET IN TIRE
+
+ ; GET PROMPT ADR IF ZERO THEN PUT 0 IN TIRE ENTRIE FOR PROMPT,
+ ; ELSE MUST SET UP ROUTINE WHICH RETURNS ADDRESS OF PROMPT TIRE
+
+        HRRZ    R1,V2           ;GET ADR OF PROMPT
+        JUMPE   R1,LIN50A       ;IF PROMPT IS 0, SET UP TIRE FOR NO PROMPT
+
+ ; PROMPT WAS NON-ZERO SO SET UP PROMPT RETURN ROUTINE FOR TIRE
+
+        MOVEM   R1,UPBCB+0      ;SET PROMPT ADDRESS
+        IOR     R1,[POINT 7,]   ;MAKE BYTE POINTER
+        SETZ    R2,             ;COUNT CHARACTERS FOR TIRE
+        ILDB    R3,R1           ;GET A CHARACTER
+        SKIPE   R3              ;IS IT ZERO ?
+        AOJA    R2,.-2          ;NO, LOOP COUNTING CHARACTERS
+        MOVEM   R2,UPBCB+1      ;LENGTH OF BUFFER
+        SETZM   UPBCB+2         ;NO POSITIONS TO THE LEFT OF BUFFER
+        MOVEM   R2,UPBCB+3      ;POSITIONS TO THE RIGHT
+        SETZM   UPBCB+4         ;NO CURSOR INTO LINE IMAGE
+        MOVEI   R1,%LINADR      ;ADDRESS OF ROUTINE TO RETURN ADR OF UPBCB
+
+ ; HERE R1 IS ZERO (IF PROMPT ADR WAS 0) OR %LINADR (IF PROMPT ADR WAS #0)
+ ; PUT IN PROMPT LOCATION OF TIRE
+
+LIN50A: MOVEM   R1,TIRE+I%GETPROM ;PROMPT SET UP
+        MOVEI   R1,TABTBL       ;TAB TABLE
+        MOVEM   R1,TIRE+I%TABS  ;SET UP TAB TABLE
+        MOVEI   R1,SETALT       ;ESCAPE PROCESSING ROUTINE ADDRESS SET
+        MOVEM   R1,TIRE+I%SETALT ;SET IN TIRE
+        MOVE    R1,V8           ;CTRL Variable: Sets TIE CONTROL.CHARS.P sw
+        MOVEM   R1,TIRE+I%CHARSP ;SET IN TIRE
+        MOVEM   R1,TIRE+I%ARINGP ;Also if valid activate on control chars
+        MOVEI   R1,1            ;Set LINE.CONTINUATION.P sw
+        MOVEM   R1,TIRE+I%LCONTP ;SET IN TIRE
+        MOVEI   R1,%SETACT      ; %ACTIVATE to I%TIE
+        MOVEM   R1,TIRE+I%ACT   ; Set in TIRE
+
+ ; SAVE R17 AND CALL I%TIE
+
+LIN51:  MOVEM   R17,R17TEM      ;SAVE LINK (STACK) REGISTER
+        MOVEI   R1,TIRE         ;GET ADDRESS OF TIRE
+        PUSHJ   R17,I%TIE       ;CALL THE ROUTINE
+        MOVE    R17,R17TEM      ;RESTORE LINK REGISTER
+        MOVEM   R1,V3           ;CLOBBER PROMPT WITH RETURN FROM I%TIE
+
+; LOOK FOR RETURN FROM ^G TYPED: RETURN CODE=ACTIVATION ON RING (^O13)
+; AND ACTCHAR=7 (CONTROL-G). IF FOUND, CHANGE RETURN CODE TO NORMAL (=2)
+; SO THAT ^G ACTS THE SAME AS A CARRIAGE RETURN.
+
+        CAIE    R1,^O13         ;ACTIVATION ON BEL CONDITION? (^B OR ^G)
+        JRST    LIN50C          ;NO
+        MOVEI   R3,TIRE         ;YES, GET TIRE BASE ADDRESS
+        MOVE    R2,I%ACTCHAR(R3);GET THE CHARACTER RESPONSIBLE (^B OR ^G)
+        CAIE    R2,7            ;^G?
+        JRST    LIN50B          ;NO, MUST BE ^B ...
+        MOVEI   R1,2            ;PREPARE FOR CHANGING RETURN CODE
+        MOVEM   R1,V3           ;YES, CHANGE RETURN CODE TO "NORMAL RETURN"
+        JRST    LIN60           ;DONT ZERO OLD LINE IMAGE
+
+; AT THIS POINT, WE HAVE ACTIVATED ON A BEL CONDITION FROM A ^B
+; IN THIS CASE THE USER GETS A 'NULL LINE IMAGE' RETURNED
+; GET THE ADDRESS OF THE NBCB FROM THE TIRE AND ZERO THE
+; WORDS 2,3,4 AND THE INPUT BUFFER MUST BE ZEROED
+
+LIN50B: MOVE    R1,I%UNBCB(R3)  ;GET ADR OF NBCB
+        MOVE    R1,1(R1)        ;GET NO. CHARS MAX IN BUFFER
+        IDIVI   R1,5            ;CONVERT TO WORDS-TO-BLT
+        MOVE    R2,I%UNBCB(R3)  ;GET ADR OF NBCB
+        ADD     R1,0(R2)        ;(R1)=MAX ADR OF INPUT BUFFER
+        HRL     R3,0(R2)        ;(LH-R3)=BUFFER ADDR
+        HRR     R3,0(R2)        ;(RH-R3)=BUFFER ADDR
+        ADDI    R3,1            ;(RH-R3)=BUFFER ADDR+1
+        SETZM   @0(R2)          ;ZERO OUT FIRST WORD OF BUFFER
+        BLT     R3,0(R1)        ;AND BLT THE BUFFER CLEAN
+        SETZM   2(R2)           ;NO CHARS TO LEFT OF IMAGE
+        SETZM   3(R2)           ;NO CHARS TO RIGHT OF IMAGE
+        SETZM   4(R2)           ;NO CURSOR INTO LINE IMAGE
+        JRST    LIN60
+
+LIN50C: CAIE    R1,6            ;split line?
+        JRST    LIN50D
+        MOVE    R1,V0           ;UOBCB
+        MOVE    R0,4(R1)        ;cursor into old line
+        MOVEM   R0,2(R1)        ;becomes the start-point of the old line next time
+        JRST    LIN60
+
+LIN50D: CAIE    R1,4            ;line too long?
+        JRST    LIN50E
+        MOVE    R1,@V0          ;addr of old line
+        HRL     R1,@V1          ;addr of new line
+        MOVE    R2,V1
+        MOVE    R2,1(R2)        ;max char count
+        IDIVI   R2,5
+        SKIPN   R3
+        SUBI    R2,1            ;word count
+        ADD     R2,@V0
+        BLT     R1,(R2)         ;copy new line into old line
+        MOVE    R1,V0
+        MOVE    R2,V1
+        SETZM   2(R2)           ;start old line at start of buffer
+        MOVE    R3,3(R1)        ;max count
+        MOVEM   R3,3(R2)
+        SETZM   4(R2)           ;no cursor
+        OUTSTR [ASCIZ /Line too long. Please reenter:
+/]
+        CLRBFI
+        JRST    LIN51           ;try again
+
+LIN50E: CAIE    R1,^D9          ;escape?
+        CAIN    R1,2            ;or normal termination?
+        JRST    LIN60           ;yes, ok
+        OUTSTR [ASCIZ /Bad return code from TIE
+/]
+        JRST    LIN60           ;go make an infinite loop probably but he can
+                                ;escape out
+
+LIN60:  MOVE    R3,V1
+        MOVE    R2,3(R3)
+        CALL    MOVC,<$,LPT,$,V4>,<V5>;copy new line into LINBUF for later
+LIN65:  SETZ    R3,
+        IDPB    R3,R1
+LIN70:  MOVE    R1,V1
+        MOVE    R1,3(R1)
+        SOJN    R1,LIN205
+        MOVE    R1,LINBUF
+        LSH     R1,-^D29
+        CAIN    R1,^O046
+        SKIPN   LEVEL
+        JMP     LIN205
+LIN80:  CALL    UNSTACK
+        JMP     LIN205
+
+
+
+        ; GET LINE FROM COMMAND FILE
+        ; NOTE THAT R2 CONTAINS ADDR OF A TIE TYPE BUFFER CONTROL BLOCK WHICH WE
+        ; MAINTAIN FOR LINES FROM COMMAND FILES
+
+LIN90:  MOVE    R4,2(R2)        ; COUNT OF CHR. POSITIONS TO LEFT OF LINE IMAGE
+        MOVEM   R4,3(R2)        ; COUNT OF POSITIONS IN BUFFER TO LAST CHAR. IN LINE IMAGE
+        MOVEI   R4,2
+        MOVEM   R4,V3   ; SET UP RETURN CODE OF 2
+        MOVE    R4,LPT       ; SET UP BYTE POINTER TO LINBUF
+        MOVE    R5,LEVEL
+        MOVE    R12,IVA(R5)
+        FCB     R12
+        MOVE    R5,FCBCUR(R12)  ; R12 contains FCB address for command file
+
+LIN95:  MOVE    1,(R5)          ; CHECK FOR STICKY LINE NUMBERS
+        MOVE    0,(1)           ; GET CURRENT WORD
+        OR      0,1(1)          ; OR NEXT WORD
+        TRNN    0,1             ; IF BIT 35 ON IN EITHER
+        JRST    LIN100
+
+LIN96:  ILDBV   R6,FCBCUR(R12)  ; THEN THERE IS STIKY NUMBERS
+        JRST    LIN152          ; ERROR RETURN MEANS END OF FILE
+        CAIE    R6,^O11         ; HORIZONTAL TAB MEANS STICKY STUFF OVER
+        JRST    LIN96
+
+        ; GET ONE CHARACTER
+
+LIN100: ILDBV   R6,FCBCUR(R12)  ; V6 IN R6
+        JRST    LIN152          ; ERROR RETURN MEANS END OF FILE
+
+LIN105: CAIL    R6,^O33         ; CONTROL CHARACTER?
+        JRST    LIN120          ;  NO
+
+LIN110: CAIN    R6,^O015        ; CR MEANS END OF LINE
+        JMP     LIN155
+
+LIN115: CAIN    R6,^O11         ; HORIZONTAL TAB (CONTROL I)?
+        JRST    HRZTAB          ;  YES
+        SKIPE   V8              ; OTHER CONTROL CHARACTERS ALLOWED?
+        JRST    LIN120          ;  YES
+        SETOM   CTRLER          ;CONTROL CHARACTERS IN LINE
+        JRST    LIN100          ; IGNORE THIS CHARACTER
+
+HRZTAB: MOVEI   R6," "          ;SPACE
+        MOVE    0,3(R2)         ;CURRENT POSITION IN LINE
+        MOVEI   1,1             ;INDEX INTO TABTBL
+
+NEXTAB: CAMGE   0,TABTBL(1)
+        JRST    GOTTAB
+        ADDI    1,1             ; NEXT TAB STOP
+        CAMG    1,TABTBL        ; PAST LAST STOP (TABTBL(0)=COUNT)
+        JRST    NEXTAB          ;  NO CONTINUE
+        MOVEI   0,1             ;  YES, JUST ADD ONE SPACE
+        JRST    GOTT2
+
+GOTTAB: SUB     0,TABTBL(1)
+        MOVNS   0,0
+        SUBI    0,1
+
+GOTT2:  SOJLE   0,LIN120
+        IDPB    R6,R3           ; PUT CHAR. IN NEW LINE BUFFER
+        IDPB    R6,R4           ; PUT CHAR IN LINBUF
+        AOS     3(R2)           ; INCREMENT CHARACTER COUNT
+        JRST    GOTT2
+
+
+LIN120: MOVE    R7,3(R2)        ; # OF CHARS. SO FAR
+        CAML    R7,1(R2)        ; IF MORE THAN LENGTH OF BUFFER
+        JMP     LIN150          ;  THEN SET UP RETURN CODE 4
+
+LIN130: IDPB    R6,R3   ; PUT CHAR. IN NEW LINE BUFFER
+        IDPB    R6,R4   ; PUT CHAR. IN LINBUF (USED TO ECHO THE LINE I THINK)
+
+LIN140: AOS     3(R2)   ; INCREMENT CHARACTER COUNT
+        JMP     LIN100  ; GO DO ANOTHER CHARACTER
+
+LIN150: MOVEI   R7,4    ; OPPS, TOO MANY CHARACTERS. SET RETURN CODE TO 4
+        MOVEM   R7,V3
+        JMP     LIN100  ; GO DO ANOTHER CAHARACTER
+
+
+LIN152: SETZ    R6,     ; ILDBV ERROR MEANS END OF FILE, MARK IT SUCH WITH NULL IN R6
+
+LIN155: SETZ    R7,     ; APPEND NULL BYTE TO STRING
+        IDPB    R7,R3
+
+LIN160: MOVEM   R4,V5
+        MOVE    R7,LEVEL
+                                ; EOF? (WE CHECK FOR A NULL IN LAST CHAR. READ)
+        JUMPE   R6,LIN190       ; YES, GO CLOSE THE COMMAND FILE
+
+        ; PICKUP LINEFEED
+LIN170: ILDBV   R6,FCBCUR(R5)
+        FILERR
+
+LIN180: AOS     LNCNT(R7)
+        JMP     LIN210
+
+LIN190: CALL    CLOSEF,<$,IVA(R7)>
+LIN200: CALL    UNSTACK
+        JRST    LIN10
+
+LIN205: MOVE    R1,V1
+        MOVE    R2,3(R1)
+        PTR     R2
+        ADD     R2,(R1)
+        MOVEM   R2,V5
+
+LIN210: SETZM   R7
+        IDPB    R7,V5
+
+        ; HERE WE ECHO THE PROMPT, THE LINE, AND PUT OUT A CR
+
+LIN220: MOVE    R0,V2           ; ECHO PROMPT TO FILE
+        JUMPE   R0,LIN221
+        CALL    OUTMSG,<,2,$,V7>
+LIN221: CALL    OUTMSG,<LINBUF,2,$,V7>
+LIN230: CALL    OUTMSG,<[ASCIZ  ""],1,$,V7>
+
+LIN235: SKIPN   CTRLER
+        JRST    LIN240          ; NO CONTROL CHARACTER ERROR
+        CALL    OUTMSG,<[ASCIZ/ CONTROL CHARACTERS IN ABOVE LINE REMOVED
+/],2,$,V7>
+
+
+ ; Prepare for Escape interrupt, if return code =^D9 then INTACT(^O600000)
+LIN240: MOVE    R1,V3
+        CAIE    R1,^D9          ;Interrupt ?
+        JRST    LIN241          ;No
+        MOVE    R16,0(R17)      ;Restore the context register
+        MOVE    R15,-1(R17)
+        MOVE    R14,-2(R17)
+        HRLZI   R1,^O600000     ;Its an interrupt
+        INTACT  R1,             ;on the escape channel
+        SKIPE   [ESCCHK]        ;SEXTERNAL ESCCHK there?
+        CALL    ESCCHK          ;Call global escape checking routine
+
+LIN241: RETURN  GETLIN,<$,V3>
+
+LPT: XWD     ^O440700,LINBUF
+
+;+
+; .SKIP
+; %LINADR
+; A ROUTINE PASSED TO I%TIE, SIMPLY RETURNS IN R1 THE ADDRESS OF UPBCB
+;-
+
+%LINADR: MOVEI  R1,UPBCB        ;GET ADDRESS OF UPBCB
+        POPJ    R17,            ;RETURN
+
+;+
+; %SETACT
+; A routine which is called when CTRL=1 (control chars valid)
+;  If the user types ^G or ^B then GETLIN will
+;  return with a different end
+; This routine gets a tire address in R1 and it checks to see why
+; we activated. ^B or ^G return 0 any other return true
+;-
+%SETACT: MOVE   R2,I%ACTCHAR(R1)        ;Get activation character
+        MOVEI   R1,1                    ;Prepare for true answer (CONTINUE input)
+        CAIE    R2,^O7                  ;Control-g ?
+        CAIN    R2,^O2                  ;or control-b ?
+        SETZ    R1,                     ;Return false (ABORT, done input)
+        POPJ    R17,                    ;Return****
+        SUBTTL  MOVC
+        DCL     MOVC
+
+        JUMPLE  R2,MOVC3
+MOVC2:  ILDB    R3,R1
+        IDPB    R3,R0
+        SOJG    R2,MOVC2
+MOVC3:  MOVE    R1,R0
+        RETURN  MOVC
+
+        LIT
+
+        RELOC
+
+R17TEM: BLOCK   1               ;cell to save R17 across TIE call
+
+
+        END
+   lT9
