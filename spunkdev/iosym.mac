@@ -1,0 +1,207 @@
+;***********************************************************
+;               IOSYM.MAC   I/O SYMBOL DEFINITIONS
+;***********************************************************
+; I/O SYMBOL DEFINITIONS
+
+        RADIX   8
+
+A0==    R1      ; REGISTER ASSIGNMENTS
+A1==    R2
+A2==    R3
+A3==    R4
+A4==    R5
+; NOTE: OCB==   11
+;       FMTREG==12
+;       FCBREG==7
+
+;STAGE is a state variable used to indicate the stage of parsing of a field.
+;It is initialized to -1.  Values:
+
+;0      $ * + - , A C D E H J K O P Q S U V W X Y Z [ \    at beginning of field
+;1      Static seen
+;2      Floating field established (or Q or Z encountered)
+;3      D or Y encountered in IP (from stage 0 1 or 2)
+;4      Decimal point encountered (no D or Y in IP)
+;5      Decimal point encountered with D or Y in IP
+;6      Q or Z encountered if FP
+;7      E or K encountered, perhaps followed by statics
+;8      Floating field established in EP (or Q or Z encountered)
+;9      D or Y encuntered in EP
+;10     Static encountered after floating field established
+;11     A X U C J       (from stage 0 2 or 3)
+;12     H O W           (from stage 0)
+;13     Decimal point begins field
+;14     % IP
+;15     % FP
+;16     single #
+;17     # IP
+;18     # FP
+;19     R field
+;20     Free Form / Literal
+;21     B field
+;22     / field
+;23
+;24     End of Field
+
+STAGE=  R13
+CONT==  R6
+
+
+        ARYMSK== ^O2000 ; MASK BIT INDICATING AN ARRAY
+        FMTEST== ^O3    ; MASK TO TEST FOR FORMATTED I/O IN SET UP
+        IOBIT==  ^O20           ; MASK TO DISTINGUISH I OR O IN SET UP
+        LOG==    0      ; LOGICAL VARIABLE TYPE
+        INT==    1      ; INTEGER
+        REAL==   2      ; REAL
+        DBL==    3      ; DOUBLE PRECISION
+        CPLX==   4
+        STRING==   5
+
+
+        ICBUF=    R5    ; INTEGER CONVERSION BUFFER ( SPECIAL RADIX I/O)
+
+
+
+        PFLG1== ^B100000        ; Leading static P
+        PFLG2== ^B010000        ; Floating IP P field
+        PFLG3== ^B001000        ; P field continues into FP
+        PFLG4== ^B000100        ; Leading static P in EP
+        PFLG5== ^B000010        ; Floating EP P field
+        PFLG6== ^B000001        ; Terminating static P
+
+;***********************************************************
+        SUBTTL  I/O MACROS
+;***********************************************************
+
+; OPDEFS FOR OPERATION CONTROL BLOCKS
+; PREFIX 'O' = OCB
+ 
+        OPDEF   OMOVEI  [MOVEI  0,0(OCB)]
+        OPDEF   OMOVE    [MOVE   0,0(OCB)]
+        OPDEF   OMOVEM  [MOVEM  0,0(OCB)]
+        OPDEF   OSETOM  [SETOM  0,0(OCB)]
+        OPDEF   OSETOB  [SETOB  0,0(OCB)]
+        OPDEF   OSETZM  [SETZM  0,0(OCB)]
+        OPDEF   OAOS    [AOS    0,0(OCB)]
+        OPDEF   OSKIPE  [SKIPE  0,0(OCB)]
+        OPDEF   OSKIPN  [SKIPN  0,0(OCB)]
+        OPDEF   OSKIPG  [SKIPG  0,0(OCB)]
+        OPDEF   OSKIPL  [SKIPL  0,0(OCB)]
+        OPDEF   OSKPGE  [SKIPGE 0,0(OCB)]
+        OPDEF   OSKPLE  [SKIPLE 0,0(OCB)]
+        OPDEF   OSOS    [SOS    0,0(OCB)]
+        OPDEF   OSOSLE  [SOSLE  0,0(OCB)]
+        OPDEF   OCAME   [CAME   0,0(OCB)]
+        OPDEF   OCAML   [CAML   0,0(OCB)]
+        OPDEF   OCAMLE  [CAMLE  0,0(OCB)]
+        OPDEF   OCAMG   [CAMG   0,0(OCB)]
+        OPDEF   OCAMGE  [CAMGE  0,0(OCB)]
+        OPDEF   OADD    [ADD    0,0(OCB)]
+        OPDEF   OSUB    [SUB    0,0(OCB)]
+        OPDEF   OCAMN   [CAMN   0,0(OCB)]
+        OPDEF   OADDM   [ADDM   0,0(OCB)]
+        OPDEF   OORM    [ORM    0,0(OCB)]
+        OPDEF   OANCAM  [ANDCAM 0,0(OCB)]
+        OPDEF   OEXCH   [EXCH   0,0(OCB)]
+        OPDEF   ODMOVE  [DMOVE  0,0(OCB)]
+        OPDEF   ODMVEM  [DMOVEM  0,0(OCB)]
+        OPDEF   OHRR    [HRR    0,0(OCB)]
+        OPDEF   OHRRZ   [HRRZ   0,0(OCB)]
+        OPDEF   OHLRZ   [HLRZ   0,0(OCB)]
+        OPDEF   OHLLM   [HLLM   0,0(OCB)]
+        OPDEF   OHRLM   [HRLM   0,0(OCB)]
+        OPDEF   OHRRM   [HRRM   0,0(OCB)]
+
+        DEFINE   IMOVEM(REG,DISP1,DISP2,SCREG<R6>); PERFORM
+;                       (INDEXED) MOVEM REG,[DISP1+DISP2(OCB)](OCB)
+        <
+           HRRZ   SCREG,OCB
+           ADD    SCREG,DISP2(OCB)
+           MOVEM  REG,DISP1(SCREG)>
+
+
+        DEFINE  IGC(DISP1,REG<0>); INCREMENT BYTE
+;                       POINTER AND GET CHARACTER
+        <
+           MOVE    R0,DISP1(REG)
+           ILDB    A0,DISP1(REG)
+           SKIPN   A0
+           MOVEM   R0,DISP1(REG);; DON'T INCREMENT POINTER>
+
+
+
+        DEFINE  ISOS(REG<0>,DISP1,DISP2,SCREG<R6>); PERFORM
+;                       (INDEXED) SOS   ,[DISP1+DISP2(OCB)](OCB)
+        <
+           HRRZ   SCREG,OCB
+           ADD    SCREG,DISP2(OCB)
+           SOS    REG,DISP1(SCREG)>
+
+
+        DEFINE  IMOVE  (REG,DISP1,DISP2,SCREG<R6>); PERFORM
+;                       (INDEXED) MOVE  REG,[DISP1+DISP2(OCB)](OCB)
+        <
+           HRRZ   SCREG,OCB
+           ADD    SCREG,DISP2(OCB)
+           MOVE   REG,DISP1(SCREG)>
+        SUBTTL  FORM CHARACTER SYMBOLS
+
+; The following codes for the format characters are the values contained
+; in the variable I, which is a register. The I values are taken from the
+; table IOBTBL in IOFSUB.
+
+i==     r10
+
+;Negative values for I are set as follows:
+;
+;-1     digit
+;-2     , B \
+;-3     " '
+;-4     [
+;-5     ]
+;-6     ( ) / space  {field terminators}
+
+
+
+;The "floating" format characters, FRM.$ through FRM.P:
+
+FRM.$== ^D1     ; $
+FRM.ST==^D2     ; *
+FRM.S== ^D3     ; S
+FRM.PL==^D4     ; +
+FRM.MI==^D5     ; -
+FRM.P== ^D6     ; P
+
+FRM.D== ^D7
+
+; Forms Y, Q and Z are sometimes called "conditional":
+
+FRM.Y== ^D8
+FRM.Q== ^D9
+FRM.Z== ^D10
+
+; Decimal point form characters:
+
+FRM..== ^D11
+FRM.V== ^D12
+
+; Exponent field specifiers:
+
+FRM.E== ^D13
+FRM.K== ^D14
+
+; String field characters:
+
+FRM.A== ^D15
+FRM.X== ^D16
+FRM.U== ^D17
+FRM.C== ^D18
+FRM.J== ^D19
+
+; Special radix form characters:
+
+FRM.H== ^D20
+FRM.O== ^D21
+FRM.W== ^D22
+
+EOFLD== ^O377   ; This is the value set to I when end of field is encountered
