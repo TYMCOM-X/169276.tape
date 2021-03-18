@@ -1,0 +1,23 @@
+00:00:12 S 06-Dec-86
+03:00:12 S 06-Dec-86
+04:00:00 S 06-Dec-86 Signing off.
+07:12:34 S ** 06-Dec-86 XEXEC %1(205) in frame 4 ** user OPER **
+07:12:34 S -R- run #1 job 1 Proc-Run <1>
+07:12:34 S -S- run #1 job 1 Req #166  Running DSK:(WRS)FREE.SAV
+07:12:40 S -S- stream #1 Req #171 DSK:(JMS)FNDBAD.LOG=DSK:(JMS)FNDBAD.CTL
+07:12:48 P Waiting for interlock
+07:12:49 S Given interlock
+07:12:50 P Got interlock
+07:12:50 P EXECX Job Processor %1(201) starting in frame 6
+07:12:50 S Starting job processor in frame 6
+07:12:51 P Stream #1 Req #171 DSK:(JMS)FNDBAD.LOG=DSK:(JMS)FNDBAD.CTL
+07:13:49 S 06-Dec-86
+07:14:50 P Stream #1 Req #171 * completed *
+07:14:54 S -R- stream #1 Done-End <0>
+07:30:49 P Signing off.
+09:00:49 S 06-Dec-86
+12:00:54 S 06-Dec-86
+15:00:55 S 06-Dec-86
+18:00:55 S 06-Dec-86
+21:00:55 S 06-Dec-86
+00:00:55 S 07-Dec-86
