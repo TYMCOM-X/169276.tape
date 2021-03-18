@@ -1,0 +1,35 @@
+TITLE  .CABS   COMPLEX ABSOLUTE VALUE
+;       ADAPTED FROM SFO BY J.HOUHA
+
+        TWOSEG
+        RELOC   ^O400000
+
+; /A+Bi/ = SQRT(A^2 + B^2)
+;
+; WE DO SQRT(A^2+B^2) WITH B*SQRT((A/B)^2+1) WHERE A<B
+;  IF (A/B)^2 UNDERFLOWS THEN RETURN B
+
+;       TO USE     PUT COMPLEX ARG IN ACS 1 AND 2
+;                    PUSHJ 17,.CABS
+;                  RESULT IN AC 1
+
+        EXTERN  .SQRT
+        ENTRY   .CABS
+
+.CABS:  MOVMS   1               ;GET MAGNITUDE OF REAL PART
+        MOVMS   2               ;GET MAGNITUDE OF IMAGINARY PART
+        CAML    1,2             ;PUT THE LITTLE ONE IN A
+        EXCH    1,2             ; AND THE BIG ONE IN B
+        FDVR    1,2             ;A/B
+        JFOV    DONE            ;IF UNDERFLOW, EXIT BY WAY OF OVTRAP
+        FMPR    1,1             ;(A/B)^2
+        JFOV    DONE            ;IF UNDERFLOW, EXIT BY WAY OF OVTRAP
+        FADRI   1,201400        ;(A/B)^2+1
+        MOVEM   2,4
+        CALL    .SQRT,<,$,1,,2> ;GET SQRT 
+        FMPR    1,4             ;B*SQRT((A/B)^2+1)
+        POPJ    17,
+DONE:   MOVE    1,2
+        POPJ    17,             ;RETURN Y ON UNDERFLOW
+
+        END
