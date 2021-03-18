@@ -1,0 +1,6 @@
+
+! Defines module statement to be a find statement - will be unnecessary
+! when the module statement works.
+
+def module as find
+
