@@ -1,0 +1,183 @@
+TITLE   FFID
+
+
+        TWOSEG
+        RELOC   400000 
+
+; Externals
+        EXTERN  CVTERR, DATPTR, IDCNVN, IDGCHR, IDGLIN, IWC, LNPTR
+        EXTERN  SAVREG, STEPCR, STRDEL, STRSTR, UTPTR, ENDFIL,VLNPTR
+
+; Entry points
+        ENTRY   FFID
+
+;
+;
+;************************************************************
+        SUBTTL  FFID  CHART R75
+        DCL     FFID
+;************************************************************
+;
+        HRRZ    R6,IOTYP(OCB)           ;R75.1-.5
+        CAIE    R6,STRING
+        JRST    FFINUM
+FFISTR: PUSHJ   P,IDSMSK                ;SET MASK
+GETMOR: PUSHJ   P,CFD                   ;CHECK FOR DELIMITER
+        JUMPE   A0,DONE
+        CALL    IWC,<UTPTR>
+        PUSHJ   P,IDGCHR
+        JRST    GETMOR
+DONE:   CALL    IWC,<UTPTR>
+        JRST    STRSTR
+
+FFINUM:
+        TLNE    OCB,FCBVAL              ; SKIP IF NOT VAL FUNCTION
+        JRST    FFIN09                  ; "INPUT" ALREADY DONE
+                                        ;R75.8.1 SKTRSH
+        SETZ    A1,                     ;R75.8.1.1
+SKTR02:                                 ;R75.8.1.2
+        CALL    IDGCHR                  ;R75.8.1.3  R78
+        MOVE    R6,TERFLG(FCBREG)       ;R75.8.1.4
+        JRST    @.+1(R6)
+        SKTR08                          ; (TERFLG=0)
+        SKTR09
+        SKTR09
+        SKTR09
+        SKTR06
+        SKTR07
+SKTR06: CALL    IDGLIN                  ;R75.8.1.5-.6  R79
+        JRST    SKTR09
+SKTR07: CALL    ENDFIL                  ;R75.8.1.7
+;
+SKTR08: MOVEI   A1,1                    ;R75.8.1.8
+SKTR09: JUMPE   A1,SKTR02               ;R75.8.1.9
+                                        ;       END SKTRSH
+;
+                                        ;R75.8.2-.6     IDRFIL
+        MOVE    A3,A0                   ;R75.8.6.1
+        SETZ    A4,
+                                        ;R75.8.6.2
+        MOVE    A0,A3                   ;R75.8.6.3
+        CALL    IWC,<UTPTR>
+IDRF04:                                 ;R75.8.6.4
+        CALL    IDGCHR                  ;R75.8.6.5  R78
+        SKIPN   ,TERFLG(FCBREG)         ;R75.8.6.6
+        JRST    IDRF08
+        SETZ    A0,                     ;R75.8.6.7
+        MOVEI   A4,1
+IDRF08: PUSH    P,R0            ; old byte ointer from IDGCHR
+        CALL    IWC,<UTPTR>             ;R75.8.6.8
+        POP     P,R0
+        JUMPE   A4,IDRF04               ;R75.8.6.9
+        PUSHJ   P,BACKUP                ;       END IDRFIL
+;
+FFIN09: CALL    IDCNVN                 ; CONVERT TO NUMERIC & STORE R87
+;
+FFID$$: RETURN  FFID
+
+CFD:    JUMPE   A0,CFD06                ;CHECK FOR DELIMITER
+        CAIN    A0,54                   ; (COMMA)
+        JRST    CFD03
+        CAME    A0,STRDEL
+        POPJ    P,
+        JRST    GOTONE
+CFD03:  MOVE    R6,STRDEL
+        CAIE    R6,400
+        POPJ    P,
+OUT:    PUSHJ   P,BACKUP
+GOTONE: SETZ    A0,
+        POPJ    P,
+
+CFD06:  MOVE    R6,STRDEL
+        CAIN    R6,400
+        JRST    OUT
+        CALL    CVTERR,<RSJMSG+^D6>
+
+                                        ;R75.7.1  IDSMSK
+IDSMSK: SETZ    A1,                     ;SET MASK
+IDSM02:                                 ;R75.7.1.2
+        CALL    IDGCHR                  ;R75.7.1.3  R78
+        JUMPE   A0,IDSM05               ;R75.7.1.4
+        CAIE    A0,^O40
+        CAIN    A0,^O54                 ;  (COMMA)
+        JRST    IDSM14
+        CAIE    A0,^O42                 ;  (QUOTE)
+        CAIN    A0,^O47                 ;  (PRIME)
+        JRST    IDSM08
+        JRST    IDSM12
+IDSM05: MOVE    R6,TERFLG(FCBREG)       ;R75.7.1.5
+        CAIN    R6,5
+        JRST    IDSM07
+        TLNN    OCB,FCBTTY!FCBVAL       ;R75.7.1.5A  (SKIP IF TERMINAL)
+        JRST    IDSM14
+        CALL    IDGLIN                  ;R75.7.1.6  R79
+        JRST    IDSM14
+IDSM07: CALL    ENDFIL                  ;R75.7.1.7
+;
+IDSM08: MOVEM   A0,STRDEL               ;R75.7.1.8
+        CALL    IDGCHR                  ;R75.7.1.9  R78
+        MOVEI   A1,1                    ;R75.7.1.10
+        JRST    IDSM14
+IDSM12: MOVEI   R6,^O400                ;R75.7.1.11-.12
+        MOVEM   R6,STRDEL
+        MOVEI   A1,1                    ;R75.7.1.13
+IDSM14: JUMPE   A1,IDSM02               ;R75.7.1.14
+        POPJ    P,
+
+BACKUP: SKIPG   FMTFLG(OCB)
+        JRST    BK$$$	; True free form -- don't back up
+        MOVE    R6,TERFLG(FCBREG)
+        CAIN    R6,3
+        JRST    BKCR
+        CAIE    R6,1
+        CAIN    R6,2
+        JRST    BKBK1
+BK$$:   SETZM   TERFLG(FCBREG)
+BK$$$:	POPJ    P,
+
+BKCR:   TLNE    OCB,FCBTTY!FCBVAL!FCBRED
+        JRST    BK$$
+        PUSH    P,R0
+        HRREI   R0,-2
+        PUSHJ   P,BACKU1
+        POP     P,R0
+        INCR    A0,FCBCUR(FCBREG)
+        JFCL
+        CAIE    A0,15
+        JRST    BK$$
+        PUSH    P,R0
+        HRREI   R0,-1
+        PUSHJ   P,BACKU1
+        POP     P,R0
+        JRST    BK$$
+
+BKBK1:  TLNN    OCB,FCBTTY
+        JRST    BKBK2
+        MOVEM   R0,LNPTR
+        JRST    BK$$
+BKBK2:  TLNN    OCB,FCBVAL
+        JRST    BKBK3
+        MOVEM   R0,VLNPTR
+        JRST    BK$$
+BKBK3:  TLNN    OCB,FCBRED
+        JRST    BKBK4
+        MOVEM   R0,DATPTR
+        JRST    BK$$
+BKBK4:  PUSH    P,R0
+        HRREI   R0,-1
+        PUSHJ   P,BACKU1
+        POP     P,R0
+        JRST    BK$$
+
+BACKU1: HRRZI   R6,SAVREG
+        BLT     R6,SAVREG+R13
+        MOVE    R1,FCBCUR(FCBREG)
+        SETZ    R2,
+        PUSHJ   P,STEPCR
+        MOVEM   R1,FCBCUR(FCBREG)
+        HRLZI   R13,SAVREG
+        BLT     R13,R13
+        POPJ    P,
+
+
+        END
