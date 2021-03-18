@@ -1,0 +1,844 @@
+        title   ufdscn
+        twoseg
+        radix   8
+        reloc   400000
+;
+;       coded 4/77 by John Stallings, himself
+;
+        subttl  fd.over
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;+
+;.upper case
+;.spacing 1
+;.paper size 54,73
+;.left margin 10
+;.right margin 73
+;.paragraph 0
+;.number 1
+;.first title
+;.nojustify
+;       Overview of UFD SCAN package
+;.s
+; This set of routines is designed to scan a specified UFD (User File Directory) and return all
+; occurances of a specified file name and extension, and optionally
+; the file's size, creation date, license, and status. The file name
+; and extension may include "wild carding" using "_#" for the character
+; wild card, and "*" for the name or extension wild card.
+; The UFD is not scanned in any particular order.
+;
+;.nf.s
+; The procedures are:
+;
+;   FD.OPEN  - Open a specified UFD.
+;   FD.WILD  - Specify file name and extension with wild carding.
+;   FD.EXACT - Specify file name and extension without wild carding.
+;   FD.STEP  - Advance to next file name.
+;   FD.QUERY - Did the last call to FD.STEP find another file name?
+;   FD.NAME  - Return current file name.
+;   FD.EXT   - Return current file extension.
+;   FD.SIZE  - Return current file size.
+;   FD.LIC   - Return current file license.
+;   FD.DATE  - Return current file date and time.
+;   FD.STAT  - Return current file status.
+;   FD.SET   - Set buffer size and enable optional file values.
+;   FD.CLOSE - Close current UFD.
+;.fill.s
+; All of the entry points are callable as EXTERNAL TBA routines/functions.
+;.s.tp 30
+; The following artificial example may provide some insights:
+;.s.nf
+;   100 print "Directory: ":
+;   110 input in form "R": dir$
+;   120 if fd.open(dir$) then
+;   130   print "File name: ":
+;   140   input in form "R": fnam$
+;   150   if fnam$ _# "" then
+;   160     print "File extension: ":
+;   170     input in form "R": fext$
+;   180     call fd.wild(fnam$,fext$)
+;   190     if fd.step then
+;   200       tnam$ = fd.name
+;   210       text$ = fd.ext
+;   220       tsize = fd.size
+;   230       tlic = fd.lic
+;   240       tdate = fd.date
+;   250       tstat = fd.stat
+;                 .
+;                 .
+;                 .
+;                 .
+;   390       go to 190
+;   400     endif
+;   410     go to 130
+;   420   endif
+;   430   call fd.close
+;   440 endif
+;   450 go to 100
+;.fill
+;-
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;
+;       compile string: ufdscn = dcld + pagd + errnum + ufdscn(,p)
+;
+        subttl  fd.vars
+        reloc
+got.one:        0       ; -1 = we currently have a file name to give
+whr.base:       0       ; offset to current entry
+x.name:         0       ; offset to file name
+x.ext:          0       ; offset to ext
+x.size:         0       ; offset to size
+x.lic:          0       ; offset to license
+x.date:         0       ; offset to date
+x.stat:         0       ; offset to status
+
+buf.dsc:        0       ; buffer descriptor (DSA pointer)
+
+last.size:      0       ; last buffer size specified
+curr.size:      0       ; current buffer size
+last.ctrl:      0       ; last control word specified
+ctrl.set:       0       ; 0 = last.ctrl not set
+
+ufd.vz:         0       ; virtual address zero. 0 = no dir open
+ufd.chn:        0       ; channel number for handing chanio
+scan.set:       0       ; -1 = we have a file name for scanning
+buf.inc:        0       ; increment to next buffer entry
+buf.end:        0       ; offset of next word past file name buffer
+
+arg.blk:  block  8      ; argument block for handing chanio
+  bfadr==arg.blk        ; file name buffer length,, file name buffer address
+  fnag==arg.blk+1       ; file name desired
+  extag==arg.blk+2      ; extension desired
+  ctrlag==arg.blk+3     ; control bits
+  mntr==arg.blk+4       ; monitor word
+  stfn==arg.blk+5       ; starting file name for continuing scan
+  stext==arg.blk+6      ; starting extension for continuing scan
+  buf.cnt==arg.blk+7    ; count of items returned
+        reloc
+        subttl  fd.open
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;+
+;.page;.NF;.s;FD.OPEN                                 SUPPORTED  
+; -------                            Beginning with Ver 2.3
+;.s;Form of DEF:                           
+;.s.i+4;DEF LOGICAL EXTERNAL FD.OPEN(STRING UFD.NAME)
+;.s;Arguments:
+;.s.lm+4;UFD.NAME is the name of the directory (username) to scan.
+;If it is null then the current directory is specified
+;(the directory GFD'ed to).
+;.x username
+;.x <gfd
+;.x file >directory
+;.x error condition
+;.i-4.s;Results:
+;.f;.s;FD.OPEN returns true if the directory was successfully opened
+;and false if the username is too long.
+;Any other error will cause a FILE error condition to occur on unit -9
+;(which can be trapped with an ON statement).
+;FD.OPEN prepares a UFD  for scanning, and enables
+;the routines FD.STEP, FD.QUERY, FD.NAME, FD.EXT, FD.SIZE, FD.LIC, FD.DATE
+;and FD.STAT (they return null values (false, zero, or 
+;null) until FD.OPEN has been successfully called).
+;.x <ON condition statement
+;.x file >unit number -9
+;.lm-4
+;-
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+
+        tbadcl  fd.open,<<ufd.name,2>>,<<dir.name,sxsiz>,<t.name,2>>
+n.len==2        ; length of string
+in.ptr==3       ; input byte pointer
+out.ptr==4      ; output byte pointer
+chr==5          ; for holding and mucking with characters
+
+        skipe   ufd.vz                  ; close previous dir?
+        jsp     1,fd.close
+
+        setzm   dir.name                ; zero name before we build it
+        movei   r0,1+dir.name
+        hrli    r0,dir.name
+        blt     r0,sxsiz-1+dir.name
+
+        hlrz    n.len,ufd.name+1        ; Is the string NULL?
+        jumpn   n.len,fd.op2
+
+        hrroi   r0,2                    ; set file name to GFD PPN
+        gettab  r0,
+        skip
+        movem   r0,sxnam+dir.name
+        jrst    fd.op5
+
+fd.op2: skipl   n.len                   ; valid string length?
+        caile   n.len,^d12
+        jrst    fd.op4
+
+        hrrz    in.ptr,ufd.name         ; build input pointer for dir name
+        hrli    in.ptr,(point 7,)
+        movei   out.ptr,t.name          ; build output pointer
+        movem   out.ptr,sxnam+dir.name  ; point file name to dir name
+        hrli    out.ptr,(point 6,)
+
+fd.op3: ildb    chr,in.ptr              ; get next char
+        caig    chr,"z"                 ; convert lower to upper
+        caige   chr,"a"
+        jrst    .+2
+        subi    chr,"a"-"A"
+        subi    chr,"A"-'A'             ; convert to 6 bit
+        idpb    chr,out.ptr
+        sojg    n.len,fd.op3
+        jrst    fd.op5
+
+fd.op4: setz    r0,
+        jrst    fd.o$$
+
+fd.op5: hrlzi   r0,'UFD'                ; set EXT
+        movem   r0,sxext+dir.name
+        movem   r0,sxun+dir.name        ; set user name
+
+        open    dir.name,mscfil,read,,<ret.zero,messages>
+
+        movem   r2,ufd.vz               ; save virtual zero for closing..
+        lsh     r2,-chpos
+        hrli    r2,^o33                 ; chanio function argument
+        movem   r2,ufd.chn              ; save channel number
+
+        movei   r0,1                    ; return TRUE
+
+fd.o$$: push    p,r0                    ; save return value
+        movei   r2,ufd.name             ; release string
+        call    rxpss##
+        pop     p,r0
+        tbaret
+        subttl  fd.close
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;+
+;.page;.NF;
+;.x file <i/o >scanning file directory
+;.S;FD.CLOSE                                  SUPPORTED 
+; --------                           Beginning with Ver 2.3
+;.s;Form of DEF:                           
+;.s.i+4;DEF EXTERNAL FD.CLOSE
+;.s;Arguments:
+;.s.i+4;None.
+;.s;Results:
+;.f;.s.lm+4;If a file directory has been successfully opened by FD.OPEN then
+;it is closed and all internal buffers are released. The routines
+;FD.STEP, FD.QUERY, FD.NAME, FD.EXT, FD.SIZE, FD.LIC, FD.DATE and FD.STAT
+;are disabled (will return null values) until FD.OPEN is again
+;successfully called.
+;.lm-4
+;-
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+
+        tbadcl  fd.close
+
+        skipn   ufd.vz                  ; do we have n opened channel?
+        jrst    fd.c$$
+
+        call    closef##,<$,ufd.vz>     ; close it
+        call    clr.buf                 ; release buffer
+
+        setzm   ufd.vz                  ; zero channel number
+
+fd.c$$: tbaret
+
+
+
+;
+;       clr.buf - local subroutine to release file name buffer
+;
+        dclne   clr.buf
+        skipe   r1,buf.dsc
+        call    relsp##
+        setzm   buf.dsc
+        return  clr.buf
+        subttl  fd.step
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;+
+;.page;.NF;
+;.x file <i/o >scanning file directory
+;.S;FD.STEP                               SUPPORTED
+; -------                           Beginning with Ver 2.3
+;.s;Form of DEF:
+;.s.i+4;DEF LOGICAL EXTERNAL FD.STEP
+;.s;Arguments:
+;.s.i+4;None.
+;.s;Results:
+;.f;.s.lm+4;FD.STEP advances the file name scan to the
+;next specified file name and extension, if any.
+;Note that a call to FD.WILD or FD.EXACT does NOT locate the first match;
+;a call to FD.STEP must be made to do that.
+;FD.STEP will return true if another file name is found that matches the
+;name given to FD.WILD or FD.EXACT, otherwise it will return false.
+;.x <fd.wild
+;.x <fd.exact
+;.lm-4
+;-
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+
+        tbadcl  fd.step
+
+        setzm   got.one                 ; we no longer have one
+
+        skipe   ufd.vz                  ; has fd.open been called?
+        skipn   scan.set                ; has scan been called?
+        jrst    fd.st3
+
+        move    r0,whr.base             ; more in this buffer?
+        add     r0,buf.inc
+        movem   r0,whr.base
+        camge   r0,buf.end
+        jrst    fd.st2
+
+        setzm   buf.cnt                 ; get another buffer full
+        movn    r0,curr.size
+        hrl     r0,r0
+        hrr     r0,buf.dsc
+        movem   r0,arg.blk
+        move    r0,ufd.chn
+        chanio  r0,arg.blk
+        jrst    fd.st3                  ; error....
+
+        move    r0,buf.cnt
+        jumpe   r0,fd.st3               ; did we get any??
+        imul    r0,buf.inc
+        movem   r0,buf.end
+
+        setzm   whr.base                ; set base offset to start of buffer
+
+fd.st2: setom   got.one                 ; we have one...
+
+fd.st3: movn    r0,got.one
+        tbaret
+        subttl  fd.scan - contains fd.exact and fd.wild
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;+
+;.page;.NF;
+;.x file <i/o >scanning file directory
+;.S;FD.EXACT                                SUPPORTED
+; --------                         Beginning with Ver 2.3
+;.s;Form of DEF:
+;.s.i+4;DEF EXTERNAL FD.EXACT(STRING (FILENAME, EXTENSION))
+;.x file >name
+;.x file >extension
+;.s;Arguments:
+;.f.s.lm+4;FILENAME is the file name. It will be truncated to six
+;characters. EXTENSION is the extension. It will be truncated
+;to three characters.
+;.s.i-4;Results:
+;.f;.s;FD.EXACT specifies a file name and extension to be searched for
+;within the UFD. Special characters within the file name or extension
+;are taken literally so that non-standard file names can be found.
+;FD.EXACT does not find the file; FD.STEP must be used for that purpose.
+;.x <fd.step
+;.lm-4
+;-
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;+
+;.PAGE;.NF;
+;.x file <i/o >scanning file directory
+;.s;FD.WILD                                SUPPORTED
+; -------                          Beginning with Ver 2.3
+;.s;Form of DEF:
+;.s.i+4;DEF EXTERNAL FD.WILD(STRING (FILENAME,EXTENSION))
+;.S;Arguments:
+;.F;.s;.lm+4;FILENAME is the file name. It will be truncated to six characters.
+;EXTENSION is the extension. It will be truncated to three characters.
+;.s.i-4;Results:
+;.f;.s;FD.WILD specifies a file name and extension to be searched for within
+;the UFD. The wild card characters "_#" and "*" will match any character
+;and any file name or extension, respectively.
+;FD.WILD does not find the first match on the specified name; FD.STEP
+;.x wild carding
+;.x file >name
+;.x file >extension
+;.x <fd.step
+;must be used for that purpose.
+;.lm-4
+;-
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+
+        tbadcl  fd.wild,<<sc.name,2>,<sc.ext,2>>,wild
+        setom   wild
+
+        dclalt  fd.exact;               alternate entry...
+        setzm   wild
+        endalt  fd.exact
+
+        call    scan1,<sc.name,fnag,6>
+        call    scan1,<sc.ext,extag,3>
+
+        move    r0,last.ctrl            ; set control word
+        skipn   ctrl.set
+        hrlzi   r0,^o360000             ; default...
+        skipn   wild
+        tlo     r0,^o400000
+        movem   r0,ctrlag
+
+        move    r0,last.size            ; do we need a new buffer?
+        camn    r0,curr.size
+        skipn   buf.dsc
+        jrst    .+2
+        jrst    fd.sc1
+
+        call    clr.buf                 ; release any old buffers
+        move    r0,last.size            ; grab new buffer
+        caige   r0,2
+        movei   r0,^d100
+        movem   r0,curr.size
+        movem   r0,last.size
+        call    allsp##,<,buf.dsc,0>
+fd.sc1:
+
+        setzm   mntr                    ; zero monitor state variables
+        setzm   stfn
+        setzm   stext
+
+        setzm   x.name                  ; set offsets
+        movei   r1,1
+        movem   r1,x.ext
+
+        call    fixup,<x.size,$,ctrlag,1,2>
+        call    fixup,<x.lic>
+        call    fixup,<x.date>
+        call    fixup,<x.stat>
+        movem   r3,buf.inc              ; set buf.inc
+
+        setzm   whr.base
+        setom   buf.end
+        setom   scan.set
+
+        movei   r2,sc.name
+        call    rxpss##
+        movei   r2,sc.ext
+        call    rxpss##
+
+        tbaret
+
+
+
+
+;
+;       fixup - local subroutine...
+;
+;       inputs:
+;         r0 - address of optional value offset word
+;         r1 - part of CTRLAG. BIT 1 refers to this optional value
+;         r2 - offset for previous value
+;         r3 - total entry length
+;
+        dclne   fixup
+        lsh     r1,1                    ; align next option bit
+        jumpl   r1,yes
+
+        setom   @r0                     ; flag it as "NO option specified"
+        jrst    fixup$
+
+yes:    addi    r2,1                    ; calc current offset
+        movem   r2,@r0                  ; stuff it in offset word
+        addi    r3,1                    ; increment total entry size
+
+fixup$: return  fixup
+
+
+
+;
+;       scan1 - local subroutine to convert 7 bit file name or extension
+;               to 6 bit.
+;
+;       inputs:
+;         r0 - address of source string descriptor
+;         r1 - address to put 6 bit string
+;         r2 - max chars to move
+;
+        dclne   scan1,<from,to,maxc>
+in.ptr==1
+out.ptr==2
+chr==3
+cnt==4
+
+        move    in.ptr,from             ; pick up string descriptor address
+        hlrz    cnt,1(in.ptr)           ; get source string length
+        camle   cnt,maxc                ; cnt = min(maxc,source length)
+        move    cnt,maxc
+
+        hrrz    in.ptr,(in.ptr)         ; build source byte pointer
+        hrli    in.ptr,(point 7,)
+
+        move    out.ptr,to              ; build output byte pointer
+        setzm   0(out.ptr)
+        hrli    out.ptr,(point 6,)
+
+;
+; move chars
+;
+scloop: sojl    cnt,scend
+        ildb    chr,in.ptr
+        caig    chr,"z"                 ; convert lower to upper
+        caige   chr,"a"
+        jrst    .+2
+        subi    chr,"a"-"A"
+        subi    chr,"A"-'A'             ; convert 7 bit to 6 bit
+        idpb    chr,out.ptr
+        jrst    scloop
+scend:
+
+        return  scan1
+
+        subttl  fd.query
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;+
+;.nf;.page
+;.x file <i/o >scanning file directory
+;.S;FD.QUERY                            SUPPORTED
+; --------                        Beginning with Ver 2.3
+;.s;Form of DEF:
+;.s.i+4;DEF LOGICAL EXTERNAL FD.QUERY
+;.s;Arguments:
+;.s.i+4;None.
+;.s;Results:
+;.f;.s.lm+4;FD.QUERY returns the value returned by the last call to FD.STEP
+;(or false if no call to FD.STEP has been made since the last
+;successful call to FD.OPEN).
+;Thus, FD.QUERY will return true if there is a match and false if not.
+;.x <fd.step
+;.s.i-4;Use:
+;.s;FD.QUERY is useful when the programmer wants
+;to know if file information is available without advancing to the next match.
+;.lm-4
+;-
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+
+        tbadcl  fd.query
+        move    r0,got.one              ; fd.step and
+        and     r0,scan.set             ; scan.set and
+        movn    r0,r0
+        skipn   ufd.vz                  ; fd.open
+        setz    r0,
+        tbaret
+        subttl  fd.set
+;*==*===*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;+
+;.page;.NF;
+;.x file <i/o >scanning file directory
+;.S;FD.SET                               SUPPORTED 
+; ------                          Beginning with Ver 2.3
+;.s;Form of DEF:
+;.s.i+4;DEF EXTERNAL FD.SET(INTEGER (BUFFER.LENGTH,CONTROL.CODE))
+;.s;Arguments:
+;.s;.f;.lm+4;BUFFER.LENGTH specifies the length to be used for the
+;UFD SCAN internal buffer.
+;If BUFFER.LENGTH is negative, then no change is specified. If it is zero
+;or one, then a length of 100 is specified.
+;.x <ufd <scan internal buffer
+;.p;When FD.STEP is initially called after a call to FD.OPEN, it asks
+;the monitor to fill its internal buffer with data describing the file
+;names which match the specified file name and extension.
+;The monitor only puts as many entries into the buffer as will
+;fit. When FD.STEP exhausts the data in that buffer, it requests another.
+;Each entry in the buffer takes two words plus one word for each of the
+;following if requested: size, date, license and status
+;(all four are requested unless the user specifies otherwise in this call).
+;.p;CONTROL.CODE specifies which data items are requested as follows:
+;.nf.lm+4
+;bit 32 - fetch file size (enable FD.SIZE) if 1
+;bit 33 - fetch license (enable FD.LIC) if 1
+;bit 34 - fetch date (enable FD.DATE) if 1
+;bit 35 - fetch status (enable FD.STAT) if 1
+;.x file >creation date
+;.x file >size
+;.x file >status
+;.x file >license
+;.fill.lm-4.s;If CONTROL.CODE is negative then no change is specified.
+;.s.i-4;Results:
+;.s;FD.SET sets the buffer length parameter and enables or 
+;disables the capture of certain data items for the next call to FD.WILD or FD.EXACT.
+;.s.i-4;Use:
+;.s;FD.SET is used in applications where core space or the overhead of making monitor calls
+;is critical.
+;If the buffer length is large, less monitor calls are made;
+;if less data items are requested, a smaller buffer will suffice.
+;.x core space
+;.x monitor calls
+;.lm-4
+;-
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+        tbadcl  fd.set,<blen,tctrl>
+
+        skipl   r1,blen                 ; if blen >= 0 then...
+        movem   r1,last.size
+
+        skipge  r1,tctrl                ; if tctrl >= 0 then...
+        jrst    set1
+        andi    r1,^o17
+        lsh     r1,^d31
+        movem   r1,last.ctrl
+        setom   ctrl.set                ; mark last.ctrl as set...
+set1:
+
+        tbaret
+       subttl   fd.name
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;+
+;.PAGE;.NF;
+;.x file <i/o >scanning file directory
+;.s;FD.NAME                             SUPPORTED
+; -------                         Beginning with Ver 2.3
+;.s;Form of DEF:
+;.s;.i4;DEF STRING EXTERNAL FD.NAME
+;.S;Arguments:
+;.s;.i4;None.
+;.s;Results:
+;.lm+4;.p;If FD.QUERY would currently return TRUE then this function
+;returns the current file name. Otherwise, it returns a null string.
+;.x file >name
+;-
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+
+        tbadcl  fd.name
+        call    fetch,<$,x.name,0>      ; get name or 0
+        move    r1,(p)                  ; get destination string dsc addr
+        hrrz    r1,(r1)
+        call    makes                   ; convert and store string
+        aos     (p)                     ; skip tmp stg dsc pointer
+        tbaret
+       subttl   fd.ext
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;+
+;.lm-4;.PAGE;.NF;
+;.x file <i/o >scanning file directory
+;.s;FD.EXT                              SUPPORTED
+; ------                          Beginning with Ver 2.3
+;.s;Form of DEF:
+;.s;.i4;DEF STRING EXTERNAL FD.EXT
+;.S;Arguments:
+;.s;.i4;None
+;.s;Results:
+;.x file >extension
+;.lm+4;.f;.s;If FD.QUERY would currently return TRUE then this function
+;returns the current file extension. Otherwise it returns a
+;null string.
+;.lm-4;
+;-
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+
+        tbadcl  fd.ext
+        call    fetch,<$,x.ext,0>       ; get ext or 0
+        move    r1,(p)                  ; get dest string dsc addr
+        hrrz    r1,(r1)
+        call    makes                   ; convert and store string
+        aos     (p)                     ; skip tmp stg dsc pointer
+        tbaret
+       subttl  makes
+;
+;       makes - local subroutine to convert a 6 bit file name or
+;               extension to 7 bit and store into tmp string.
+;
+;       inputs:
+;         r0 - 6 bit file name or extension
+;         r1 - address of tmp string descriptor
+;
+        dclne   makes,<tword,mystg>
+cnt==1
+out.ptr==2
+stgdsc==3
+chr==4
+
+        call    allsp##,<1,$,mystg,0>   ; allocate core for tmp string
+
+        movei   r0,6                    ; set declared length as 6
+        move    stgdsc,mystg
+        movem   r0,1(stgdsc)
+
+        hrrz    out.ptr,0(stgdsc)       ; build output byte pointer
+        hrli    out.ptr,(point 7,)
+
+        setz    cnt,                    ; set count to zero
+
+        move    chr+1,tword             ; pick up word to convert
+loop:   jumpe   chr+1,done              ; done?
+        setz    chr,                    ; get next char
+        lshc    chr,6
+        addi    chr,"A"-'A'             ; convert to 7 bit
+        idpb    chr,out.ptr             ; stuff it
+        aoja    cnt,loop                ; increment count and continue
+
+done:   hrlm    cnt,1(stgdsc)           ; set actual length
+        return  makes
+       subttl   fd.size
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;+
+;.PAGE;.NF;
+;.x file <i/o >scanning file directory
+;.s;FD.SIZE                            SUPPORTED
+; -------                        Beginning with Ver 2.3
+;.s;Form of DEF:
+;.s;.i4;DEF INTEGER EXTERNAL FD.SIZE
+;.S;Arguments:
+;.s;.i4;None
+;.s;Results:
+;.F;.lm+4;.s;If FD.QUERY would currently return TRUE 
+;then this routine returns the current file size
+;in blocks (unless FD.SIZE is disabled - see FD.SET). 
+;Otherwise, it returns  a minus one.
+;.lm-4;
+;-
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+        tbadcl  fd.size
+        call    fetch,<$,x.size,-1>     ; return size or -1
+        tbaret
+       subttl   fd.lic
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;+
+;.PAGE;.NF;
+;.x file <i/o >scanning file directory
+;.s;FD.LIC                             SUPPORTED
+; ------                          Beginning with Ver 2.3
+;.s;Form of DEF:
+;.s;.i4;DEF INTEGER EXTERNAL FD.LIC
+;.s;Arguments:
+;.s;.i4;None.
+;.s;Results:
+;.s;
+;.lm+4;.f;If FD.QUERY would currently return TRUE 
+;then this routine returns the current file license 
+;(unless FD.LIC is disabled - see FD.SET).
+;Otherwise, it returns a minus one.
+;.x file >license
+;.lm-4;
+;-
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+        tbadcl  fd.lic
+        call    fetch,<$,x.lic,-1>      ; return license or -1
+        tbaret
+       subttl   fd.date
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;+
+;.PAGE;.NF;
+;.x file <i/o >scanning file directory
+;.s;FD.DATE                            SUPPORTED
+; -------                         Beginning with Ver 2.3
+;.s;Form of DEF:
+;.s;.i4;DEF INTEGER EXTERNAL FD.DATE
+;.s;Arguments:
+;.s;.i4;None.
+;.s;Results:
+;.s;
+;.lm+4;.f;If FD.QUERY would currently return TRUE 
+;then this routine returns the current file date
+;and time in the following format:
+;days since Jan 1, 1964,,seconds since midnight in Greenwich time
+;(unless FD.DATE is disabled - see FD.SET).
+;Otherwise, it returns a minus one.
+;.lm-4;
+;-
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+        tbadcl  fd.date
+        call    fetch,<$,x.date,-1>     ; return date or -1
+        tbaret
+       subttl   fd.stat
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;+
+;.PAGE;.NF;
+;.x file <i/o >scanning file directory
+;.s;FD.STAT                            SUPPORTED
+; -------                        Beginning with Ver 2.3
+;.s;Form of DEF:
+;.s;.I4;DEF INTEGER EXTERNAL FD.STAT
+;.s;Arguments:
+;.s;.i4;None.
+;.s;Results:
+;.s;
+;.nf
+;.fill
+;.lm+4;If FD.QUERY would currently return TRUE then this routine returns the
+;file status as below (unless FD.STAT is disabled - see FD.SET).
+;Otherwise, it returns a minus one.
+;.nf;.s;
+;          bits 26-35 = file protection
+;          bits 23-26 = bits 8-11 from extended lookup word 14
+;          bits 19-22 = bits 4-7 from extended lookup word 14
+;          bits 17-18 = bits 2-3 from extended lookup word 14
+;          bits 15-16 = bits 0-1 from extended lookup word 14
+;.x file >protection
+;.x file >temporary bit
+;.x file >dumped bit
+;.x file >lookup
+;.s;.i-4;Use:
+;.f;.s;Bit 4 from extended lookup word 14 is the "file dumped" bit
+;and indicates that the file has been written to backup tape.
+;.s;Bit 8 is the "file temporary" bit and indicates that the file
+;will be automatically deleted upon GFD or LOGOUT.
+;.s;The protection is a 9-bit field consisting of three three-bit
+;codes.
+;The first applies to the user himself, the second to all
+;users in the same account, the third to any user.
+;.s;The codes are:
+;.s;.nf;    0    ALL
+;    1    CP
+;    2    UFD
+;    3    AP
+;    4    RD
+;    5    RUN
+;    6    LK
+;    7    NO
+;.s;.f;See File Protection in the Tymshare XEXEC manual for a 
+;description of each of these codes.
+;.lm-4;
+;-
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+;*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*==*
+        tbadcl  fd.stat
+        call    fetch,<$,x.stat,-1>     ; return status or -1
+        tbaret
+        subttl  fetch
+;
+;       fetch - local subroutine to return file value or default value
+;
+;       inputs:
+;         r0 - address of offset word
+;         r1 - default value
+;
+        dclne   fetch,<v.off,v.def>
+        jsp     r1,fd.query             ; do we have a file name?
+        jumpe   r0,false
+        skipge  r1,v.off                ; is this value enabled?
+        jrst    false
+        add     r1,buf.dsc              ; calculate address
+        add     r1,whr.base
+        move    r0,(r1)                 ; and fetch it...
+        jrst    fet$$
+
+false:  hrre    r0,v.def                ; return default
+
+fet$$:  return  fetch
+        end
+0@c
