@@ -1,0 +1,289 @@
+From: SGAVETTE
+Date: MAY 9,1980 9:53
+Re your mail on formatting:
+Thanks for looking at the problem.  I will report your findings to Jack
+Thomas.  I agree with your conclusions and recommendations.  Consider
+the problem closed.
+
+Re: LOCK and UNLOCK
+1)Do you think that an UNLOCK(ALL) or some similar syntax is a)r
+
+From: SGAVETTE
+Date: MAY 9,1980 9:53
+easonable?
+  b) technically doable within the time constraints (or soon thereafter)?
+
+2)  The new scheme of explicitly locking and unlocking without limit
+    can lead to deadly embrace.  Can you think of any clean and simple
+    solutions?
+Thanks ... Sherman
+
+From: SGAVETTE
+Date: MAY 13,1980 11:03
+Samuel,
+1)  We still need info on the *** problem.  The post office is getting
+anxious about it.
+2)  When we talked this morning, we neglected to discuss the STUFF.INPUT
+subroutine.  Will it go up with the CNC and PERFORM changes?
+Thanks ... Sherman
+
+From: SGAVETTE
+Date: MAY 14,1980 17:16
+Samuel,
+Please type (SGAVETTE:33)TBA514.MEM.  Thanks ... Sherman
+
+From: SGAVETTE
+Date: MAY 22,1980 11:43
+Samuel,
+What are the pieces of TBA which must be included when TBA is installed
+on a new machine?  I know about the compiler and TBATLIB.
+Are there others?
+Is SORT part of TBATLIB or is it located somewhere else?
+Is there any documentation on what constitutes a complete insta
+
+From: SGAVETTE
+Date: MAY 22,1980 11:43
+llation?
+Thanks - Sherman
+
+From: SGAVETTE
+Date: MAY 27,1980 15:48
+Samuel,
+I found STUFF.MAC on (SPUNKDEV:23).  There were enough discrepancies
+between what you had told me and what I found that I decided to not
+"transmit" it myself.  Will you please put the program in the appropriate
+location (TLIB or wherever) and send mail to CONPS and SGA
+
+From: SGAVETTE
+Date: MAY 27,1980 15:48
+VETTE explaining
+the necessary procedures for invoking it from a TBA program.
+
+The file is named STUFF, but the entry point is STUFIB.  Should the
+file be renamed?
+
+-Thanks ... Sherman
+
+From: SGAVETTE
+Date: MAY 28,1980 0:16
+Samuel,
+Please type TBA527.DOC for a status report; TBASPC.DOC for a preliminary
+spec of TBA enhancements.  Both files are in SGAVETTE:23.
+I would like your comments. - Sherman
+
+From: SGAVETTE
+Date: MAY 29,1980 11:32
+Samuel,
+Did you implement syntax for UNLOCK ALL?
+-Sherman
+
+From: SGAVETTE
+Date: MAY 29,1980 15:45
+Samuel,
+	Go ahead and install version %.1 in SPUNKTEST.  I have had the
+files archived on tape TRP#A155/TID#46657.
+
+From: SGAVETTE
+Date: MAY 29,1980 21:08
+Please read (SGAVETTE:23)TBASPC.DOC for an update on enhancement specs.
+Your comments will be appreciated.
+
+From: SGAVETTE
+Date: JUNE 2,1980 12:58
+Samuel, 
+I have received the following mail from Ernie:
+
+From: SOCCI
+Date: JUNE 2,1980 11:56
+It should be possible for any updater of a file to do FCREATes, FDELETEs,
+etc. Also, there is a function which can change the size of a file
+to anything you want (it will even 
+
+From: SGAVETTE
+Date: JUNE 2,1980 12:58
+delete pages, but it won't create them
+if you set it higher than last page that exists.)
+We should probably have a function to read back the size of a file that
+is open on a channel - this wouldn't be too difficult to do.
+
+*****END OF MAIL
+Apparently the monitor knows, 
+
+From: SGAVETTE
+Date: JUNE 2,1980 12:58
+is it the problem of other users knowing
+what is going on that needs to be addressed?  I will assume that I have
+answered your question.  If not, please send me more mail to clarify it.
+
+I don't know why the system is so heavily loaded, but I will try to
+get something do
+
+From: SGAVETTE
+Date: JUNE 2,1980 12:58
+ne about it.
+
+Also, I don't know about any of your other questions yet.  I will let you
+know as soon as I have found more money for Walt.  I as still looking for
+an answer re TBA usage of changing file size in multi-update mode.
+- Sherman
+
+
+From: SGAVETTE
+Date: JUNE 2,1980 17:04
+Samuel,
+Re you further question about file size:  I will ask Ernie and get back to
+you with his answer.  You might get faster response by contacting Ernie
+directly.
+Re Walter's time:  I have received authorization for another 20 hours.
+Since I haven't received his contract, I
+
+From: SGAVETTE
+Date: JUNE 2,1980 17:04
+ can't update it.  Ask him to send me
+the contract and I will change the time limit, initial and send him an
+updated copy.  Under no circumstances should his work (or anybody else's)
+be delayed because they have "run out of time".  Just let me know when
+the authorized limits a
+
+From: SGAVETTE
+Date: JUNE 2,1980 17:04
+re approaching (as you did with Walter's) and I
+will get you the additional time.  The only problem is that since it's
+not my budget, I have to get it approved in advance.
+
+Thanks for the great news about V5.1.  It made my day. - Sherman
+
+From: SGAVETTE
+Date: JUNE 13,1980 11:51
+Samuel,
+Several items of mail, including the info you sent to JET on
+double precision arith yesterday have not gotten to him.  Please
+direct all future mail to username CONMAIL.  This user name has
+been set up specifically for JET to receive mail on.  Hopefully,
+this will sol
+
+From: SGAVETTE
+Date: JUNE 13,1980 11:51
+ve the problem.
+/Sherman
+
+From: SGAVETTE
+Date: JUNE 16,1980 14:07
+To: Jack
+CC: Samuel
+
+(SPUNKDEV)PERTST.SHR & PERTST.REL have been copied to directory CONPS.
+
+From: SGAVETTE
+Date: JUNE 17,1980 12:34
+To: Jack
+CC: Samuel
+File (SPUNKDEV)PERTST.TBA has been copied to (CONPS)PERTST.TBA.
+(Samuel, if you should change PERTST.TBA will you please notify JET?)
+/Sherman
+
+From: SGAVETTE
+Date: JUNE 18,1980 10:40
+Jack, Ron,
+I received the following mail from Samuel this morning.  I am forwarding it
+to you because it puts the matter much more politely than I would if I had
+been awakened early in the morning.  In future, please remember that there
+is a three hour time diff
+
+From: SGAVETTE
+Date: JUNE 18,1980 10:40
+erence.  Thanks /Sherman
+
+From: SPUNKTEST
+Date: JUNE 18,1980 6:46
+Hmm...  I guess that I don't really want to be awakened at 6:30
+AM by calls from DC...  Maybe you could find some nice way to tell
+the people at Simcon this for me...   Calls after 8 are general
+
+From: SGAVETTE
+Date: JUNE 18,1980 10:40
+ly
+acceptable.
+Samuel
+
+
+From: SGAVETTE
+Date: JUNE 25,1980 17:38
+Samuel,
+Please type (SGAVETTE)TBA625.MEM.  Thanks  /Sherman
+
+From: SGAVETTE
+Date: JUNE 27,1980 16:42
+Samuel,
+1) The /F switch (used to sort real numbers) is missing from the TBA
+version of SORT, even though it is in the COBOL SORT from which the 
+TBA SORT was derived.  Do you have any idea why?
+
+2) I now have the data from LOCKHEED on their claim that TBA performance
+degrad
+
+From: SGAVETTE
+Date: JUNE 27,1980 16:42
+ed by 30% in the last transmitted version.  I have sent the tape 
+to Valley Forge to have the files installed on V23.  There is also some
+hardcopy which you should have to investigate their claims.  Can you
+stop by and pick it up?  (The tape probably won't get to VF until
+Tues
+
+From: SGAVETTE
+Date: JUNE 27,1980 16:42
+day or Wednesday.)
+/Sherman
+
+From: SGAVETTE
+Date: JUNE 30,1980 15:55
+Samuel,
+
+1. Priority for Lockheed stuff:  Finish the formatting work first,
+then the Lockheed performance work.
+
+2. The commenting of source files should be done.  When you invoice
+it, charge it to the appropriate task (e.g. formatting).
+
+3.  I am going to do some mor
+
+From: SGAVETTE
+Date: JUNE 30,1980 15:55
+e investigation on changing file size
+within SOPENs.  Based on our discussions, I think that we will decide
+not to do it.
+/Sherman
+
+
+From: SGAVETTE
+Date: JULY 1,1980 18:56
+Samuel,
+I need to get in touch with Marc Eichenholtz as soon as possible.  Do you
+know (or do you know anyone who would know) how I can contact him?
+Marketing wants to discuss having him do some user program optimization.
+Please contact me as soon as possible.
+Thanks - Sherma
+
+From: SGAVETTE
+Date: JULY 1,1980 18:56
+n
+
+From: SGAVETTE
+Date: JULY 11,1980 9:47
+Samuel,
+No, I didn't entirely understand Jack's suggestion.  I thought that it was
+something that the two of you had come up with together during your telephone
+conversation yesterday morning.  /Sherman
+
+From: SGAVETTE
+Date: JULY 14,1980 14:45
+Samuel,
+Can you address the problem of resetting the PICK variable to blank/null
+as soon as possible?  They need it for one of the systems they are trying
+to deliver.  Thanks ... Sherman
+
+From: SGAVETTE
+Date: JULY 25,1980 16:09
+Samuel,  Please type (SGAVETTE)725TBA.MEM.  Thanks /Sherman
+
+ 
