@@ -1,0 +1,2670 @@
+TITLE PARSE1
+SUBTTL A little bit of the parse
+
+        TWOSEG
+        RELOC   ^O400000
+
+	radix	^d10
+
+        ENTRY   RESUME,%PARS2,%MANAL,%CKEND,%DSTPSW,%EXIT,%MOVBIN
+        ENTRY   %THREAD,%XCMN1,%XCMND2,%XTPARS,%EDMDCK
+
+        EXTERN  ADDAMT,ADMISW,BPBGN,BPTR,BRKN,BRKT,C,CC,CCHR,CERCNT
+        EXTERN  COMSW,CPKT,CV,DCFLGS,DELH,DFNAM,DSMDFG,ECHRS,ELSECT
+        EXTERN  ENDCT,ENDRWD,ENTR,FEX,FILV,FIRSTN,FLRNG,FNBGN,FNDSW,FNPTR
+        EXTERN  FNUM,FORCNT,FUN,FVAR,GCOMSW,GOODPT,HB,HIGHLN,IFBGN,IFCT
+        EXTERN  IFPTR,IFSW,INC,KILFLG,LDFLG,LINPTR,LISTYP,LLC,LNMB,LNMB1
+        EXTERN  LOWLN,LRT,LRTLOC,LRTPTR,MAXNDX,MDUFG,MKCCHR,MKLNPT
+        EXTERN  MODSW,NAMDIC,NAMIDX,NAMPGS,NAMPTR,NAMSRC,NEWLN,NEWPT
+        EXTERN  NLINES,NLP,NMSLFT,NRP,NSV1,NSV2,NTABS,NUMB,NXTNUM,OPBGN
+        EXTERN  OPPTR,OTDONE,PGCNFG,PKTBGN,PSW,RADFLG,RINC,RNDIZ,RPTSW
+        EXTERN  RWORDS,SAVBNM,SCID,SCVAL,SEGNO,STBKFG,SVBFLG,TOADD
+        EXTERN  V,VARBGN,VARCT,VARID,VARPTR,XN,XQTFLG,.JBVER
+        EXTERN  .FUN, .NSV
+
+        EXTERN  CKEND,DSTPSW,EXIT,MANAL,MOVBIN,PARS2,THREAD,XCMN1, UPBUF
+        EXTERN  XCMND2,XTPARS,INITP,STARTER,EDMDCK,ESCENB
+        EXTERN  GNEXT,LNINCR
+
+
+        EXTERN  CAT,CKLNUM,EATBLK,ERROR,EXPR,GTFNAM,GTFNM1,GTLNUM
+        EXTERN  IISC,INDRCT,INPMSG,IZCORE,LEL,LINIT,MARK
+        EXTERN  NOIF,PCLEAR,PLNRNG,RESET,SETMOD,SYMBOL,WLC1
+        EXTERN  WLC18,WLC27,WLC9,WLNRNG,WPMCSZ,MSTATE,LRANGE,IZTRC
+        EXTERN  GTSCNS,DCLEAR,PTRDF7,XERROR,RUNCOM
+        EXTERN  CXER1,CXER2,COMRUN
+
+
+       EXTERN   TOPN,VOPN,TNEW,TLOC,TPOP,TRLS,VRLS
+        EXTERN  VPUT,VPOP,VGET,VRPL,TSTART,TNEXT
+        EXTERN  VSTART,VNEXT,LALOC,LFREE,RFRE
+        EXTERN  MATFLG,P.MOD
+
+
+
+                                SUBTTL TYMBAS 1.
+
+;TYMBAS 09
+TYMBAS: INISTK
+        JRST    TMBS10
+
+;TYMBAS 02
+;+
+;  ESCAPE fans, NOTE: this is the place that ESCCHK in PARSE7
+;  wants to go when it sees an escape has been hit.  Should restart input 
+;  scanner
+;-
+TMBS02:
+
+;TYMBAS 03
+        MOVE    1,SEGNO
+        JRST    .(1)
+        JRST    TMBS04
+        JRST    TMBS05
+        JRST    TMBS06
+        JRST    TMBS06
+        JRST    TMBS06
+        JRST    TMBS07
+        JRST    TMBS08
+
+;TYMBAS 04
+TMBS04: BCALL   SYSIZL
+        ;sextern prfini
+        ;skipe  prfini
+        ;pushj p,prfini ; start parser profil
+        JRST    TMBS10
+
+;TYMBAS 05
+TMBS05: BCALL   PARSE
+        JRST    TMBS10
+
+;TYMBAS 06
+TMBS06: 
+        ;sextern prfwrt
+        ;skipe   prfwrt
+        ;pushj   p,prfwrt       ; turn off parser profil
+        JMPCMP          ;Go to code generator
+
+;TYMBAS 07
+TMBS07: CALL    RUNCOM
+        J       TMBS10
+
+;TYMBAS 08
+TMBS08: JRST    COMRUN
+
+;TYMBAS 09 IS ABOVE
+
+;TYMBAS 10
+TMBS10: MOVE    1,SEGNO
+        CAIE    1,9
+        JRST    TMBS02
+
+;TYMBAS 11
+        BCALL   EXIT
+
+
+
+                                SUBTTL  SYSUP 1.1
+        entry   sysup   ; because bdcl doesn't make entries any more
+        BDCL     SYSUP
+
+;SYSUP 01
+        INISTK
+        CALL     INITP
+        CALL     STARTER
+
+
+
+
+;SYSUP 02
+         CALL   LINIT
+
+;SYSUP 03
+         CALL   IZCORE
+
+;SYSUP 04
+        MOVEI   1,1
+        MOVEM   1,SEGNO
+        MOVEI   1,10
+        MOVEM   1,LNINCR
+
+        SETZM   0,DFNAM
+        SETZM   0,DFNAM+1
+        SETZM   0,GCOMSW
+        SETZM   0,CERCNT
+        CLRFN   SAVBNM
+        H.OFF   1,H.STP         ; NO 'STEP' PENDING
+        SETZM   0,PGCNFG
+        M       1,[VERNUM]
+        MM      1,.JBVER
+        EXTERN  PRNVER
+        EXTERN  CXMO
+        CALL    CXMO,<[ASCIZ /Ver /], 2>
+        CALL    PRNVER
+        SETZM   0,STBKFG
+
+        JRST    ESCENB          ; INITIALIZE ESCAPE TRAPPING
+                                SUBTTL  SYSIZL  1.4
+        BDCL     SYSIZL
+
+;SYSIZL 01 CLEAR PARSER TABLES: LRT, TXT, PMC, and zero HVX (hash vector)
+         CALL    PCLEAR
+
+;SYSIZL 01A CLEAR COMPILER TABLES: SDT, PRODT, PARDT, and zero CLRFLG
+        CALL    DCLEAR
+
+;SYSIZL 03 READ ALL THE RESERVED WORDS INTO THE NAME TABLE
+        BCALL   NAMFRE; ;free the name table pages
+        MOVEI   R1,.FUN+^D4094
+        MOVEM   R1,MAXNDX
+        SETZM   NMSLFT          ;number of name table entries left in current page
+        MOVEI   R1,1
+        MOVEM   R1,NAMIDX       ;count of name table entries
+        MOVEI   R1,RWORDS       ;list of reserved words in SIXBIT
+        MOVEM   R1,NAMPTR
+
+IZHADR: DMOVE   R2,(R1)
+        DMOVEM  R2,HB
+        MOVE    R2,2(R1)
+        MOVEM   R2,HB+2
+        CALL    NAMSRC,<0>
+
+        MOVEI   R1,WPN
+        ADDB    R1,NAMPTR
+        CAIGE   R1,ENDRWD
+        JRST    IZHADR
+
+        MOVEI   R1,.FUN
+        MOVEM   R1,FUN
+        MOVEI   R1,.NSV+1
+        MOVEM   R1,NSV1
+        MOVEI   R1,.NSV+2
+        MOVEM   R1,NSV2
+
+;SYSIZL 04
+        BCALL   FGINIT
+
+;SYSIZL 05
+        MOVEI   1,2
+        MOVEM   1,SEGNO
+
+        BRETURN  SYSIZL
+        SUBTTL NAMFRE CHART 1.4.3.0
+        BDCL    NAMFRE
+
+
+        MOVE    R2,NAMPGS
+        JUMPE   R2,NMFR$$
+
+NMFR1:  MOVE    R1,NAMDIC-1(R2)
+
+        IFN     DEBMOD,<
+        TLNE    R1,^O777777     ;zero left half means locked in
+        HALT
+                       >
+        FREE    R1              ;unlock NAMDIC core addr entry
+        MOVEM   R1,NAMDIC-1(R2) ;store virtual addr for possible re-use later
+
+        SOJG    R2,NMFR1
+
+        SETZM   NAMPGS
+
+NMFR$$: BRETURN NAMFRE
+
+
+                                SUBTTL  FGINIT 1.4.4
+        BDCL     FGINIT
+
+;FGINIT 01
+        SETZM   DELH
+        SETZM   NLINES
+
+;FGINIT 02
+        BCALL   IZLRT
+
+        SKIPN   GCOMSW
+        BCALL   IZBKTR
+
+;FGINIT 03
+        MOVE    1,RNDIZ
+        MOVEM   1,XN
+
+;FGINIT 04
+        SETZM   ENTR
+        SETZM   0,DSMDFG
+
+;FGINIT 05
+        SKIPN   MDUFG           ;boy is this a hack - ptz 19 feb 77
+        SETOM   P.MOD           ;here in case of TBA start,GET,or DEL ALL
+
+        BRETURN  FGINIT
+
+
+                                SUBTTL  IZLRT 1.4.4.2
+        BDCL     IZLRT
+
+;IZLRT 01
+         CALL   TNEW,<$,LRT>
+
+;IZLRT 02
+        MOVEM   1,LRTPTR
+        MOVEM   2,LRTLOC
+
+;IZLRT 03
+        MOVEI   2,100000 
+        MOVE    1,LRTPTR
+        FPUT    2,1,LNUMB
+        MOVE    2,LRTLOC
+        FPUT    2,1,LNXT 
+
+;IZLRT 04,05
+        CALL    RFRE,<$,LRTPTR>
+         CALL   TNEW,<$,LRT>
+
+;IZLRT 06
+        MOVEI   2,100001 
+        FPUT    2,1,LNUMB
+
+;IZLRT 07,8
+        MOVE    0,1
+        CALL   RFRE
+         CALL   TNEW,<$,LRT>
+
+;IZLRT 09
+        MOVEM   1,LRTPTR
+        MOVEM   2,LRTLOC
+
+;IZLRT 10
+        MOVEI    2,100002
+        MOVE    1,LRTPTR
+        FPUT    2,1,LNUMB
+        MOVE    2,LRTLOC
+        SOJ     2,
+        FPUT    2,1,LNXT 
+
+;                       IZLRT 11
+        CALL    RFRE,<$,LRTPTR>
+
+        BRETURN  IZLRT
+
+
+                                SUBTTL IZBKTR 1.4.4.2A
+        BDCL   IZBKTR
+
+;IZBKTR 1
+        MI      1,BRKT
+        MI      2,100001
+        FPUT    2,1,BKL1
+        FPUT    2,1,BKL2
+        MI      1,1
+        MM      1,BRKN
+        H.OFF   1,H.BRK         ; NO 'BREAK' PENDING
+
+;IZBKTR 2
+        CALL    IZTRC
+
+;EXIT IZBKTR
+        BRETURN IZBKTR
+
+
+                                SUBTTL  PARSE 1.5
+        BDCL     PARSE
+
+
+;PARSE 0
+        CALL    GNEXT
+
+;PARSE 01
+RESUME: SETZM   PSW     ;RETURN FROM ABNORMAL TERMINATION
+        INISTK          ;CLEAR STACK    
+
+;PARSE 02
+PARS02: BCALL   GTLINE
+
+;PARSE 03
+        BCALL   LNUM
+
+;PARSE 04
+        BCALL   LNANAL
+
+;PARSE 05
+        SKIPE   SCID
+        JRST    PARS07
+
+;PARSE 06
+        BCALL   XCMN1
+        JRST    PARS13
+
+;PARSE 07
+PARS07: BCALL   MOVBIN
+
+;PARSE 08
+        MOVN    1,NUMB
+        CAIE    1,1
+        JRST    PARS12
+
+;PARSE 09
+        MOVE    1,SCID
+        CAIE    1,1
+        JRST    PARS11
+
+;PARSE 10
+        BCALL   XCMND2
+        JRST    PARS13
+
+;PARSE 11
+PARS11: BCALL   DSTPSW
+        JRST    PARS13
+
+;PARSE 12
+PARS12: BCALL   THREAD
+
+;PARSE 13
+PARS13: SKIPN   PSW
+        JRST    PARS02
+
+;PARSE 14
+        BCALL   XTPARS
+
+        BRETURN  PARSE
+
+
+                                SUBTTL  GTLINE 1.5.2
+        BDCL     GTLINE
+
+;GTLINE 01
+        SKIPN   ENTR
+        JRST    GTLN05
+;+
+;GTLINE 02
+;  convert next ENTER line number (NXTNUM) to prompt (in UPBUF)
+;  by using IISC
+;-
+        MOVE    1,[POINT 7,UPBUF]       ;IISC argument reg 1, Place to put no.
+        CALL    IISC,<$,NXTNUM>         ;append next ENTER NXTNUM 
+
+;+
+;GTLINE 03
+;  using text pointer from IISC in register 2, append a space
+;  and a zero byte to the prompt buffer
+;-
+        MOVEI   3," "                   ;append spaces
+        IDPB    3,2                     ; add one
+        SETZ    3,                      ;zero byte
+        IDPB    3,2                     ; add one
+
+;+
+;GTLINE 04
+;  add one to converted character count from IISC in register 1,
+;  and set that up for GETENT, then go to GTLN06 to get line
+;-
+        AOJ     1,
+        MOVEM   1,ECHRS
+        JRST    GTLN06
+
+;GTLINE 05
+GTLN05: SETZM   ECHRS
+
+;GTLINE 06
+GTLN06:  CALL   INPMSG
+
+;GTLINE 07
+        BCALL   IZSTKS
+
+;GTLINE 08
+        BCALL   IZPKT
+
+        BRETURN  GTLINE
+
+
+                                SUBTTL  IZSTKS 1.5.2.7
+        BDCL     IZSTKS
+
+;IZSTKS 01
+        MOVE    1,OPBGN
+        MOVEM   1,OPPTR
+        SETZM   (1)
+
+;IZSTKS 02
+        MOVE    1,VARBGN
+        MOVEM   1,VARPTR
+
+;IZSTKS 03
+        MOVE    1,FNBGN
+        MOVEM   1,FNPTR
+        SETO    2,0
+        FPUT    2,1,PCT
+
+;IZSTKS 04
+        MOVE    1,IFBGN
+        MOVEM   1,IFPTR
+
+;IZSTKS 05
+        SETZM   NLP
+        SETZM   NRP
+        SETZM   DCFLGS
+        SETZM   FORCNT
+
+        BRETURN  IZSTKS
+
+                                SUBTTL  IZPKT 1.5.2.8
+        BDCL     IZPKT
+
+;IZPKT 01
+        MOVE    1,BPBGN
+        MOVEM   1,BPTR
+        MOVE    2,PKTBGN
+        MOVEM   2,0(1)
+        MOVEM   1,CPKT
+
+;IZPKT 02
+        MOVE    0,PKTBGN
+        MOVEM   0,LLC
+
+        BRETURN  IZPKT
+
+
+                                SUBTTL  LNUM 1.5.3
+        BDCL     LNUM
+
+;LNUM 01
+        BCALL   FINDNO
+
+;LNUM 02
+        MOVE    1,C
+        CAIN    1,11
+        JRST    LNUM04
+
+;LNUM 03-3B
+        M       1,LDFLG
+        CAIE    1,1
+        J       LNUM3B
+        CALL    XERROR,<132>
+LNUM3B: SETOM    0,NUMB
+        JRST    LNUM$$
+
+;LNUM 04
+LNUM04: MOVE    1,V
+        JUMPL   1,LNUM06
+        CAILE   1,99999
+        JRST    LNUM06
+
+;LNUM 05
+        MOVE    1,V
+        MOVEM   1,NUMB
+        MOVE    1,LINPTR
+        MOVEM   1,GOODPT
+        MOVEM   1,NEWPT
+        JRST    LNUM$$
+
+;LNUM 06
+LNUM06:  CALL   ERROR,<3>
+
+LNUM$$: BRETURN  LNUM
+
+
+                                SUBTTL  FINDNO 1.5.3.1
+        BDCL     FINDNO
+
+;FINDNO 01
+         GET
+
+;FINDNO 02
+         CALL   CAT
+
+;FINDNO 03
+        MOVE    1,CC
+        CAIN    1,2
+        JRST    FNDN05
+
+;FINDNO 04
+        SETZM   C
+        JRST    FNDN14
+
+;FINDNO 05
+FNDN05: MOVEI   1,11
+        MOVEM   1,C
+        MOVE    1,CV
+        MOVEM   1,V
+        SETZM   FNDSW
+
+;FINDNO 06
+FNDN06:  GET
+
+;FINDNO 07
+        MOVE    1,CCHR
+        CAIE    1," "  
+        JRST    FNDN09
+
+;FINDNO 08-8A
+        MOVEI   1,1
+        MOVEM   1,FNDSW
+        CALL    EATBLK
+        JRST    FNDN13
+
+;FINDNO 09
+FNDN09:  CALL   CAT
+
+;FINDNO 10
+        MOVE    1,CC
+        CAIN    1,2
+        JRST    FNDN12
+
+;FINDNO 11
+        MOVEI   1,1
+        MOVEM   1,FNDSW
+        JRST    FNDN13
+
+;FINDNO 12
+FNDN12: MOVEI   1,10
+        IMUL    1,V
+        ADD     1,CV
+        MOVEM   1,V
+
+;FINDNO 13
+FNDN13: MOVE    1,FNDSW
+        CAIE    1,1
+        JRST    FNDN06
+
+;                       FINDNO 14
+FNDN14: CALL    MARK
+
+        BRETURN  FINDNO
+
+
+                                SUBTTL  LNANAL 1.5.4
+        BDCL     LNANAL
+
+;LNANAL 01
+        SETZM   IFSW
+        SETZM   MODSW
+        SETZM   ELSECT
+        SETZM   IFCT
+        SETZM   ENDCT
+        SETZM   RPTSW
+        ; CLEAR MATFLG, IT IS LATER SET IF 'MAT' IS FOUND
+        SETZM   MATFLG
+
+;LNANAL 02
+        CALL   SYMBOL
+
+;LNANAL 03-04
+LNNL04: MOVE    1,C
+        MOVE    2,V
+        CAIE    1,3
+        JRST    LNNL09
+        CAIE    2,4
+        JRST    LNNL09
+
+;LNANAL 05
+         CALL   WLC1,<97>
+
+;LNANAL 06
+        BCALL   IFON
+
+;LNANAL 07
+         CALL   WLC1,<29>
+
+;LNANAL 08
+        MOVEI   1,1
+        MOVEM   1,IFSW
+        JRST    LNNL15
+
+;LNANAL 09
+LNNL09: MOVE    1,C
+        MOVEM   1,SCID
+        MOVE    2,V
+        MOVEM   2,SCVAL
+        SETZM   KILFLG
+
+;LNANAL 10
+         CALL   SETMOD
+
+;LNANAL 11
+        BCALL   CSANAL
+
+;LNANAL 12
+LNNL12: MOVE    1,C
+        CAIE    1,3
+        JRST    LNNL14
+        MOVE    2,V
+        CAIG    2,2
+        JRST    LNNL14
+
+;LNANAL 13
+        BCALL   MANAL
+        JRST    LNNL12
+
+;LNANAL 14
+LNNL14: BCALL   CKEND
+
+;LNANAL 15
+LNNL15: MOVE    1,RPTSW
+        CAIN    1,1
+        JRST    LNNL04
+
+;LNANAL 16
+         CALL   WPMCSZ
+
+;LNANAL 17
+        BCALL   EDMDCK
+
+LNNL$$: BRETURN  LNANAL
+
+
+                                SUBTTL  IFON 1.5.4.6
+        BDCL     IFON
+
+;IFON 01
+        CALL    EXPR
+
+;  IFON 02
+       MOVE    1,C
+       CAIE    1,4
+       JRST    IFON3
+       MOVE    1,V
+       CAIN    1,1
+       JRST    IFON3A
+
+;IFON 03
+IFON3: CALL    ERROR,<4>
+
+;IFON 03A
+IFON3A:        CALL    SYMBOL
+
+;IFON4
+       MOVE    1,C
+       CAIE    1,3
+       JRST    IFON5
+       MOVE    1,V
+       CAIE    1,0
+       CAIN    1,1
+       JRST    IFON7
+
+;  IFON5
+IFON5: BCALL   IFON1
+
+;  IFON6
+       MOVEI   1,1
+       MOVEM   1,RPTSW
+       JRST    IFON$$
+
+;  IFON7
+IFON7: SKIPN   IFSW
+       JRST    IFON9
+
+;IFON8
+       CALL    ERROR,<2>
+
+;IFON9
+IFON9: SETZM   RPTSW
+        MOVEI   1,2
+        MOVEM   1,SCID
+
+; IFON10
+       CALL    INDRCT
+
+;  IFON$$
+IFON$$: BRETURN        IFON
+
+
+       SUBTTL  IFON1 1.5.4.6.5
+       BDCL    IFON1
+
+;  IFON11
+       MOVE    1,IFPTR
+       SUB     1,IFBGN
+       CAIG    1,9
+       JRST    IFON13
+
+;  IFON12
+       CALL    ERROR,<16>
+
+;  IFON13
+IFON13:MOVE    1,IFPTR
+       MOVEI    2,1
+       MOVEM   2,(1)
+       AOJ     1,
+       MOVEM   1,IFPTR
+       AOS     IFCT
+
+       BRETURN IFON1
+
+
+                                SUBTTL  CSANAL 1.5.4.11
+        BDCL     CSANAL
+
+;CSANAL 01
+        MOVE    1,SCID
+        CAIL    1,11
+        JRST    CSNL08
+        CAIN    1,10
+        JRST    CSNL07
+        CAIN    1,9
+        JRST    CSNL06
+        CAIN    1,8
+        JRST    CSNL05
+        CAILE   1,4
+        JRST    CSNL04
+        CAIN    1,4
+        JRST    CSNL03
+        CAIN    1,3
+        JRST    CSNL02
+        JRST    CSNL09
+
+;CSANAL 02
+CSNL02: BCALL   CM3
+        JRST    CSNL09
+
+;CSANAL03
+CSNL03: BCALL   CM4
+        JRST    CSNL09
+
+;CSANAL 04
+CSNL04:  CALL   ERROR,<9>
+        ;
+
+;CSANAL 05
+CSNL05: BCALL   CM8
+        JRST    CSNL09
+
+;CSANAL 06
+CSNL06: MOVEI   1,2
+        MOVEM   1,SCID
+        SETZM   SCVAL
+        JRST    CSNL09
+
+;CSANAL 07
+CSNL07: BCALL   CM10
+        JRST    CSNL09
+
+;CSANAL 08
+CSNL08: BCALL   CM11
+
+;CSANAL 09
+CSNL09: MOVE    1,SCID
+        JRST    .+1(1)
+        JRST    CSNL10
+        JRST    CSNL11
+        JRST    CSNL12
+
+;CSANAL 10
+CSNL10: BCALL   PARS0
+        JRST    CSNL$$
+
+;CSANAL 11
+CSNL11: BCALL   PARS1
+        JRST    CSNL$$
+
+;CSANAL 12
+CSNL12: BCALL   PARS2
+
+CSNL$$: BRETURN  CSANAL
+
+
+                                SUBTTL  CM3     1.5.4.11.2
+        BDCL     CM3
+
+;CM3 01
+        MOVE    1,SCVAL
+        CAIN    1,4
+        JRST    CM306
+        CAIN    1,3
+        JRST    CM305
+        CAIN    1,1
+        JRST    CM303
+        JUMPE   1,CM302
+        JRST    CM304
+
+;CM3 02
+CM302:  SETZM   SCID
+        SETZM   SCVAL
+        JRST    CM3$$
+
+;CM3 03
+CM303:  MOVEI   1,1
+        MOVEM   1,SCID
+        SETZM   SCVAL
+        JRST    CM3$$
+
+;CM3 04
+CM304:  BCALL   CKELSE
+        JRST    CM3$$
+
+;CM3 05
+CM305:  MOVEI   1,2
+        MOVEM   1,SCID
+        MOVEI   2,34
+        MOVEM   2,SCVAL
+        JRST    CM3$$
+
+;CM3 06
+CM306:  MOVEI   1,2
+        MOVEM   1,SCID
+        MOVEI   2,35
+        MOVEM   2,SCVAL
+
+CM3$$:  BRETURN  CM3
+
+
+       SUBTTL  CKELSE 1.5.4.11.2.6
+       BDCL    CKELSE
+
+;  CKELSE1
+        MOVE     2,SCVAL
+       CAIN    2,2
+       JRST    CKL3
+
+;  CKELSE2
+       CALL    ERROR,<9>
+
+;  CKELSE3
+CKL3:  MOVEI    2,2
+       MOVEM   2,SCID
+       MOVEI    2,42
+       MOVEM   2,SCVAL
+       BRETURN CKELSE
+
+
+                                SUBTTL  CM4 1.5.4.11.3
+        BDCL     CM4
+
+;CM4 01
+        MOVE    1,SCVAL
+       CAIN    1,43
+       JRST    CM44
+       CAIN    1,41
+       JRST    CM43
+       CAIE    1,16
+       JRST    CM45
+
+;  CM402
+       BCALL   CKMAT
+       JRST    CM4$$
+
+;  CM403
+CM43:  BCALL   CKNO
+       JRST    CM4$$
+
+;CM404
+CM44:  SETZM   SCID
+       MOVEI    1,1
+       MOVEM   1,SCVAL
+        JRST     CM4$$
+
+;  CM405
+CM45:  CALL    ERROR,<9>
+
+CM4$$:  BRETURN  CM4
+
+
+       SUBTTL  CKMAT  1.5.4.11.3.2
+       BDCL    CKMAT
+
+;  CKMAT0
+;         SET MATFLAG FOR '*','MUL' SWITCH
+        SETOM   MATFLG
+
+;  CKMAT1
+       CALL    SYMBOL
+
+;  CKMAT2
+       MOVE    1,C
+       CAIN    1,10
+       JRST    CKMAT7
+       CAIE    1,2
+       JRST    CKMAT5  ;5 SAME AS 6
+
+;  CKMAT3
+       MOVE    1,V
+       CAIN    1,6
+       JRST    CKMAT4
+       CAIN    1,8
+       JRST    CKMAT4
+       CAIE    1,9
+       JRST    CKMAT5
+
+;  CKMAT4
+CKMAT4: MOVEI    2,2
+       MOVEM   2,SCID
+       MOVE    2,V
+       MOVEM   2,SCVAL
+       JRST    CKMA$$
+
+;  CKMAT5,6
+CKMAT5: CALL   ERROR,<9>
+
+;  CKMAT7
+CKMAT7: MOVEI    2,2
+       MOVEM   2,SCID
+       SETZM   SCVAL
+
+;  CKMAT$$
+CKMA$$: BRETURN CKMAT
+
+
+       SUBTTL  CKNO 1.5.4.11.3.3
+       BDCL    CKNO
+
+;  CKNO1
+       CALL    SYMBOL
+
+;  CKNO2
+       SKIPE   C
+       JRST    CKNO9
+        SETZM   SCID
+       MOVE    1,V
+        CA 1,36    ;LIBRARY
+        JRST    CKNO8
+        CAIN    1,34    ;MODULE
+        JRST    CKNO7
+        CAIN    R1,33   ;STARTPOINT
+        JRST    CKNO6A
+       CAIN    1,31     ;ECHO
+       JRST    CKNO6
+       CAIN    1,21     ;TRACE
+       JRST    CKNO5
+       CAIN    1,20     ;BREAK
+       JRST    CKNO4
+       CAIE    1,29     ;DEBUG
+       JRST    CKNO9
+
+       MOVEI    1,23    ;NO DEBUG
+       JRST    CKNO$$
+
+CKNO4: MOVEI    1,24    ;NO BREAK
+       JRST    CKNO$$
+
+CKNO5: MOVEI    1,25    ;NO TRACE
+       JRST    CKNO$$
+
+CKNO6: MOVEI    1,32    ;NO ECHO
+       JRST    CKNO$$
+
+CKNO6A: MOVEI   R1,40   ;NO STARTPOINT
+        JRST    CKNO$$
+
+CKNO7: MOVEI    1,35    ;NO MODULE
+        JRST    CKNO$$
+
+CKNO8:  MOVEI   1,37    ;NO LIBRARY
+        JRST    CKNO$$
+
+CKNO9:  MOVEI   1,2     ;unrecognized NO command
+        MOVEM   1,SCID
+        MOVEI   1,61
+
+CKNO$$: MOVEM   R1,SCVAL
+        BRETURN CKNO
+
+
+       SUBTTL  CM8 1.5.4.11.5
+       BDCL    CM8
+
+;  CM81
+       MOVE    1,V
+       CAIE    1,28
+       JRST    CM83
+
+;  CM82
+       SETZM   SCID
+       MOVEI    1,10
+       MOVEM   1,SCVAL
+        JRST     CM8$$
+
+
+;  CM83
+CM83:  CALL    ERROR,<9>
+;  CM8$$
+CM8$$:  BRETURN  CM8
+
+
+                                SUBTTL  CM10 1.5.4.11.7
+        BDCL     CM10
+
+;CM10 01
+        MOVE    1,SCVAL
+        CAIG    1,2
+        JRST    CM1003
+        SKIPE   0,RPTSW
+        J       CM1002
+        CALL    PTRDF7,<$,MKLNPT,$,LINPTR>
+        CAIE    1,1
+        J       CM1002
+        M       1,MKCCHR
+        CAIN    1,113   ;"q"
+        J       CM1003
+        CAIN    1,101   ;"e"
+        J       CM1003
+        CAIN    1,109   ;"m"
+        J       CM1003
+
+;CM10 02
+CM1002: MOVEI   1,2
+        MOVEM   1,SCID
+        SETZM   SCVAL
+        JRST    CM10$$
+
+;CM10 03
+CM1003:  CALL   CAT
+
+;CM10 04
+        SKIPN   CC
+        JRST    CM1006
+
+;CM10 05
+CM1005: MOVEI   1,2
+        MOVEM   1,SCID
+        SETZM   SCVAL
+        JRST    CM10$$
+
+;CM10 06
+CM1006: MOVE    1,SCVAL
+        CAILE   1,2
+        JRST    CM109
+        CAIN    1,2
+        J       CM108
+
+;                       CM10 7
+        SETZM   0,SCID
+        MOVEI   1,9
+        ADDM    1,SCVAL
+        JRST    CM10$$
+
+;                       CM10 8
+CM108:  MOVEI   1,1
+        MOVEM   1,SCID
+        MOVEM   1,SCVAL
+        J       CM10$$
+
+;                       CM10 9
+CM109:  M       1,MKCCHR
+        CAIN    1,113  ;"q"
+        J       CM1012
+        CAIN    1,109  ;"m"
+        J       CM1011
+
+;                       CM10 10
+        SETZM   0,SCID
+        MI      1,9
+        MM      1,SCVAL
+        J       CM10$$
+
+;                       CM10 11
+CM1011: SETZM   0,SCID
+        MI      1,10
+        MM      1,SCVAL
+        J       CM10$$
+
+;                       CM10 12
+CM1012: MI      1,1
+        MM      1,SCID
+        MM      1,SCVAL
+
+
+CM10$$: BRETURN  CM10
+
+
+                                SUBTTL  CM11 1.5.4.11.8
+        BDCL     CM11
+
+;CM11 01
+        MOVE    1,C
+        CAIE    1,11
+        JRST    CM1103
+        SKIPN   IFSW
+        JRST    CM1103
+
+;CM11 02
+        MOVEI   1,2
+        MOVEM   1,SCID
+        MOVEI   2,40
+        MOVEM   2,SCVAL
+        JRST    CM11$$
+
+;CM11 03
+CM1103:  CALL   ERROR,<9>
+
+CM11$$: BRETURN  CM11
+
+
+                                SUBTTL  PARS0 1.5.4.11.10
+        BDCL     PARS0
+
+;PARS0 01
+        BCALL   CKNUMB
+
+;PARS0 02
+         CALL   NOIF
+
+;PARS0 03
+;symbol values marked with * are not supplied by the SYMBOL subroutines,
+;but are set within the program
+        MOVE    1,SCVAL
+        JRST    .+1(1)
+        JRST    PRS004          ;0* delete line (line number crlf)
+        JRST    PRS005          ;1* terminate ENTER mode
+        JRST    PRS006          ;2  DELETE
+        JRST    PRS007          ;3  ENTER
+        JRST    PRS008          ;4  LIST
+        JRST    PRS009          ;5  DLIST
+        JRST    PRS010          ;6  MERGE
+        JRST    PRS011          ;7  GET
+        JRST    PRS012          ;8  SAVE & * SAVE BINARY
+        JRST    PRS013          ;9  EDIT
+        JRST    PRS014          ;10 MODIFY
+        JRST    PRS015          ;11 VERSION
+        JRST    PRS016          ;12 RENUMBER
+        JRST    PRS017          ;13 TOUT
+        JRST    PRS018          ;14 TABS
+        JRST    PRS019          ;15 RUN
+        JRST    PRS020          ;16 START
+        JRST    PRS021          ;17 GO
+        JRST    PRS022          ;18 STEP
+        JRST    PRS023          ;19 PMC
+        JRST    PRS024          ;20 BREAK
+        JRST    PRS025          ;21 TRACE
+        JRST    PRS026          ;22 DO
+        JRST    PRS027          ;23* NO DEBUG
+        JRST    PRS028          ;24* NO BREAK
+        JRST    PRS029          ;25* NO TRACE
+        JRST    PRS030          ;26 CDE
+        JRST    PRS031          ;27 SYMD
+        JRST    PRS032          ;28 DUMP
+       JRST    PRS033           ;29 DEBUG
+       JRST    PRS034           ;30 INITIALIZE
+       JRST    PRS035           ;31 ECHO
+       JRST    PRS036           ;32* NO ECHO
+        JRST    PRS037          ;33 STARTPOINT
+        JRST    PRS038          ;34 MODULE(S)
+        JRST    PRS039          ;35* NO MODULE(S)
+        JRST    PRS040          ;36 LIBRARY(IES)
+        JRST    PRS041          ;37* NO LIBRARY(IES)
+        JRST    PRS042          ;38 MAP
+        JRST    PRS043          ;39 TOF
+        JRST    PRS04A          ;40* NO STARTPOINT
+
+;PARS0 04
+PRS004: BCALL   PCLR1
+        JRST    PRS044
+
+;PARS0 05
+PRS005: BCALL   PTENTR
+        JRST    PRS044
+
+;PARS0 06
+PRS006: BCALL   PDEL
+        JRST    PRS044
+
+;PARS0 07
+PRS007: BCALL   PENTER
+        JRST    PRS044
+
+;PARS0 08
+PRS008: BCALL   PLIST
+        JRST    PRS044
+
+;PARS0 09
+PRS009: BCALL   PDLIST
+        JRST    PRS044
+
+;PARS0 10
+PRS010: BCALL   PMERGE
+        JRST    PRS044
+
+;PARS0 11
+PRS011: BCALL   PGET
+        JRST    PRS044
+
+;PARS0 12
+PRS012: BCALL   PSAVE
+        JRST    PRS044
+
+;PARS0 13
+PRS013: BCALL   PEDIT
+        JRST    PRS044
+
+;PARS0 14
+PRS014: BCALL   PMOD
+        JRST    PRS044
+
+;PARS0 15
+PRS015: BCALL   PVERSN
+        JRST    PRS044
+
+;PARS0 16
+PRS016: BCALL   PRENB
+        JRST    PRS044
+
+;PARS0 17
+PRS017: BCALL   PTOUT
+        JRST    PRS044
+
+;PARS0 18
+PRS018: BCALL   PTABS
+        JRST    PRS044
+
+;PARS0 19
+PRS019: BCALL   PRUN
+        JRST    PRS044
+
+;PARS0 20
+PRS020: BCALL   PSTART
+        JRST    PRS044
+
+;PARS0 21
+PRS021: BCALL   PGO
+        JRST    PRS044
+
+;PARS0 22
+PRS022: BCALL   PSTEP
+        JRST    PRS044
+
+;PARS0 23
+PRS023: BCALL   PPMC
+        JRST    PRS044
+
+;PARS0 24
+PRS024: BCALL   PBREAK
+        JRST    PRS044
+
+;PARS0 25
+PRS025: BCALL   PTRACE
+        JRST    PRS044
+
+;PARS0 26
+PRS026: BCALL   PDO
+        JRST    PRS044
+
+;PARS0 27
+PRS027: BCALL   POD
+        JRST    PRS044
+
+;PARS0 28
+PRS028: BCALL   POB
+        JRST    PRS044
+
+;PARS0 29
+PRS029: BCALL   POT
+        JRST    PRS044
+
+;PARS0 30
+PRS030: BCALL   PCDE
+        JRST    PRS044
+
+;PARS0 31
+PRS031: BCALL   PSYMD
+        JRST    PRS044
+
+;PARS0 32
+PRS032: BCALL   PDUMP
+       JRST    PRS044
+
+;PARS0 33
+PRS033: BCALL  PDEBUG
+       JRST    PRS044
+
+;PARS0 34
+PRS034: BCALL  PINITL
+       JRST    PRS044
+
+;PARS0 35
+PRS035: BCALL  PECHO
+       JRST    PRS044
+
+;PARS0 36
+PRS036: BCALL  PNOECH
+        JRST    PRS044
+
+;PARS0 37
+PRS037: BCALL   PSTAPT
+        JRST    PRS044
+
+;PARS0 38
+PRS038: BCALL   PMODL
+        JRST    PRS044
+
+;PARS0 39
+PRS039: BCALL   PNOMDL
+        JRST    PRS044
+
+;PARS0 40
+PRS040: BCALL   PLIBRA
+        JRST    PRS044
+
+;PARS0 41
+PRS041: BCALL   PNOLIB
+        JRST    PRS044
+
+;PARS0 42
+PRS042: BCALL  PMAP
+        JRST    PRS044
+
+;PARS0 43
+PRS043: BCALL   PTOF
+        JRST    PRS044
+
+PRS04A: BCALL   PNOSPT
+
+;PARS0 44
+PRS044: MOVE    1,C
+        CAIE    1,3
+        JRST    PRS0$$
+        MOVE    2,V
+        CAIG    2,2
+        JRST    PRS0$$
+
+;PARS0 45
+         CALL   ERROR,<38>
+
+PRS0$$: BRETURN  PARS0
+
+
+                                SUBTTL  CKNUMB 1.5.4.11.10.1
+        BDCL     CKNUMB
+
+;CKNUMB 01
+        SETO     1,0
+        CAMN    1,NUMB
+        JRST    CKNM$$
+
+;CKNUMB 02
+        MOVE    1,SCVAL
+        CAIN    1,10
+        JRST    CKNM$$
+        CAIN    1,9
+        JRST    CKNM$$
+        CAIN    1,1
+        JRST    CKNM$$
+        JUMPE   1,CKNM$$
+
+;CKNUMB 03
+         CALL   ERROR,<10>
+
+CKNM$$: BRETURN  CKNUMB
+
+
+                                SUBTTL  PCLR1 1.5.4.11.10.4
+        BDCL     PCLR1
+
+        BRETURN  PCLR1
+
+
+                                SUBTTL  PTENTR 1.5.4.11.10.5
+        BDCL     PTENTR
+
+;PTENTR 01
+         CALL   SYMBOL
+
+        BRETURN  PTENTR
+
+
+                                SUBTTL  PDEL 1.5.4.11.10.6
+        BDCL     PDEL
+
+;PDEL 01
+         CALL   WLNRNG
+
+;PDEL 02
+        SKIPE   FLRNG
+        JRST    PDEL$$
+
+;PDEL 03
+        MOVE    1,C
+        CAIE    1,4
+        JRST    PDEL05
+        MOVE    2,V
+        CAIE    2,17
+        JRST    PDEL05
+
+;PDEL 04
+         CALL   SYMBOL
+        JRST    PDEL$$
+
+;PDEL 05
+PDEL05:  CALL   ERROR,<58>
+
+PDEL$$: BRETURN  PDEL
+
+
+                                SUBTTL  PENTER 1.5.4.11.10.7
+        BDCL     PENTER
+
+;PENTER 01
+         CALL   CKLNUM
+
+;PENTER 02
+        SKIPE   FNUM
+        JRST    PENT04
+
+;PENTER 03
+        MOVEI   1,100
+        MOVEM   1,LNMB
+
+;PENTER 04
+PENT04: MOVE    1,C
+        MOVE    2,V
+        CAIE    1,4
+        JRST    PENT$$
+        CAIE    2,3
+        JRST    PENT$$
+
+;PENTER 05
+PENT05:  CALL   GTLNUM
+
+;PENTER 06
+        SKIPLE  V
+        JRST    PENT08
+
+;PENTER 07
+         CALL   ERROR,<113>
+
+;PENTER 08
+PENT08: MOVE    2,V
+        MOVEM   2,LNINCR
+
+;PENTER 09
+         CALL   SYMBOL
+
+PENT$$: BRETURN  PENTER
+
+
+                                SUBTTL  PLIST 1.5.4.11.10.8
+        BDCL     PLIST
+
+;PLIST 01
+        CALL    MARK
+
+;PLIST 02
+        CALL    SYMBOL
+
+;PLIST 03
+        SKIPE   0,C
+        JRST    PLIS12
+        MOVE    1,V
+        CAIN    1,21
+        J       PLIS10
+        CAIN    1,20
+        J       PLIS8
+        CAIN    1,36
+        JRST    PLIS6
+        CAIE    1,34
+        JRST    PLIS12
+
+;PLIST 04
+        MOVEI   1,1
+        MOVEM   1,LISTYP
+
+;PLIST 05
+        CALL    SYMBOL
+        JRST    PLIS$$
+
+;PLIST 06
+PLIS6:  MOVEI   1,2
+        MOVEM   1,LISTYP
+
+;PLIST 07
+        CALL    SYMBOL
+        JRST    PLIS$$
+
+;PLIST 08
+PLIS8:  MI      1,3
+        MM      1,LISTYP
+
+;PLIST 09
+        CALL    SYMBOL
+        J       PLIS$$
+
+;PLIST 10
+PLIS10: MI      1,4
+        MM      1,LISTYP
+
+;PLIST 11
+        CALL    SYMBOL
+        J       PLIS$$
+
+;PLIST 12
+PLIS12: SETZM   0,LISTYP
+
+;PLIST 13
+        CALL    RESET
+
+;PLIST 14
+        CALL    WLNRNG
+
+; EXIT PLIST
+PLIS$$: BRETURN  PLIST
+
+
+                                SUBTTL  PDLIST 1.5.4.11.10.9
+        BDCL     PDLIST
+
+;PDLIST 01
+         CALL   WLNRNG
+
+        BRETURN  PDLIST
+
+
+                                SUBTTL  PMERGE 1.5.4.11.10.10
+        BDCL     PMERGE
+
+;PMERGE 01
+         CALL   GTFNAM
+
+        BRETURN  PMERGE
+
+
+                                SUBTTL  PGET 1.5.4.11.10.11
+        BDCL     PGET
+
+;PGET 01
+         CALL   GTFNAM
+
+        BRETURN  PGET
+
+       SUBTTL  PSAVE  1.5.4.11.10.12
+       BDCL    PSAVE
+
+;                       PSAVE 1
+        CALL    EATBLK
+
+;                       PSAVE 2
+        CALL    MARK
+
+;                       PSAVE 3
+        MI      2,5     ;GET 5 CHARS
+        MI      1,0
+        M       0,CCHR
+PSAV3A: TRZ     0,^O40  ;UPPER CASE
+        LSHC    0,-7    ;CHAR INTO R1
+        GET
+        SOJG    2,PSAV3A
+        CAME    1,[ASCII /RANIB/]
+        J       PSAV5
+        TRZ     0,^O40  ;UPPER CASE
+        CAIE    0,"Y"
+        J       PSAV5
+        GET
+        CAIN    0," "
+        J       PSAV4
+        CAIE    0,^O15
+        J       PSAV5
+
+;                       PSAVE 4
+PSAV4:  SETOM   0,SVBFLG
+        J       PSAV7
+
+;                       PSAVE 5
+PSAV5:  SETZM   0,SVBFLG
+
+;                       PSAVE 6
+        CALL    RESET
+
+;                       PSAVE 7
+PSAV7:  CALL    GTFNM1
+
+;                       PSAVE 8
+        CALL    WLNRNG
+
+;                       PSAVE 9-12
+;+
+;  Decide if the user has typed a valid string
+;  We know that
+;  FILV1 =0 if the user didnt type a file name, else = # chars pointed
+;    to by FILV
+;  SVBFLG =1 if SAVE BINARY, else =0
+;  FLRNG =0 if no range specification, else =1
+;  So,
+;  IF SVBFLG AND FLRNG THEN <error 12>
+;    END
+;  Fall through and we have a valid file name specification for SAVE [BINARY]
+;  (if FILV=0 then SVBCHK looks at DFLTFG (=1) to see if a workspace
+;   name is specified in DFLTNM.  if not XERROR 108)
+;-
+        SKIPN   0,SVBFLG        ;SAVE BINARY command ?
+        JRST    PSAV$$          ;No, we are done here
+        MOVE    1,FLRNG         ;Get range given flag
+        CAIE    1,1             ;A range ?
+        J       PSAV$$          ;No, correct
+        CALL    XERROR,<12>     ;You specified a range with SAVE BINARY ?
+
+;                       EXIT
+PSAV$$: BRETURN PSAVE
+
+
+                                SUBTTL  PEDIT 1.5.4.11.10.13
+        BDCL     PEDIT
+
+;PEDIT 01
+        MOVN    1,NUMB
+        CAIE    1,1
+        JRST    PED5
+
+;PEDIT 02
+         CALL   WLNRNG
+
+;  PEDIT3
+       SKIPE   FLRNG
+        JRST   PED$$
+
+;  PEDIT4
+       CALL    ERROR,<57>
+
+;  PEDIT5
+PED5:   CALL     WLC27,<$,NUMB>
+
+;       PEDIT 6
+        CALL    WLC27,<$,NUMB>
+
+;  PEDIT7
+       CALL    SYMBOL
+
+;  PEDIT$$
+PED$$: BRETURN PEDIT
+
+
+       SUBTTL  PMOD  1.5.4.11.10.14
+       BDCL    PMOD
+
+;  PMOD1
+       MOVN    1,NUMB
+       CAIE    1,1
+       JRST    PMOD5
+
+;  PMOD2
+       CALL    WLNRNG
+
+;  PMOD3
+       SKIPE   FLRNG
+       JRST    PMOD$$
+
+;  PMOD4
+       CALL    ERROR,<57>
+
+;  PMOD5
+PMOD5: CALL    WLC27,<$,NUMB>
+
+; PMOD6
+       CALL    WLC27,<$,NUMB>
+
+;  PMOD7
+       CALL    SYMBOL
+
+;  PMOD$$
+PMOD$$: BRETURN  PMOD
+
+                                SUBTTL  PVERSN 1.5.4.11.10.15
+        BDCL     PVERSN
+
+;PVERSN 01
+         CALL   SYMBOL
+
+        BRETURN  PVERSN
+
+
+                                SUBTTL  PRENB 1.5.4.11.10.16
+        BDCL     PRENB
+
+;PRENB 01
+        BCALL   RENA1
+
+;PRENB 02
+        BCALL   RENA2
+
+;PRENB 03
+        BCALL   RENA3
+
+;               EXIT PRENB
+        BRETURN  PRENB
+
+
+                                SUBTTL  RENA1 1.5.4.11.10.16.1
+        BDCL     RENA1
+
+;                       RENA1 0
+        SETZM   0,TOADD
+
+;RENA1 01
+         CALL   CKLNUM
+
+;RENA1 02
+        SKIPE   0,FNUM
+        JRST    RNA108
+
+;RENA1 03
+        MOVE    1,C
+        CAIE    1,4
+        JRST    RNA107
+        MOVE    2,V
+        CAIE    2,14
+        JRST    RNA107
+
+;RENA1 04
+         CALL   GTLNUM
+
+;RENA1 05
+        MOVE    1,V
+        MOVEM   1,NEWLN
+        MI      1,2
+        MM      1,FIRSTN
+
+;RENA1 06
+         CALL   SYMBOL
+        JRST    RNA1$$
+
+;RENA1 07
+RNA107: MOVEI   1,100
+        MOVEM   1,NEWLN
+        SETZM   0,FIRSTN
+        JRST    RNA1$$
+
+;RENA1 08
+RNA108: MOVE    1,LNMB
+        MOVEM   1,NEWLN
+        MI      1,1
+        MM      1,FIRSTN
+
+RNA1$$: BRETURN  RENA1
+
+                                SUBTTL  RENA2 1.5.4.11.10.16.2
+        BDCL     RENA2
+
+;RENA2 01
+        MOVE    1,C
+        MOVE    2,V
+        CAIE    1,7
+        J       RNA2A
+        CAIN    2,4
+        J       RNA209
+RNA2A: CAIE     1,5
+        J       RNA2B
+        CAIN    2,2
+        J       RNA209
+RNA2B: CAIE     1,4
+        J       RNA2C
+        CAIN    2,2
+        J       RNA209
+RNA2C: CAIE     1,4
+        J       RNA2D
+        CAIN    2,20
+        J       RNA206
+RNA2D: CAIE     1,4
+        J       RNA2E
+        CAIN    2,6
+        J       RNA21A
+RNA2E: CAIE     1,5
+        J       RNA212
+        CAIN    2,1
+        J       RNA21A
+        J       RNA212
+
+;                       RENA2 1A
+RNA21A: M       1,C
+        MM      1,COMSW
+;RENA2 02
+        CALL    LRANGE
+
+;RENA2 03
+        SKIPE   0,FNUM
+        JRST    RNA205
+
+;                       RENA2 3A
+        M       1,COMSW
+        CAIE    1,4
+        J       RNA204
+
+;                       RENA2 3B
+        CALL    ERROR,<97>
+
+;RENA2 04
+RNA204: SETZM   0,LOWLN
+        MOVEI   1,99999
+        MOVEM   1,HIGHLN
+        JRST    RNA2$$
+
+;RENA2 05
+RNA205: MOVE    1,LNMB
+        MOVEM   1,LOWLN
+        MOVE    1,LNMB1
+        MOVEM   1,HIGHLN
+        J       RNA2$$
+
+;RENA2 06
+RNA206: M       1,FIRSTN
+        CAIN    1,1
+        J       RNA208
+        CAIN    1,2
+        J       RNA27A
+
+;RENA2 07
+        SETZM   0,LOWLN
+        MI      1,99999
+        MM      1,HIGHLN
+        JRST    RNA2$$
+
+;                       RENA2 7A
+RNA27A: CALL    ERROR,<97>
+
+;RENA2 08
+RNA208: M       1,NEWLN
+        MOVEM   1,LOWLN
+        MI      1,99999
+        MM      1,HIGHLN
+        J       RNA2$$
+
+;RENA2 09
+RNA209:  CALL   GTLNUM
+
+;RENA2 10
+        MOVE    1,NEWLN
+        MOVEM   1,LOWLN
+        MOVE    1,V
+        MOVEM   1,HIGHLN
+        MOVEI   1,100
+        MOVEM   1,NEWLN
+        MI      1,1
+        MM      1,TOADD
+
+;RENA2 11
+         CALL   SYMBOL
+
+;                       RENA2 11A
+        M       1,FIRSTN
+        CAIN    1,1
+        J       RNA2$$
+
+;                       RENA2 11B
+        CALL    XERROR,<97>
+;RENA2 12
+RNA212: SETZM   0,LOWLN
+        MOVEI   1,99999
+        MOVEM   1,HIGHLN
+
+RNA2$$: BRETURN  RENA2
+                                SUBTTL  RENA3 1.5.4.11.10.16.3
+        BDCL     RENA3
+
+;RENA3 01
+        MOVE    1,C
+        MOVE    2,V
+        CAIE    1,4
+        J       RNA3A
+        CAIN    2,3
+        J       RNA31A
+RNA3A: CAIE     1,4
+        J       RNA3B
+        CAIN    2,35
+        J       RNA31A
+RNA3B: CAIE     1,5
+        J       RNA3C
+        CAIN    2,1
+        J       RNA31A
+RNA3C: CAIE     1,4
+        J       RNA311
+        CAIN    2,20
+        J       RNA307
+        J       RNA311
+
+;                       RENA3 1A
+RNA31A: M       1,C
+        MM      1,COMSW
+;RENA3 02
+         CALL   CKLNUM
+
+;RENA3 03
+        SKIPE   0,FNUM
+        JRST    RNA305
+
+;                       RENA3 3A
+        M       1,COMSW
+        CAIE    1,4
+        J       RNA304
+
+;                       RENA3 3B
+        CALL    ERROR,<97>
+
+;RENA3 04
+RNA304: MOVEI   1,10
+        MOVEM   1,RINC
+        JRST    RNA306
+
+;RENA3 05
+RNA305: MOVE    1,LNMB
+        MOVEM   1,RINC
+
+;RENA3 06
+RNA306: SETZM   0,RADFLG
+        JRST    RNA313
+
+;RENA3 07
+RNA307: BCALL   GTADMT
+
+;RENA3 08
+        MOVE    1,V
+        MOVEM   1,ADDAMT
+
+;RENA3 09
+         CALL   SYMBOL
+
+;RENA3 10
+
+        MOVEI   1,1
+        MOVEM   1,RADFLG
+        JRST    RNA313
+
+;RENA3 11
+RNA311: MOVEI   1,10
+        MOVEM   1,RINC
+
+;RENA3 12
+        SETZM   0,RADFLG
+
+
+;                       RENA3 13
+RNA313: M       1,TOADD
+        CAIE    1,1
+        J       RNA3$$
+        SKIPE   0,RADFLG
+        J       RNA3$$
+
+;                       RENA3 14
+        CALL    XERROR,<97>
+
+RNA3$$: BRETURN  RENA3
+
+
+                                SUBTTL GTADMT CHART 1.5.4.11.10.16.3.7
+        BDCL    GTADMT
+
+;                       GTADMT 1
+        CALL    SYMBOL
+
+;                       GTADMT 2
+        MOVE    1,C
+        CAIE    1,7
+        JRST    GTAD5
+        MOVE    1,V
+        CAIE    1,4
+        JRST    GTAD5
+
+;                       GTADMT 3
+        CALL    SYMBOL
+
+;                       GTADMT 4
+        SETOM   0,ADMISW
+        JRST    GTAD6
+
+;                       GTADMT 5
+GTAD5:  SETZM   0,ADMISW
+
+;                       GTADMT 6
+GTAD6:  MOVE    1,C
+        CAIE    1,11
+        JRST    GTAD7
+        MOVE    2,V
+        JUMPL   2,GTAD7
+        CAIG    2,99999
+        JRST    GTAD8
+
+;                       GTADMT 7
+GTAD7:  CALL    ERROR,<18>
+
+;                       GTADMT 8-9
+GTAD8:  SKIPE   0,ADMISW
+        MOVNS   0,V
+
+;                       EXIT GTADMT
+        BRETURN GTADMT
+
+
+                                SUBTTL  PTOUT 1.5.4.11.10.17
+       BDCL    PTOUT
+
+;  PTOUT1
+       CALL    GTFNAM
+
+;PTOUT2
+       SKIPE   FILV
+       JRST    PTOU$$
+
+;PTOUT3
+       CALL    ERROR,<14>
+
+;PTOUT$$
+PTOU$$: BRETURN PTOUT
+
+
+                                SUBTTL  PTABS 1.5.4.11.10.18
+        BDCL     PTABS
+
+;PTABS 01
+        SETZM   NTABS
+
+;PTABS 02-03
+PTBS03: AOS     NTABS
+
+;PTABS 04
+         CALL   SYMBOL
+
+;PTABS 05
+        MOVEI   1,11
+        CAME    1,C
+        JRST    PTBS09
+
+;PTABS 06
+        MOVE    1,V
+        JUMPLE  1,PTBS08
+        CAILE   1,32767
+        JRST    PTBS08
+
+;PTABS 07
+         CALL   WLC18,<$,V>
+        JRST    PTBS10
+
+;PTABS 08
+PTBS08:  CALL   ERROR,<61>
+
+;PTABS 09
+PTBS09:  CALL   ERROR,<61>
+
+;PTABS 10-11
+PTBS10:  CALL   SYMBOL
+        MOVE    1,C
+        CAIE    1,5
+        JRST    PTBS12
+        MOVE    2,V
+        CAIN    2,1
+        JRST    PTBS03
+
+;PTABS 12
+PTBS12: MOVE   1,NTABS
+        CAIG    1,16
+        JRST    PTBS$$
+
+;PTABS 13
+         CALL   ERROR,<61>
+
+PTBS$$: BRETURN  PTABS
+
+
+                                SUBTTL  PRUN 1.5.4.11.10.19
+        BDCL     PRUN
+
+;PRUN 01
+         CALL   GTFNAM
+
+        BRETURN  PRUN
+
+
+                                SUBTTL  PSTART 1.5.4.11.10.20
+        BDCL     PSTART
+
+;PSTART 01
+         CALL   SYMBOL
+
+        BRETURN  PSTART
+
+
+                                SUBTTL  PGO 1.5.4.11.10.21
+        BDCL     PGO
+
+;PGO 01
+         CALL   SYMBOL
+
+        BRETURN  PGO
+
+
+                                SUBTTL  PSTEP 1.5.4.11.10.22
+        BDCL     PSTEP
+
+;PSTEP 01
+       CALL    SYMBOL
+
+;  PSTEP2
+       MOVEI   1,11
+        CAME   1,C
+       JRST    PSTEP7
+
+;  PSTEP3
+       MOVE    1,V
+       CAIGE   1,1
+       JRST    PSTEP4
+       CAIGE   1,250000
+       JRST    PSTEP5
+
+;  PSTEP4
+PSTEP4: CALL     ERROR,<13>
+
+;  PSTEP5
+PSTEP5: MOVE     1,V
+       MOVEM   1,LNMB
+
+;  PSTEP6
+       CALL    SYMBOL
+       JRST    PSTE$$
+
+;  PSTEP7
+PSTEP7: MOVEI    1,1
+       MOVEM   1,LNMB
+
+;  PSTEP $$
+PSTE$$: BRETURN  PSTEP
+
+                                SUBTTL  PPMC 1.5.4.11.10.23
+        BDCL     PPMC
+
+;PPMC 01
+         CALL   WLNRNG
+
+        BRETURN  PPMC
+
+
+                                SUBTTL  PBREAK 1.5.4.11.10.24
+        BDCL     PBREAK
+
+;PBREAK 01
+         CALL   WLNRNG
+;PBREAK2
+       SKIPE   FLRNG
+       JRST    PBRE$$
+
+;  PBREAK3
+       CALL    ERROR,<57>
+
+;  PBREAK $$
+PBRE$$: BRETURN  PBREAK
+
+       SUBTTL  PTRACE  1.5.4.11.10.25
+       BDCL    PTRACE
+
+;  PTRACE1
+       SETZM   VARCT
+
+;  PTRACE2,3
+PTRAC3: CALL     MARK
+
+;  PTRACE4
+       CALL    SYMBOL
+
+;PTRACE5
+       BCALL   TRVAR
+
+;  PTRACE6
+       MOVEI   1,1
+       CAME    1,FVAR
+       JRST    PTRAC7
+       CAME   1,V
+       JRST    PTRAC7
+       MOVEI   1,5
+       CAMN    1,C
+       JRST    PTRAC3
+
+;  PTRACE7
+PTRAC7: CALL     WLC9,<254>
+
+;  PTRACE8
+       CALL    RESET
+;PTRACE9
+       CALL    WLNRNG
+       BRETURN PTRACE
+
+
+       SUBTTL  TRVAR  1.5.4.11.10.25.5
+       BDCL    TRVAR
+
+;  TRVAR1
+       MOVE    1,C
+       CAIN    1,9
+       JRST    TRVAR2
+       CAIE    1,10
+       JRST    TRVR11
+
+;  TRVAR1A-2
+TRVAR2: CALL     EATBLK
+       MOVE    1,CCHR
+       CAIE    1,"("
+       JRST    TRVAR4
+
+;  TRVAR3
+       CALL    ERROR,<123>
+
+TRVAR4: MOVE     1,C
+       CAIE    1,10
+       JRST    TRVAR6
+
+;  TRVAR5
+       MOVE    1,V
+        ADD     1,NSV1
+       MOVEM   1,VARID
+       JRST    TRVAR7
+
+TRVAR6: MOVE     1,V
+       ADDI    1,1
+       MOVEM   1,VARID
+
+TRVAR7:  CALL    WLC18,<$,VARID>
+
+;  TRVAR8
+       MOVEI   1,1
+       MOVEM   1,FVAR
+       AOS     VARCT
+
+;  TRVAR9
+       CALL    MARK
+
+;  TRVAR10
+       CALL    SYMBOL
+       JRST    TRVR$$
+
+TRVR11: SETZM   FVAR
+
+;  TRVAR12
+       MOVE    1,C
+       CAIE    1,5
+       JRST    TRVR$$
+       MOVE    1,V
+       CAIE    1,1
+       JRST    TRVR$$
+
+;  TRVAR13
+       CALL    ERROR,<124>
+
+TRVR$$: BRETURN TRVAR
+
+
+                                SUBTTL  PDO 1.5.4.11.10.26
+        BDCL     PDO
+
+;PDO 01
+         CALL   GTFNAM
+;PDO2  
+       SKIPE   FILV
+       JRST    PDO$$
+
+
+PDO3:  CALL    ERROR,<14>
+
+;  PDO$$
+PDO$$:  BRETURN  PDO
+
+
+                                SUBTTL  POD 1.5.4.11.10.27
+        BDCL     POD
+
+;POD 01
+         CALL   SYMBOL
+
+        BRETURN  POD
+
+
+                                SUBTTL  POB 1.5.4.11.10.28
+        BDCL     POB
+
+;POB 01
+         CALL   WLNRNG
+
+        BRETURN  POB
+
+
+                                SUBTTL  POT     1.5.4.11.10.29
+        BDCL     POT
+
+;POT 0
+        SETZM   0,VARCT
+
+;POT 01
+         CALL   WLNRNG
+
+;  POT2
+       SKIPE   FLRNG
+       JRST    POT$$
+
+;  POT3
+       BCALL   OTVARS
+
+POT$$: BRETURN POT
+
+
+
+       SUBTTL  OTVARS  1.5.4.11.10.29.3
+       BDCL    OTVARS
+
+;  OTVARS1
+       SETZM   OTDONE
+;  OTVARS 2
+OTVR2: SKIPE   OTDONE
+       JRST    OTVR$$
+
+;  OTVARS3
+       MOVE    1,C
+       CAIN    1,9
+       JRST      OTVR4A
+       CAIN    1,10
+       JRST    OTVR4A
+
+;  OTVARS4
+       MOVEI   1,1
+       MOVEM   1,OTDONE
+       JRST    OTVR2
+
+;  OTVARS 4A-5
+OTVR4A: CALL    EATBLK
+       MOVE    1,CCHR
+       CAIE    1,"("
+       JRST    OTVR7
+
+;  OTVARS6
+       CALL    ERROR,<131>
+
+OTVR7: BCALL   WRTOT
+
+;  OTVR8
+       MOVE    1,C
+       CAIE    1,5
+       JRST    OTVR9
+       MOVE    1,V
+       CAIN    1,1
+       JRST    OTVR10
+
+OTVR9: MOVEI   1,1
+       MOVEM   1,OTDONE
+       JRST    OTVR2
+
+OTVR10: CALL    SYMBOL
+       JRST    OTVR2
+
+OTVR$$: BRETURN OTVARS
+
+       SUBTTL  WRTOT  1.5.4.11.10.29.3.7
+       BDCL    WRTOT
+
+;  WRTOT1
+       MOVE    1,C
+       CAIE    1,10
+       JRST    WRTOT3
+
+;  WRTOT2
+       MOVE    1,V
+        ADD     1,NSV1
+        MOVEM   1,VARID
+       JRST    WRTOT4
+
+WRTOT3: MOVE    1,V
+       ADDI    1,1
+       MOVEM   1,VARID
+
+WRTOT4: CALL    WLC18,<$,VARID>
+
+;  WRTOT5
+       AOS     VARCT
+
+;  WRTOT6
+       CALL    SYMBOL
+       BRETURN WRTOT
+
+
+                                SUBTTL  PCDE 1.5.4.11.10.30
+        BDCL     PCDE
+
+;PCDE 01
+         CALL   PLNRNG
+
+        BRETURN  PCDE
+
+
+                                SUBTTL  PSYMD 1.5.4.11.10.31
+        BDCL     PSYMD
+
+;PSYMD 01
+         CALL   SYMBOL
+
+;PSYMD 02
+        MOVE    1,C
+        CAIE    1,9
+        CAIN    1,10
+        JRST    PSMD3A
+
+;PSYMD 03
+         CALL   ERROR,<29>
+
+;  PSYMD 3A
+PSMD3A: CALL     EATBLK
+
+;PSYMD 04
+        MOVE    1,CCHR
+        CAIE    1,"("     
+        JRST    PSMD06
+
+;PSYMD 05
+         CALL   ERROR,<129>
+
+;PSYMD 06
+PSMD06: MOVE    1,C
+        CAIE    1,10
+        JRST    PSMD08
+
+;PSYMD 07
+        MOVE    1,V
+        ADD     1,NSV1
+        MOVEM   1,VARID
+        JRST    PSMD09
+
+;PSYMD 08
+PSMD08: MOVE    1,V
+        AOJ     1,
+        MOVEM   1,VARID
+
+;PSYMD 09
+PSMD09:  CALL   CKLNUM
+
+        BRETURN  PSYMD
+
+
+                                SUBTTL  PDUMP 1.5.4.11.10.32
+        BDCL     PDUMP
+
+;PDUMP 01
+         CALL   SYMBOL
+
+;PDUMP 02
+        MOVE    1,C
+        MOVE    2,V
+        CAIE    1,4
+        JRST    PDMP03
+        CAIN    2,34
+        JRST    PDMP04
+
+;PDUMP 03
+PDMP03:  CALL   ERROR,<130>
+
+;PDUMP 04
+PDMP04:  CALL   GTFNAM
+
+PDMP$$: BRETURN PDUMP
+
+
+       SUBTTL  PDEBUG  1.5.4.11.10.33
+       BDCL    PDEBUG
+
+;  PDEBUG11
+       CALL    SYMBOL
+       BRETURN PDEBUG
+
+
+       SUBTTL  PINITL  1.5.4.11.10.34
+       BDCL    PINITL
+
+;  PINITL1
+       CALL    GTFNAM
+       BRETURN PINITL
+
+
+       SUBTTL  PECHO  1.5.4.11.10.35
+       BDCL    PECHO
+
+;  PECHO1
+       CALL    SYMBOL
+       BRETURN PECHO
+
+
+       SUBTTL  PNOECH  1.5.4.11.10.36
+       BDCL    PNOECH
+
+;  PNOECH1
+       CALL    SYMBOL
+       BRETURN PNOECH
+
+
+                                SUBTTL  PSTAPT CHART 1.5.4.11.10.37
+        BDCL    PSTAPT
+
+;                       PSTAPT 1
+        CALL    GTFNAM
+
+;                       PSTAPT 2
+        SKIPE   0,FILV
+        JRST    PSTP$$
+
+;                       PSTAPT 3
+        CALL    ERROR,<108>
+
+;                       EXIT PSTAPT
+PSTP$$:BRETURN  PSTAPT
+
+
+                                SUBTTL  PMODL CHART 1.5.4.11.10.38
+        BDCL    PMODL
+
+;                       PMODL 1
+        CALL    GTSCNS
+
+;                       EXIT PMODL
+        BRETURN PMODL
+
+
+                                SUBTTL PNOMDL CHART 1.5.4.11.10.39
+        BDCL    PNOMDL
+
+;                       PNOMDL 1
+        CALL    GTSCNS
+
+;                       EXIT PNOMDL
+        BRETURN PNOMDL
+
+
+                                SUBTTL  PLIBRA CHART 1.5.4.11.10.40
+        BDCL    PLIBRA
+
+;                       PLIBRA 1
+        CALL    GTSCNS
+
+;                       EXIT PLIBRA
+        BRETURN PLIBRA
+
+
+                                SUBTTL  PNOLIB CHART 1.5.4.11.10.41
+        BDCL    PNOLIB
+
+;                       PNOLIB 1
+        CALL    GTSCNS
+
+;                       EXIT PNOLIB
+        BRETURN PNOLIB
+
+
+                                SUBTTL PMAP CHART 1.5.4.11.10.42
+        BDCL    PMAP
+
+;                       PMAP 1
+        CALL    SYMBOL
+
+;                       EXIT
+        BRETURN PMAP
+
+
+                                SUBTTL  PTOF CHART 1.5.4.11.10.43
+        BDCL    PTOF
+
+;                       PTOF 1
+        CALL    WLNRNG
+
+;                       EXIT
+        BRETURN PTOF
+
+
+                                SUBTTL  PNOSPT
+        BDCL    PNOSPT
+
+        CALL    SYMBOL
+
+        BRETURN PNOSPT
+
+
+                                SUBTTL  PARS1 1.5.4.11.11
+        BDCL     PARS1
+
+;PARS1 01
+        MOVE    1,SCVAL
+        CAIN    1,2
+        JRST    PRS104
+        CAIN    1,1
+        JRST    PRS103
+
+;PARS1 02
+        MOVEI   1,3
+        MOVEM   1,C
+        MOVEI   1,1
+        MOVEM   1,V
+        MOVEI   1,4
+        MOVEM   1,DCFLGS
+        SETZM   XQTFLG
+        JRST    PRS1$$
+
+;PARS1 03
+PRS103:  BCALL   PQUIT
+        JRST    PRS1$$
+
+;PARS1 04
+PRS104:  BCALL   PLOG
+
+PRS1$$: BRETURN  PARS1
+
+
+                                SUBTTL  PQUIT 1.5.4.11.11.3
+        BDCL     PQUIT
+
+;PQUIT 01
+         CALL   LEL
+
+;PQUIT 02
+        MOVE    1,FEX
+        MOVEM   1,XQTFLG
+
+;PQUIT 03
+        MOVEI   0,70
+        ADD     0,FEX
+         CALL   WLC1
+
+        BRETURN  PQUIT
+
+
+                                SUBTTL  PLOG 1.5.4.11.11.4
+        BDCL     PLOG
+
+;PLOG 01
+         CALL   LEL
+
+;PLOG 02
+        MOVE    1,FEX
+        MOVEM   1,XQTFLG
+
+;PLOG 03
+        MOVEI   0,72
+        ADD     0,FEX
+         CALL   WLC1
+
+        BRETURN  PLOG
+
+
+        END
+  IJ*Q
