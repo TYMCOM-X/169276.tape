@@ -1,0 +1,125 @@
+
+
+
+
+
+                                                          May 28, 1980
+
+     To:     Ron Goldstein
+
+     From:   Sherman Gavette
+
+     Copies: Jack Thomas
+             Samuel Feldman
+
+     Subject:  Status of TBA Enhancements Required for USPS
+
+          This  memo  contains  a  list  of  the  enhancements  to TBA
+          required  by  the USPS  contract,  the  problems encountered
+          during the conversion effort and the status of each.
+
+          1)  SIMULTANEOUS FILE ACCESS (aka CONCURRENT UPDATE)
+
+              Status: Pending - Anticipated Completion Date: 6/11/80
+
+              Documentation: (SGAVETTE:23)TBACUP.DOC
+
+              The enhancement has been fully specified; initial design
+              and partial coding has been performed.
+
+          2)  MONITOR VARIABLES
+
+              Status: DONE
+
+              Documentation: (SGAVETTE:23)TBASPC.DOC
+
+          3)  'RUN' OR LINKING FROM ORIGINATING PROGRAM TO ONE OR MORE
+              CALLED PROGRAMS OR PROCEDURES
+
+              Status: DONE (*)
+
+              (*) The subroutine STUFF_INPUT has been written and will
+              be made available for use within a few days.
+
+          4)  COMMAND EXEC FACILITY
+
+              Status: DONE
+
+              Documentation: (SGAVETTE:23)TBASPC.DOC
+
+          5)  FREE FORM, SPACE DELIMITED I/O
+
+              No  action  required by  Systems  Technology.  Marketing
+              will hire a contractor to develop a binary sort package.
+
+          6)  ON DIV BY ZERO
+
+              Status: DONE
+
+              Documentation:(SGAVETTE:23)TBASPC.DOC
+
+
+                                       1
+
+
+
+
+
+          7)  INPUT/ESCAPE PROBLEM
+
+              Status: DONE
+
+              Documentation: (SGAVETTE:23)TBASPC.DOC
+
+          8)  FLOATING PERIOD PROBLEM
+
+              Status: Pending - Anticipated completion date: 6/2/80
+
+          9)  ****/OVERFLOW PROBLEM
+
+              Status: Pending - Anticipated completion date: 6/2/80
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                       2
+
