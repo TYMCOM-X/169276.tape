@@ -1,0 +1,689 @@
+! RFGEN - version 1 - 12 July 76 - Mike Geary
+
+! This package provides facilities to generate .REL files.  It does
+! all the bookkeeping needed for block types, relocation, symbol
+! table format, and such.  It is intended primarily for use in
+! compilers rather than assemblers - some of the more arcane
+! relocation and symbol-manipulation features of Macro are not
+! supported.
+
+! << need more description of how to use it, relocation, interface
+!    routines, symbol table, and such >>
+
+! Local procedures
+
+local %init.constants, %save.constant, %flush.constants
+local %compare
+
+
+
+! Local data
+
+local max.code.loc      ! Highest value so far of rf.code.loc
+
+%rf.init
+
+! Initializes entire package.
+
+rf.init.all.blocks
+init.constants
+
+rf.code.loc _ 0;  rf.code.reloc _ rel.code
+rf.var.loc _ 0;  rf.var.reloc _ rel.var
+
+return
+
+end rf.init
+
+
+
+%rf.finish
+
+! Finishes up .REL file, writes end block.
+
+flush.constants
+rf.flush.all.blocks
+
+rf.word(rb.end,rf.code.loc,rf.code.reloc)
+rf.word(rb.end,rf.var.loc,rf.var.reloc)
+rf.flush.block(rb.end)
+
+return
+
+end rf.finish
+
+%rf.code(val,reloc)
+
+! Writes a word of code.  Returns [loc;reloc] of word written.
+
+if rf.check.code.block then &
+  rf.code.word(rf.code.loc,rf.code.reloc)  ! Write location word if needed
+rf.code.word(val,reloc)
+max.code.loc _ max.code.loc max (inc rf.code.loc)
+
+return [rf.code.loc-1;rf.code.reloc]
+
+end rf.code
+
+
+%rf.code.short(val,reloc)
+
+! Writes a word of code. Dosnt return anything.
+
+if rf.check.code.block then &
+   rf.code.word(rf.code.loc,rf.code.reloc) ! Write location word if needed
+
+rf.code.word(val,reloc)
+max.code.loc _ max.code.loc max (inc rf.code.loc)
+
+return
+
+end rf.code.short
+
+
+
+%rf.code.block(block(),reloc,length)
+
+! Writes <length> words of code at <block>.  All have the same relocation.
+! Returns [loc;reloc] of first word written.
+
+local i
+
+for i _ 0 to length-1  rf.code(block(i),reloc)
+
+return [rf.code.loc-length;rf.code.reloc]
+
+end rf.code.block
+
+
+
+%rf.set.code.loc(loc,reloc)
+
+! Sets rf.code.loc and rf.code.reloc to new values; makes sure code
+! buffer knows about it.
+
+! Could optimize this by using the concise form of a code block
+! which has embedded location words.
+
+if loc#rf.code.loc or reloc#rf.code.reloc then &
+  do
+  rf.flush.block(rb.code)
+  rf.code.loc _ loc;  rf.code.reloc _ reloc
+  end
+
+return
+
+end rf.set.code.loc
+
+%rf.code.plus.symbol(val,reloc,sym)
+
+! Like rf.code but adds value of sym to RH of the word written.
+! Does this right here if sym has been defined, else puts out an
+! external symbol request, either chained or additive as appropriate.
+! Returns [loc;reloc] for word written.
+
+local sym.val, sym.reloc
+
+eif rf.sym.defined(sym) then &
+  do  ! already defined
+  [sym.val;sym.reloc] _ double rf.sym.val(sym)
+  if rh(reloc)#rel.abs and rh(sym.reloc)#rel.abs then &
+    rf.err("Symbol and code word can't both be relocatable")
+  rf.code([18,18]*[lh(val),val+sym.val]!no carry from RH add!,reloc+sym.reloc)
+  end
+
+orif rh(val)=0 and rh(reloc)=rel.abs then &
+  do  ! chained request
+  [rh(val);rh(reloc)] _ double rf.sym.chain(sym,rf.code.loc,rf.code.reloc)
+  rf.code(val,reloc)
+  end
+
+else &
+  do  ! additive request
+  rf.code(val,reloc)
+  rf.symbol(sym,rs.external,(1 shl 35)+rf.code.loc-1,rf.code.reloc)
+  end
+
+return [rf.code.loc-1;rf.code.reloc]
+
+end rf.code.plus.symbol
+
+
+
+%rf.code.plus.constant(val,reloc,loc,length)
+
+! Holds a constant for later output, writes a code word and adds the
+! eventual loc of the constant to the RH of the word (using a local
+! fixup - the constant is actually written at the end of the .REL file).
+! loc and length describe the constant, which may be any length.
+! A private copy is made of the body of the constant, so
+! the caller may delete his copy.
+
+if rh(val)#0 or rh(reloc)#rel.abs then &
+  rf.err("RH of rf.code.plus.constant word must be abs 0")
+
+[rh(val);rh(reloc)] _ &
+  double save.constant(loc,length,rf.code.loc,rf.code.reloc)
+
+return double rf.code(val,reloc)
+
+end rf.code.plus.constant
+
+%rf.variable(length)
+
+! Allocates <length> words of variable space, returns [loc;reloc] of
+! first word allocated.
+
+local loc
+
+loc _ rf.var.loc
+rf.var.loc + _ length
+
+return [loc;rf.var.reloc]
+
+end rf.variable
+
+%rf.define.symbol(sym,type)
+
+! Sym is a symbol which has been defined (given a value).  Puts out
+! a symbol entry for the symbol and satisfies any existing fixup chain.
+! Type is the symbol type code rs.something to put out to the loader.
+! The symbol's val and reloc are taken from the symbol table.
+
+local sym.val, sym.reloc        ! symbol value
+local chain.loc, chain.reloc    ! chain location
+
+[sym.val;sym.reloc] _ double rf.sym.val(sym)
+[chain.loc;chain.reloc] _ double rf.sym.chain(sym,0,rel.abs)
+if chain.loc#0 or chain.reloc#rel.abs then &
+  rf.rh.fixup(chain.loc,chain.reloc,sym.val,sym.reloc)
+rf.symbol(rf.sym.name(sym),type,sym.val,sym.reloc)
+
+return
+
+end rf.define.symbol
+
+
+
+%rf.symbol(name.ptr,type,val,reloc)
+
+! Writes out a symbol entry of any type.  name.ptr is a word or char ptr
+! to the symbol name (NOT a symbol table ptr).  type is the symbol type
+! to give to the loader.  val and reloc are the symbol value.
+
+rf.check.block(rb.symbol,2)
+
+rf.word(rb.symbol,rf.radix50(name.ptr,type),rel.abs.abs)
+rf.word(rb.symbol,val,reloc)
+
+return
+
+end rf.symbol
+
+%rf.lh.fixup(loc,loc.reloc,val,val.reloc)
+
+! Puts out a fixup definition which will cause [val;val.reloc] to be
+! stuffed into the LH of each word in the chain beginning at the LH
+! of [loc;loc.reloc].
+
+rf.check.block(rb.fixup,2)
+rf.word(rb.fixup,-1,rel.abs.abs)
+
+
+%%rf.rh.fixup(loc,loc.reloc,val,val.reloc)
+
+! Same as above but on a RH chain instead of LH.
+
+rf.word(rb.fixup,[18,18]*[loc,val],[18,18]*[loc.reloc,val.reloc])
+
+return
+
+end rf.lh.fixup
+
+
+
+%rf.link(loc,reloc,num)
+
+! Includes [loc;reloc] in the loader link chain for link <num>.
+
+rf.check.block(rb.link,2)
+
+rf.word(rb.link,num,rel.abs.abs)
+rf.word(rb.link,loc,reloc)
+
+return
+
+end rf.link
+
+
+
+%rf.link.end(loc,reloc,num)
+
+! Defines [loc;reloc] as the end of loader link <num>.  At the end of
+! loading, loc will contain a pointer to the head of the chain for
+! link <num>.
+
+rf.check.block(rb.link,2)
+
+rf.word(rb.link,-num,rel.abs.abs)
+rf.word(rb.link,loc,reloc)
+
+return
+
+end rf.link.end
+
+%rf.entry(name.ptr)
+
+! Writes a symbol name in an entry block.
+
+rf.word(rb.entry,rf.radix50(name.ptr,oct 04),rel.abs.abs)
+
+return
+
+end rf.entry
+
+
+
+%rf.module.name(name.ptr,compiler,flags)
+
+! Writes name and hiseg blocks as specified.  compiler is the compiler
+! number, flags are things like rf.fl.debug (0 if nothing special).
+
+rf.flush.block(rb.entry)
+rf.word(rb.module.name,rf.radix50(name.ptr,oct 00),rel.abs.abs)
+rf.word(rb.module.name,[6,12,18]*[flags,compiler,0],rel.abs.abs)
+rf.flush.block(rb.module.name)
+rf.word(rb.hiseg,oct 400000.400000,rel.abs.abs)
+rf.flush.block(rb.hiseg)
+
+return
+
+end rf.module.name
+
+
+
+%rf.start.address(loc,reloc)
+
+! Writes [loc;reloc] in a start-address block (execution start loc).
+
+rf.word(rb.start.loc,loc,reloc)
+
+return
+
+end rf.start.address
+
+
+
+%rf.common(name.ptr,length)
+
+! Declares a COMMON block of the specified name and length.
+
+rf.word(rb.common,rf.radix50(name.ptr,oct 04),rel.abs.abs)
+rf.word(rb.common,length,rel.abs.abs)
+
+return
+
+end rf.common
+
+%init.constants
+
+! Constant manager - init.constants is the constant-manager outer block
+! and the initialization routine.
+
+! Con.list is the head of a linked list of constant descriptors.
+! Each descriptor defines a unique constant of one or more words which
+! is to be put out at the end of loading together with a local fixup
+! to take care of references to it.
+
+local con.list
+
+! Each descriptor contains a header telling all about the constant,
+! followed by the constant body.  The constant body contains nothing
+! relocatable.
+
+! Pieces of a constant descriptor:
+
+def con.next(c)         as rh(^(c))             ! ptr to next descriptor
+def con.length(c)       as lh(^(c))             ! length of body only
+def con.code.loc(c)     as rh(^(c+1))           ! current head of fixup chain
+def con.code.reloc(c)   as byte(^(c+1),18,2)    ! relocation of above
+def con.head.length     as 2                    ! # of words in header
+def con.val(c)          as (c+con.head.length)  ! loc of first word of value
+
+
+
+! Code to initialize constant manager:
+
+con.list _ 0
+
+return
+
+! Still inside %init.constants
+
+
+  %save.constant(loc,length,code.loc,code.reloc)
+
+  ! [loc;length] describe a constant to be saved for later output.
+  ! [code.loc;code.reloc] describe the code location which will eventually
+  ! have a pointer in the RH to this constant.  Stores away the constant
+  ! if there is not an identical one already, stores [code.loc;code.reloc]
+  ! in the constant's chain field, and returns the previous values for
+  ! the chain field, to facilitate setting up a fixup chain.  The caller
+  ! should store the returned [loc;reloc] in the RH of the word at
+  ! [code.loc;code.reloc].
+
+  local con, old.code.loc, old.code.reloc
+
+  con _ con.list
+
+  while con#0 then &
+    do  ! check if constant already exists
+    if compare(loc,length,con.val(con),con.length(con)) then &
+      do  ! already got one, add code.loc to its fixup chain
+      old.code.loc _ con.code.loc(con);  old.code.reloc _ con.code.reloc(con)
+      con.code.loc(con) _ code.loc;  con.code.reloc(con) _ code.reloc
+      return [old.code.loc;old.code.reloc]
+      end
+    con _ con.next(con)
+    end
+
+  ! no previous copy, make one now.
+
+  con _ rf.getmem(length+con.head.length)
+  con.length(con) _ length
+  move length from loc to con.val(con)
+  con.code.loc(con) _ code.loc;  con.code.reloc(con) _ code.reloc
+  con.next(con) _ con.list; con.list _ con  ! put on con.list
+  return [0;rel.abs]
+
+  end save.constant
+
+! Still inside %init.constants
+
+
+  %flush.constants
+
+  ! Cleans out the constant list, writes out each constant and puts out
+  ! its local fixup.
+
+  local con, next
+
+  con _ con.list
+
+  while con#0 then &
+    do  ! for each constant
+    rf.rh.fixup(con.code.loc(con),con.code.reloc(con),rf.code.loc,rf.code.reloc)
+    rf.code.block(con.val(con),rel.abs.abs,con.length(con))
+    next _ con.next(con)
+    rf.rlsmem(con.length(con)+con.head.length,con)
+    con _ next
+    end
+
+  init.constants  ! re-initialize
+
+  return
+
+  end flush.constants
+
+
+
+end init.constants
+
+%rf.init.all.blocks
+
+! Basic block-writing code.  Commonly used block types (those named in
+! private.list) have buffers of their very own; others share a common
+! buffer.  block.ptr gives for each block type a pointer to the buffer for
+! that block regardless of whether it is a private buffer or the shared one.
+! The code doesn't make any distinction between private buffers and shared
+! ones - it just checks the block type in the buffer to see if it matches
+! the desired type and flushes the buffer if not.  Each buffer contains
+! the byte pointer for the relocation word (reloc.ptr) and the actual data
+! to be sent to the loader (block.buf).  block.buf contains the header
+! word with the type and length and the relocation word and the data
+! words.  The code to write into the buffer depends on the fact that
+! there is only one relocation word (max.block.length=18).  rf.word could
+! be changed to allow longer bufffers by checking for when the relocation
+! pointer runs out of room.
+
+! since rb.code is such a popular type, special macros have been written
+! to speed up the routines rf.code and rf.word
+
+! Block buffer definitions:
+
+def max.block.length as 18      ! max # of data words in a block (excl. header)
+
+local block.ptr(min.rb:max.rb)  ! pointer to the buffer to be used for each type
+def reloc.ptr(rb)    as ^(block.ptr(rb))        ! relocation byte pointer
+def block.buf(rb,w)  as ^(block.ptr(rb)+(w)+1)  ! word w of the loader stuff
+def block.type(rb)   as lh(block.buf(rb,0))     ! loader block type
+def block.length(rb) as rh(block.buf(rb,0))     ! number of data words stored
+def reloc.word(rb)   as block.buf(rb,1)         ! relocation word
+def block.data(rb,w) as block.buf(rb,(w)+1)     ! loader data (not header)
+def words.left(rb)   as max.block.length-block.length(rb)  ! space remaining
+def buf.size as (max.block.length + 2 !block header! + 1 !reloc.ptr!)
+
+def private.bufs as 3   ! number of block types which have private buffers
+table private.list(1:private.bufs) [rb.code,rb.symbol,rb.fixup]
+
+def big.buf.size as ((private.bufs+1)*buf.size)
+local big.buf(0:big.buf.size-1)
+
+
+! and now the code for rf.init.all.blocks....
+
+local type, ptr, pvt
+
+move big.buf.size from all 0 to big.buf
+
+for type _ min.rb to max.rb block.ptr(type) _ big.buf
+
+ptr _ big.buf
+for pvt _ 1 to private.bufs &
+  [ptr +_ buf.size;  block.ptr(private.list(pvt)) _ ptr]
+
+! and now the special stuff for the rb.code case
+
+local code.buf.zero,code.buf.one,code.data.ptr
+code.buf.zero _ @block.buf(rb.code,0)
+code.buf.one _ @block.buf(rb.code,1)
+code.data.ptr _ @block.buf(rb.code,1)
+
+def code.length as rh(^code.buf.zero)
+
+
+return
+
+! Still inside %rf.init.all.blocks
+
+
+  %rf.init.block(type)
+
+  ! Initializes the buffer header for type.
+
+  if type=rb.code then code.data.ptr _ code.buf.one
+  block.type(type) _ type
+  block.length(type) _ 0
+  reloc.word(type) _ 0
+  reloc.ptr(type) _ byte.ptr(@reloc.word(type),36,2)
+
+  return
+
+  end rf.init.block
+
+! Still inside %rf.init.all.blocks
+
+
+  %rf.word(type,val,reloc)
+
+  ! Writes the specified relocatable word in the specified block type.
+
+  def reloc.code(rel) as &
+    (    if rel<=rel.abs.code  then rel else 3)
+
+  rf.check.block(type,1)
+  block.length(type) _ block.length(type)+1
+  block.data(type,block.length(type)) _ val
+  next.byte(reloc.ptr(type)) _ reloc.code(reloc)
+
+  return
+
+  end rf.word
+
+
+
+  %rf.check.block(type,words.required)
+
+  ! Makes sure that the buffer for type is currently set up for type
+  ! (not set up for some other type) and that there are words.required
+  ! words available.  Flushes that buffer if not.  Returns 1 if no
+  ! words have been written in this buffer, 0 otherwise.
+
+  if type#block.type(type) or words.required>words.left(type) then &
+    rf.flush.block(type)
+
+  return [block.length(type)=0]
+
+  end rf.check.block
+
+%rf.code.word(val,reloc)
+
+! write the specified word of code in the rbcode block
+
+def code.reloc.code(rel) as &
+  ( if rel<=rel.abs.code then rel else 3)
+
+^code.buf.zero _ ^code.buf.zero + 1
+^(inc code.data.ptr) _ val      ! put out a word of data
+next.byte(reloc.ptr(rb.code)) _ code.reloc.code(reloc)
+
+return
+
+end rf.code.word
+
+
+
+%rf.check.code.block
+
+! check to make sure theres room for one word in the rbcode block
+
+if code.length >= max.block.length then rf.flush.block(rbcode)
+
+return [code.length=0]
+
+end rf.check.code.block
+
+! Still inside %rf.init.all.blocks
+
+
+  %rf.flush.block(type)
+
+  ! Clears out the buffer for rb.code and then the buffer for type.  The
+  ! rb.code buffer must be cleared first in case there are any fixups to
+  ! the code - the loader must get the code before the fixups.
+
+  local %flush.block
+
+  if block.length(type)#0 then flush.block(rb.code)
+  flush.block(type)
+
+  return
+
+
+    %flush.block(type)
+
+    if block.length(type)#0 then &
+      rf.write.block(@block.buf(type,0),block.length(type)+2)
+
+    rf.init.block(type)
+
+    return
+
+    end flush.block
+
+
+  end rf.flush.block
+
+
+
+  %rf.flush.all.blocks
+
+  ! Clears out the buffers for all block types
+
+  local type
+
+  for type _ min.rb to max.rb &
+    rf.flush.block(type)
+
+  return
+
+  end rf.flush.all.blocks
+
+
+
+end rf.init.all.blocks
+
+%rf.radix50(name.ptr,type.code)
+
+! Returns a radix50 coded symbol made from the name at name.ptr, with
+! type.code in the code bits.
+
+local r50word, char, %r50code
+
+r50word _ 0
+
+loop &
+  do
+  repeat 6
+  while (char_rf.name.char(@name.ptr))#0
+  r50word _ (r50word * oct 50) + r50code(char)
+  end
+
+return (type.code shl 30) + r50word
+
+
+
+  %r50code(char)
+
+  ! Returns radix50 code for the character char.
+
+  return &
+    (     if $A<=char<=$Z then char-$A+oct 13 &
+     else if $0<=char<=$9 then char-$0+1      &
+     else if $a<=char<=$z then char-$a+oct 13 &
+     else if     char=$.  then oct 45         &
+     else if     char=$$  then oct 46         &
+     else if     char=$%  then oct 47         &
+     else 0 )
+
+  end r50code
+
+
+
+end rf.radix50
+
+%compare(buf1(),length1,buf2(),length2)
+
+! Compares two chunks of words, each beginning at buf# with length of
+! length#.  Returns 1 if exact match, 0 if not.
+
+local i
+
+if length1#length2 then return 0
+
+for i _ 0 to length1-1  if buf1(i)#buf2(i) then return 0
+
+return 1
+
+end compare
+
+
+
+%rf.err(msg)
+
+! Error message routine
+
+halt
+
+end rf.err
+   
