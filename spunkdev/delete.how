@@ -1,0 +1,14 @@
+To delete a source file from the world, you must:
+
+1. In CONTROL, say DEL filename
+
+2. Remove references to the file in:
+
+   ASM.CMD
+   TBALIB.CMD, TBA.CMD, TBACMP.CMD, TBAREK.CMD, TBALIB.LST
+   COPY#.SRC
+   COPY.RUN
+   MASTER.SRC
+   MASTER.RUN
+
+3. Delete the file and the .BAK file in SPUNKDEV.
