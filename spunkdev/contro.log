@@ -1,0 +1,726 @@
+CSUBS  MAC 09/27/77 1319 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+NEED A SKIPE N BEFORE THE ILDB IN CALLX                                      
+CSUBS  MAC 09/27/77 1327 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+COMPIL MAC 09/27/77 1503 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+BUG 428, E254                                                                
+ASM    CMD 09/27/77 1831 RLS by SPTBASAM     to [Master]     from SPTBASAM
+MASTER SRC 09/27/77 1831 RLS by SPTBASAM     to [Master]     from SPTBASAM
+TERCMD MAC 09/27/77 1831 RLS by SPTBASAM     to [Master]     from SPTBASAM
+TBA    CMD 09/27/77 1831 RLS by SPTBASAM     to [Master]     from SPTBASAM
+TBACMP CMD 09/27/77 1831 RLS by SPTBASAM     to [Master]     from SPTBASAM
+TBALIB LST 09/27/77 1831 RLS by SPTBASAM     to [Master]     from SPTBASAM
+TBALIB CMD 09/27/77 1831 RLS by SPTBASAM     to [Master]     from SPTBASAM
+TBAREK CMD 09/27/77 1831 RLS by SPTBASAM     to [Master]     from SPTBASAM
+COPY4  SRC 09/27/77 1831 RLS by SPTBASAM     to [Master]     from SPTBASAM
+RACMS  MAC 09/27/77 1836 GET by SPTBASAM     to SPTBASAM     from [Master]    
+FIX TYPO                                                                     
+RACMS  MAC 09/27/77 1837 RLS by SPTBASAM     to [Master]     from SPTBASAM
+RUNFUN MAC 09/28/77 1027 GET by SPTBASAM     to SPTBASAM     from [Master]    
+PUT SOME DEFENSIVE CODE INTO LOL ROUTINE                                     
+RUNFUN MAC 09/28/77 1028 RLS by SPTBASAM     to [Master]     from SPTBASAM
+MVER   MAC 09/28/77 1548 GET by SPTBAQA      to SPTBAQA      from [Master]    
+UPDATING VERSION NUMBER TO 4.0                                               
+MVER   MAC 09/28/77 1551 RLS by SPTBAQA      to [Master]     from SPTBAQA
+MVER   MAC 09/28/77 1644 GET by SPTBAQA      to SPTBAQA      from [Master]    
+CORRECTING THE VERSION NUMBER TO 3.10                                        
+MVER   MAC 09/28/77 1647 RLS by SPTBAQA      to [Master]     from SPTBAQA
+TBARUN MAC 09/28/77 1654 GET by SPTBASAM     to SPTBASAM     from [Master]    
+don''t save statement context after direct statement                         
+TBARUN MAC 09/28/77 1657 RLS by SPTBASAM     to [Master]     from SPTBASAM
+CSUBS  MAC 09/28/77 1701 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+SETKXT FIXES                                                                 
+CSUBS  MAC 09/28/77 1709 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+PARSE3 MAC 09/29/77 0816 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Replacing DELLNS call..                                                      
+COMPIL MAC 09/29/77 1634 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+PAGER  MAC 09/29/77 1808 RLS by W.MAIN       to [Master]     from SPTBAWALT
+TERCMD MAC 09/30/77 1459 GET by SPTBASAM     to SPTBASAM     from [Master]    
+make bit def's entry rather than just global                                 
+TERCMD MAC 09/30/77 1500 RLS by SPTBASAM     to [Master]     from SPTBASAM
+TBALIB LST 09/30/77 1515 GET by SPTBASAM     to SPTBASAM     from [Master]    
+movee TERINP to after IDINPT                                                 
+PAGER  MAC 09/30/77 1715 GET by W.MAIN       to SPTBAWALT    from [Master]    
+make FreeP work for P/C. Delete SKRPCT, PGF.                                 
+PAGER  MAC 09/30/77 1917 RLS by W.MAIN       to [Master]     from SPTBAWALT
+PARSE3 MAC 10/03/77 1344 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+PARSE5 MAC 10/03/77 1345 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+PARDAT MAC 10/03/77 1345 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+PARSE5 MAC 10/04/77 0932 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+new DELETE code                                                              
+PARSE3 MAC 10/04/77 1218 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+DUMP REFS TO IGNORE DATA STATEMENTS                                          
+PARSE3 MAC 10/04/77 1438 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+TBALIB LST 10/04/77 1446 ABT by SPTBAQA      to [Master]     from SPTBASAM
+TBALIB LST 10/04/77 1453 GET by SPTBAQA      to SPUNKTEST    from [Master]    
+UPDATING THE LIST FROM THE BUILD IN SPUNTEST                                 
+TBALIB LST 10/04/77 1456 RLS by SPTBAQA      to [Master]     from SPUNKTEST
+CSUBS  MAC 10/05/77 1534 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+BUG 472                                                                      
+CSUBS  MAC 10/05/77 1545 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+PARSE5 MAC 10/05/77 1617 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+PARSE5 MAC 10/06/77 0842 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Removing RDRNG call from CKRNG                                               
+MODULE MAC 10/06/77 0855 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Changing CHKPRG call to CKRNG                                                
+PARSE3 MAC 10/06/77 0900 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Changing CHKPRG call to CKRNG                                                
+PARSE6 MAC 10/06/77 0921 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Changing CHKPRG call to CKRNG                                                
+PARSE7 MAC 10/06/77 0952 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Changing CHKRNG calls to CKRNG                                               
+PARSE3 MAC 10/06/77 1604 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+PARSE5 MAC 10/06/77 1604 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+PARSE6 MAC 10/06/77 1605 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+PARSE7 MAC 10/06/77 1605 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+MODULE MAC 10/06/77 1606 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+TERCMD MAC 10/07/77 1221 GET by SPTBASAM     to SPTBASAM     from [Master]    
+test                                                                         
+TERCMD MAC 10/07/77 1225 ABT by SPTBASAM     to [Master]     from SPTBASAM
+ASM    CMD 10/11/77 1425 GET by SPTBASAM     to SPTBASAM     from [Master]    
+add DSING - Double to Single conversion routine                              
+TBALIB CMD 10/11/77 1425 GET by SPTBASAM     to SPTBASAM     from [Master]    
+add DSING - Double to Single conversion routine                              
+TBALIB LST 10/11/77 1426 GET by SPTBASAM     to SPTBASAM     from [Master]    
+add DSING - Double to Single conversion routine                              
+MASTER SRC 10/11/77 1426 GET by SPTBASAM     to SPTBASAM     from [Master]    
+add DSING - Double to Single conversion routine                              
+COPY2  SRC 10/11/77 1426 GET by SPTBASAM     to SPTBASAM     from [Master]    
+add DSING - Double to Single conversion routine                              
+ASM    CMD 10/11/77 1639 RLS by SPTBASAM     to [Master]     from SPTBASAM
+COPY2  SRC 10/11/77 1639 RLS by SPTBASAM     to [Master]     from SPTBASAM
+MASTER SRC 10/11/77 1639 RLS by SPTBASAM     to [Master]     from SPTBASAM
+TBALIB LST 10/11/77 1639 RLS by SPTBASAM     to [Master]     from SPTBASAM
+TBALIB CMD 10/11/77 1639 RLS by SPTBASAM     to [Master]     from SPTBASAM
+PARSE7 MAC 10/12/77 0945 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Edit/Modify bug                                                              
+PARSE7 MAC 10/12/77 1318 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+COMDF  MAC 10/13/77 1213 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+NEWRUNSIDE ROUTINE .DSING                                                    
+CSUBS  MAC 10/13/77 1214 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+INSATALLING.DSING                                                            
+COMDF  MAC 10/13/77 1240 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+CSUBS  MAC 10/13/77 1656 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+PARSE8 MAC 10/13/77 2133 GET by SPTBASAM     to SPTBASAM     from [Master]    
+remove EXCHANGE; make some cosmetic changes                                  
+PARSE8 MAC 10/13/77 2137 RLS by SPTBASAM     to [Master]     from SPTBASAM
+PARSE3 MAC 10/13/77 2205 GET by SPTBASAM     to SPTBASAM     from [Master]    
+fix refs to BUFPTR                                                           
+PARSE3 MAC 10/13/77 2209 RLS by SPTBASAM     to [Master]     from SPTBASAM
+TBARUN MAC 10/13/77 2230 GET by SPTBASAM     to SPTBASAM     from [Master]    
+fix START after Direct Statement causes INIT                                 
+TBARUN MAC 10/13/77 2235 RLS by SPTBASAM     to [Master]     from SPTBASAM
+PRINT  MAC 10/14/77 1130 GET by SPTBASAM     to SPTBASAM     from [Master]    
+catch print of undeclared array                                              
+PRINT  MAC 10/14/77 1206 RLS by SPTBASAM     to [Master]     from SPTBASAM
+OPEN   MAC 10/14/77 1814 GET by SPTBASAM     to SPTBASAM     from [Master]    
+FIX REOPENS. DON'T CLOBBER UNIT WORD IN FCB. CLEAN UP A COUPLE OF INSTRS.    
+OPEN   MAC 10/14/77 1820 RLS by SPTBASAM     to [Master]     from SPTBASAM
+IOIDRV MAC 10/14/77 1931 GET by SPTBASAM     to SPTBASAM     from [Master]    
+remove leading zero from print of integer part of zero in % field            
+IOIDRV MAC 10/14/77 2006 RLS by SPTBASAM     to [Master]     from SPTBASAM
+CSUBS  MAC 10/17/77 1036 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+2nd ROUND DSING INSTALLATION                                                 
+CSUBS  MAC 10/17/77 1100 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+MVER   MAC 10/17/77 1448 GET by SPTBAQA      to SPTBAQA      from [Master]    
+UPDATING VERSION NUMBER.                                                     
+MVER   MAC 10/17/77 1449 RLS by SPTBAQA      to [Master]     from SPTBAQA
+TERINP MAC 10/17/77 1615 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+CONTROL CHARACTERS IN COMMAND FILES                                          
+TERINP MAC 10/19/77 1019 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+MODULE MAC 10/19/77 1327 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Save Binary Ext bug...                                                       
+MODULE MAC 10/19/77 1330 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+TBARUN MAC 10/19/77 1505 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+boundary bug                                                                 
+TBARUN MAC 10/19/77 1507 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+TBARUN MAC 10/20/77 1017 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+BOUNDARY AGAIN                                                               
+TBARUN MAC 10/20/77 1022 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+COMPIL MAC 10/20/77 1047 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+PDIF OF DOUBLES                                                              
+COMPIL MAC 10/20/77 1055 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+CSUBS  MAC 10/20/77 1159 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+RELFLG INSTALLED                                                             
+DSA    MAC 10/20/77 1305 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+X22 bug...                                                                   
+DSA    MAC 10/20/77 1313 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+COMPIL MAC 10/20/77 1639 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+relflg installation                                                          
+TBALIB LST 10/20/77 1649 GET by SPTBAQA      to SPUNKTEST    from [Master]    
+re-order                                                                     
+TBALIB LST 10/20/77 1701 RLS by SPTBAQA      to [Master]     from SPUNKTEST
+RFGEN  SIM 10/25/77 1127 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+RADIX50 CONV. SPEEDUP                                                        
+MODULE MAC 10/27/77 1050 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Library add/del...                                                           
+MODULE MAC 10/27/77 1057 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+DECLAR MAC 10/27/77 1147 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+NEW ERROR                                                                    
+CSUBS  MAC 10/27/77 1149 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+DECLAR MAC 10/27/77 1155 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+DATAC  MAC 10/28/77 1050 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Adding ESC ON/OFF                                                            
+DATAR  MAC 10/28/77 1050 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Adding ESC ON/OFF                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     11/02/77 2247 GET by SPTBASAM     to SPTBASAM     from [Master]    
+clean up interface to SIC                                                    
+ASM    CMD 11/02/77 2247 GET by SPTBASAM     to SPTBASAM     from [Master]    
+new RSIC                                                                     
+TBA    CMD 11/02/77 2248 GET by SPTBASAM     to SPTBASAM     from [Master]    
+add dsing for SIC                                                            
+TBALIB CMD 11/02/77 2248 GET by SPTBASAM     to SPTBASAM     from [Master]    
+change SIC to RSIC                                                           
+ASM    CMD 11/02/77 2259 RLS by SPTBASAM     to [Master]     from SPTBASAM
+PARSE4 MAC 11/02/77 2300 RLS by SPTBASAM     to [Master]     from SPTBASAM
+SIC    MAC 11/02/77 2300 RLS by SPTBASAM     to [Master]     from SPTBASAM
+STRSTR MAC 11/02/77 2300 RLS by SPTBASAM     to [Master]     from SPTBASAM
+TBA    CMD 11/02/77 2300 RLS by SPTBASAM     to [Master]     from SPTBASAM
+TBALIB CMD 11/02/77 2300 RLS by SPTBASAM     to [Master]     from SPTBASAM
+PARSE5 MAC 11/03/77 0947 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Finxing CKRNG bug                                                            
+PARSE5 MAC 11/03/77 1007 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+PARSE5 MAC 11/03/77 1619 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Fixing ESCCHK bug                                                            
+PARSE7 MAC 11/03/77 1622 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Fixing ESCCHK bug                                                            
+PARSE5 MAC 11/03/77 1623 ABT by SPTBAJOHN    to [Master]     from SPTBAJOHN
+PARSE7 MAC 11/03/77 1631 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+PAGER  MAC 11/04/77 0836 GET by W.MAIN       to SPTBAWALT    from [Master]    
+fix off-by-one in freec when on word boundary                                
+PAGER  MAC 11/04/77 0851 RLS by W.MAIN       to [Master]     from SPTBAWALT
+MODULE MAC 11/04/77 0916 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Fixing spurious NO PROG bug...                                               
+MODULE MAC 11/04/77 0920 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+SIC    MAC 11/04/77 1011 GET by SPTBASAM     to SPTBASAM     from [Master]    
+a little clean up                                                            
+DATAR  MAC 11/04/77 1011 GET by SPTBASAM     to SPTBASAM     from [Master]    
+remove SICBUF                                                                
+DATAC  MAC 11/04/77 1011 GET by SPTBASAM     to SPTBASAM     from [Master]    
+remove SICBUF                                                                
+DATAC  MAC 11/04/77 1024 RLS by SPTBASAM     to [Master]     from SPTBASAM
+DATAR  MAC 11/04/77 1024 RLS by SPTBASAM     to [Master]     from SPTBASAM
+SIC    MAC 11/04/77 1024 RLS by SPTBASAM     to [Master]     from SPTBASAM
+PARSE3 MAC 11/04/77 1340 GET by SPTBAJOHN  SPTBAJOHN    from [Master]    
+Fixing SAVSEG doing spurious SAVE BINARY                                     
+PARSE3 MAC 11/04/77 1351 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+PAGER  MAC 11/08/77 0946 GET by W.MAIN       to SPTBAWALT    from [Master]    
+fix INW, OUTW (should really call readw)                                     
+PAGER  MAC 11/08/77 1518 RLS by W.MAIN       to [Master]     from SPTBAWALT
+PARSE5 MAC 11/11/77 1423 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Fixing NO PROGRAM bug...                                                     
+PARSE3 MAC 11/11/77 1444 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Fixing halt in implicit delete                                               
+PARSE3 MAC 11/11/77 1453 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+PARSE5 MAC 11/11/77 1457 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+MATINV MAC 11/12/77 1333 GET by SPTBASAM     to SPTBASAM     from [Master]    
+put INVDET cell into DATAR                                                   
+DATAR  MAC 11/12/77 1333 GET by SPTBASAM     to SPTBASAM     from [Master]    
+put INVDET cell into DATAR                                                   
+DATAR  MAC 11/12/77 1336 RLS by SPTBASAM     to [Master]     from SPTBASAM
+MATINV MAC 11/12/77 1336 RLS by SPTBASAM     to [Master]     from SPTBASAM
+PARSE3 MAC 11/12/77 1501 GET by SPTBASAM     to SPTBASAM     from [Master]    
+document PSW=19                                                              
+PARSE3 MAC 11/12/77 1504 RLS by SPTBASAM     to [Master]     from SPTBASAM
+MVER   MAC 11/13/77 1303 GET by SPTBAQA      to SPTBAQA      from [Master]    
+UPDATING VERSION NUMBER TO 3.12                                              
+MVER   MAC 11/13/77 1304 RLS by SPTBAQA      to [Master]     from SPTBAQA
+COPY2  SRC 11/13/77 1322 GET by SPTBAQA      to SPUNKTEST    from [Master]    
+SHORTENING FILE                                                              
+COPY3  SRC 11/13/77 1325 GET by SPTBAQA      to SPUNKTEST    from [Master]    
+Y                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              Master]    
+FIX TBAALT OR SOMTHING                                                       
+TBADCL MAC 11/16/77 1155 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+IOFSUB MAC 11/17/77 1510 GET by SPTBASAM     to SPTBASAM     from [Master]    
+IMPLEMENT C AND J FORMS                                                      
+IOFDRV MAC 11/17/77 1512 GET by SPTBASAM     to SPTBASAM     from [Master]    
+IMPLEMENT C AND J FORMS                                                      
+IOFSCN MAC 11/17/77 1512 GET by SPTBASAM     to SPTBASAM     from [Master]    
+IMPLEMENT C AND J FORMS                                                      
+IOSYM  MAC 11/17/77 1538 GET by SPTBASAM     to SPTBASAM     from [Master]    
+Name the different form characters                                           
+TBALIB LST 11/20/77 1649 GET by SPTBAQA      to SPUNKTEST    from [Master]    
+MOVING ENABLE TO CORRESPOND SWITH NEWLIB                                     
+TBALIB LST 11/20/77 1650 RLS by SPTBAQA      to [Master]     from SPUNKTEST
+TEROUT MAC 11/28/77 2158 GET by SPTBASAM     to SPTBASAM     from [Master]    
+PUT IN RELOC                                                                 
+TEROUT MAC 11/28/77 2158 RLS by SPTBASAM     to [Master]     from SPTBASAM
+IOSTOR MAC 11/29/77 1044 GET by SPTBASAM     to SPTBASAM     from [Master]    
+ADD SPFCHR -- HOLDS CHAR OF ALPHA FIELD                                      
+PARSE5 MAC 11/29/77 1303 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Fixing LSTRNG bug...                                                         
+TEROUT MAC 11/29/77 1309 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Fixing TPOS counter                                                          
+PARSE5 MAC 11/29/77 1313 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+PARSE7 MAC 11/29/77 1314 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+RUNDAT MAC 11/29/77 1315 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+TBARUN MAC 11/29/77 1318 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+TEROUT MAC 11/29/77 1320 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+TERINP MAC 11/29/77 1320 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+TBAMSG MAC 11/29/77 1639 GET by SPTBASAM     to SPTBASAM     from [Master]    
+add msg for forms C and J mixing with other forms                            
+TBAMSG MAC 11/29/77 1641 RLS by SPTBASAM     to [Master]     from SPTBASAM
+IOFDRV MAC 11/29/77 1805 RLS by SPTBASAM     to [Master]     from SPTBASAM
+IOFSCN MAC 11/29/77 1806 RLS by SPTBASAM     to [Master]     from SPTBASAM
+IOFSUB MAC 11/29/77 1806 RLS by SPTBASAM     to [Master]     from SPTBASAM
+IOSTOR MAC 11/29/77 1806 RLS by SPTBASAM     to [Master]     from SPTBASAM
+IOSYM  MAC 11/29/77 1807 RLS by SPTBASAM     to [Master]     from SPTBASAM
+PARSE8 MAC 11/29/77 1826 GET by SPTBASAM     to SPTBASAM     from [Master]    
+ADD CPAD                                                                     
+PARSE8 MAC 11/29/77 1828 RLS by SPTBASAM     to [Master]     from SPTBASAM
+PCTRAP MAC 11/30/77 0959 ABT by SPTBAJIM     to [Master]     from SPTBAJIM
+PARSE1 MAC 11/30/77 0959 ABT by SPTBAJIM     to [Master]     from SPTBAJIM
+COMDF  MAC 11/30/77 1024 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+samuel's cpad                                                                
+COMPIL MAC 11/30/77 1026 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+cpad                                                                         
+COMDF  MAC 11/30/77 1035 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+COMPIL MAC 11/30/77 1035 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+STRING MAC 11/30/77 1054 GET by SPTBASAM     to SPTBASAM     from [Master]    
+ADD CPAD FUNCTION                                                            
+PARSE1 MAC 11/30/77 1614 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+another profil attempt                                                       
+PARSE1 MAC 12/01/77 1413 ABT by SPTBAJIM     to [Master]     from SPTBAJIM
+MVER   MAC 12/01/77 1539 GET by SPTBASAM     to SPTBASAM     from [Master]    
+change to Ver 4.0 for PPN's in file nomens & new centering fn & form         
+MVER   MAC 12/01/77 1539 RLS by SPTBASAM     to [Master]     from SPTBASAM
+STRING MAC 12/01/77 1540 RLS by SPTBASAM     to [Master]     from SPTBASAM
+LNDRY  MAC 12/01/77 2356 RLS by W.MAIN       to [Master]     from SPTBAWALT
+PAGER  MAC 12/02/77 0012 GET by W.MAIN       to SPTBAWALT    from [Master]    
+slightly faster SEARCH code.                                                 
+PAGER  MAC 12/02/77 0039 RLS by W.MAIN       to [Master]     from SPTBAWALT
+PARSE7 MAC 12/02/77 1013 GET by SPTBASAM     to SPTBASAM     from [Master]    
+put in missing return to fix old line editing                                
+PARSE7 MAC 12/02/77 1014 RLS by SPTBASAM     to [Master]     from SPTBASAM
+MODULE MAC 12/02/77 1034 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Fixing CRLF bugs...                                                          
+MODULE MAC 12/02/77 1041 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+PARSE6 MAC 12/02/77 1423 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Trying LDFLG fix                                                             
+PARSE6 MAC 12/02/77 1425 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+MODULE MAC 12/02/77 1524 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Fixing LDFLG bug??                                                           
+MODULE MAC 12/02/77 1526 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+TABLES MAC 12/02/77 1541 GET by W.MAIN       to SPTBAWALT    from [Master]    
+try to make last seg addr cache for RAL                                      
+LSUBS  MAC 12/06/77 1608 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+install SALLs and XALLs                                                      
+LSUBS  MAC 12/06/77 1620 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+COMPIL MAC 12/07/77 1202 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+QA BUG                                                                       
+COMPIL MAC 12/07/77 1501 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+DECLAR MAC 12/07/77 1944 GET by SPTBASAM     to SPTBASAM     from [Master]    
+put containing procno into prodt                                             
+CSUBS  MAC 12/07/77 1944 GET by SPTBASAM     to SPTBASAM     from [Master]    
+put containing procno into prodt                                             
+PMA    MAC 12/07/77 1945 GET by SPTBASAM     to SPTBASAM     from [Master]    
+put containing procno into prodt                                             
+CSUBS  MAC 12/07/77 1952 RLS by SPTBASAM     to [Master]     from SPTBASAM
+DECLAR MAC 12/07/77 1952 RLS by SPTBASAM     to [Master]     from SPTBASAM
+PMA    MAC 12/07/77 1952 RLS by SPTBASAM     to [Master]     from SPTBASAM
+COMPIL MAC 12/08/77 1248 GET by SPTBASAM     to SPTBASAM     from [Master]    
+fix direct statement procedure context bug                                   
+COMPIL MAC 12/08/77 1308 RLS by SPTBASAM     to [Master]     from SPTBASAM
+TBLDAT MAC 12/09/77 1655 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Faster GET code                                                              
+PARSE6 MAC 12/09/77 1657 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Faster GET code                                                              
+MODULE MAC 12/09/77 1659 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Faster GET code                                                              
+PARSE3 MAC 12/09/77 1703 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Faster GET code                                                              
+CSUBS  MAC 12/12/77 1016 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+operand stack bug                                                            
+CSUBS  MAC 12/12/77 1127 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+PARSE3 MAC 12/12/77 1408 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+PARSE6 MAC 12/12/77 1408 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+TBLDAT MAC 12/12/77 1409 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+MODULE MAC 12/12/77 1411 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+BUILD  MEM 12/14/77 1200 GET by SPTBAQA      to SPTBAQA      from [Master]    
+CHECKING                                                                     
+FILPRS MAC 12/15/77 1516 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+USERNAME>6 CHARS                                                             
+FILPRS MAC 12/15/77 1535 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+BUILD  MEM 12/15/77 1730 RLS by SPTBAQA      to [Master]     from SPTBAQA
+MODULE MAC 12/16/77 1151 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+GET bugs...                                                                  
+MODULE MAC 12/16/77 1309 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+SP2    USE 12/16/77 1605 RLS by SP2          to [Master]     from SP2
+MODULE MAC 12/19/77 1114 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Fixing GET bug...                                                            
+MODULE MAC 12/19/77 1458 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+COMPIL MAC 12/19/77 1601 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+on error bug                                                                 
+DECLAR MAC 12/20/77 1002 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+new internal error msg                                                       
+DECLAR MAC 12/20/77 1010 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+COMPIL MAC 12/20/77 1011 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+MODULE MAC 12/20/77 1113 GET by SPTBAPOLLE   to SPTBAPOLLE   from [Master]    
+rename startpt as well as wksp & mdl list in SAVE, we missed a rlfsyn case.  
+COMPIL MAC 12/20/77 1128 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+bug #534 scalar array biz                                                    
+COMPIL MAC 12/20/77 1156 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+PARSE5 MAC 12/20/77 1327 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Fixing NXTLIN bug                                                            
+PARSE5 MAC 12/20/77 1329 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+COMPIL MAC 12/20/77 1359 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+TYPO ]> INSTEAD OF >]                                                        
+COMPIL MAC 12/20/77 1410 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+MODULE MAC 12/20/77 1449 RLS by SPTBAPOLLE   to [Master]     from SPTBAPOLLE
+MODULE MAC 12/26/77 1437 GET by SPTBAPOLLE   to SPTBAPOLLE   from [Master]    
+goofed last time, try again!                                                 
+MODULE MAC 12/26/77 1440 RLS by SPTBAPOLLE   to [Master]     from SPTBAPOLLE
+DECLAR MAC 12/28/77 1122 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+SVAR_SYMD PROBLEM WITH SDT                                                   
+DECLAR MAC 12/28/77 1136 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+PARSE3 MAC 12/28/77 1210 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Fixing THREAD bug                                                            
+PARSE3 MAC 12/28/77 1224 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+CSUBS  MAC 12/28/77 1455 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+LVAR-UVAR MIXUP                                                              
+CSUBS  MAC 12/28/77 1519 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+IOFDRV MAC 12/28/77 1808 GET by SPTBASAM     to SPTBASAM     from [Master]    
+MAKE FRACTIONAL PART Z FORMAT PRINT SPACE                                    
+IOFDRV MAC 12/28/77 1816 RLS by SPTBASAM     to [Master]     from SPTBASAM
+IOFSUB MAC 12/28/77 1931 GET by SPTBASAM     to SPTBASAM     from [Master]    
+MAKE ZERO REPL COUNT WORK                                                    
+IOFSUB MAC 12/28/77 1932 RLS by SPTBASAM     to [Master]     from SPTBASAM
+COMPIL MAC 12/29/77 1337 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+inproved for-next errors                                                     
+DECLAR MAC 12/30/77 1041 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+NEW ERR MSG: FOR NEXT MISMATCH IN PROCEDURE                                  
+MVER   MAC 01/02/78 1912 GET by SPTBAQA      to SPTBAQA      from [Master]    
+UPDATING VER[ION NUMBeR TO 4.0                                               
+MVER   MAC 01/02/78 1913 RLS by SPTBAQA      to [Master]     from SPTBAQA
+MVER   MAC 01/02/78 2047 GET by SPTBAQA      to SPTBAQA      from [Master]    
+UPDATING THE VERSION NUMBER TO 4.1                                           
+MVER   MAC 01/02/78 2047 RLS by SPTBAQA      to [Master]     from SPTBAQA
+MODULE MAC 01/06/78 1612 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Fixing GCMCLS bug...                                                         
+MODULE MAC 01/06/78 1624 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+TBACMP CMD 01/17/78 0959 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+add profile comments                                                         
+TBA    CMD 01/17/78 0959 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+add profile comments                                                         
+TBACMP CMD 01/17/78 1009 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+TBA    CMD 01/17/78 1009 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+PARSE8 MAC 01/18/78 0931 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+PMC cleanup                                                                  
+ASM    CMD 01/18/78 0931 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+pmc cleanup                                                                  
+CSUBS  MAC 01/18/78 0939 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+pmc cleanup                                                                  
+ASM    CMD 01/18/78 0956 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+PARSE8 MAC 01/18/78 0957 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+COMPIL MAC 01/18/78 0958 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+DECLAR MAC 01/18/78 0959 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+PMC    MAC 01/18/78 1032 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+kah men ting                                                                 
+LODSTR MAC 01/19/78 1317 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Deleting LOA tmpcor file.                                                    
+LODSTR MAC 01/19/78 1322 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+CSUBS  MAC 01/20/78 0939 ABT by SPTBAJIM     to [Master]     from SPTBAJIM
+COMPIL MAC 01/23/78 1046 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+pend. neg. during cmplx                                                      
+FILPRS MAC 01/23/78 1057 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Looking for to W.Main bugs                                                   
+COMPIL MAC 01/23/78 1133 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+PMC    MAC 01/23/78 1531 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+TIEMAC MAC 01/24/78 1123 GET by SPTBASAM     to SPTBASAM     from [Master]    
+Fix TIE control A & Q bugs                                                   
+TIEMAC MAC 01/24/78 1127 RLS by SPTBASAM     to [Master]     from SPTBASAM
+PMC    MAC 01/24/78 1139 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+angle brackets in comments bug                                               
+PMC    MAC 01/24/78 1149 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+CSUBS  MAC 01/24/78 1406 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+string trace bug                                                             
+FILPRS MAC 01/24/78 1447 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+CSUBS  MAC 01/24/78 1539 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+COMPIL MAC 01/24/78 1540 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+TRACE OF STRING EXCHANGE                                                     
+COMPIL MAC 01/24/78 1655 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+PARSE1 MAC 01/24/78 1809 GET by SPTBASAM     to SPTBASAM     from [Master]    
+FIX OLD TYPEO IN TABS COMMAND                                                
+PARSE1 MAC 01/24/78 1810 RLS by SPTBASAM     to [Master]     from SPTBASAM
+PCTRAP MAC 01/25/78 1109 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Adding T.pos/F.pos initilization                                             
+PCTRAP MAC 01/25/78 1112 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+IOFDRV MAC 01/25/78 1130 GET by SPTBASAM     to SPTBASAM     from [Master]    
+FIX FORM O                                                                   
+PCTRAP MAC 01/25/78 1141 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Removing t.pos.f.pos fix.                                                    
+PCTRAP MAC 01/25/78 1149 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+IOFDRV MAC 01/25/78 1221 RLS by SPTBASAM     to [Master]     from SPTBASAM
+RMSOP  MAC 01/25/78 1449 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+convert array up to type of scalar                                           
+COMPIL MAC 01/25/78 1544 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+rmsop changes                                                                
+OCHRFL MAC 01/25/78 1626 GET by SPTBASAM     to SPTBASAM     from [Master]    
+update t.pos and f.pos line-position counters                                
+RMSOP  MAC 01/26/78 1008 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+COMPIL MAC 01/26/78 1009 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+RMPWR  MAC 01/26/78 1010 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+array scalar conversion                                                      
+RMPWR  MAC 01/26/78 1017 ABT by SPTBAJIM     to [Master]     from SPTBAJIM
+REPWR  MAC 01/26/78 1018 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+array scalar conversion                                                      
+COMPIL MAC 01/26/78 1532 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+                                                                             
+COMPIL MAC 01/26/78 1550 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+REPWR  MAC 01/27/78 1552 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+COMPIL MAC 01/27/78 1553 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+err at CAOPM7                                                                
+CSUBS  MAC 01/27/78 1554 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+dah cue men ting                                                             
+COMPIL MAC 01/27/78 1600 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+CSUBS  MAC 01/30/78 1109 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+OCHRFL MAC 01/30/78 1834 RLS by SPTBASAM     to [Master]     from SPTBASAM
+IOFSUB MAC 01/30/78 1835 GET by SPTBASAM     to SPTBASAM     from [Master]    
+FIX INPUT OF CONTROL A CHARACTER (SFDGET ROUTINE)                            
+IOFSUB MAC 01/30/78 1850 RLS by SPTBASAM     to [Master]     from SPTBASAM
+MVER   MAC 01/31/78 0852 GET by SPTBAQA      to SPTBAQA      from [Master]    
+UPDATING TO VERSION 4.2                                                      
+MVER   MAC 01/31/78 0855 RLS by SPTBAQA      to [Master]     from SPTBAQA
+COMDF  MAC 01/31/78 1120 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+FOR STACK CHANGES                                                            
+RUNDAT MAC 02/01/78 1054 GET by TBASANJURO   to TBASANJURO   from [Master]    
+repbuf moving to datar,datac                                                 
+DATAR  MAC 02/01/78 1054 GET by TBASANJURO   to TBASANJURO   from [Master]    
+ditto                                                                        
+DATAC  MAC 02/01/78 1054 GET by TBASANJURO   to TBASANJURO   from [Master]    
+ditto                                                                        
+DATAR  MAC 02/01/78 1104 RLS by TBASANJURO   to [Master]     from TBASANJURO
+DATAC  MAC 02/01/78 1104 RLS by TBASANJURO   to [Master]     from TBASANJURO
+RUNDAT MAC 02/01/78 1104 RLS by TBASANJURO   to [Master]     from TBASANJURO
+LNDRY  MAC 02/01/78 1509 GET by TBASANJURO   to TBASANJURO   from [Master]    
+retry.sw=0 at getrep call inconfrm                                           
+LNDRY  MAC 02/01/78 1511 RLS by TBASANJURO   to [Master]     from TBASANJURO
+COMPIL MAC 02/02/78 1041 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+IMPLEMENTING NEW FORSTK AND CSTK FIELDS                                      
+DECLAR MAC 02/02/78 1210 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+NEW ERR MSG                                                                  
+TBARUN MAC 02/03/78 0926 GET by SPTBASAM     to SPTBASAM     from [Master]    
+CALL UNLOAD AT RUNCOM TIME ON OPEN FILES                                     
+TBARUN MAC 02/03/78 0939 RLS by SPTBASAM     to [Master]     from SPTBASAM
+COMDF  MAC 02/03/78 1451 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+COMPIL MAC 02/03/78 1452 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+DECLAR MAC 02/03/78 1452 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+DECLAR MAC 02/03/78 1641 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+when we err, in declar, we must free, the sdt                                
+DECLAR MAC 02/03/78 1645 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+PARSE6 MAC 02/06/78 1403 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+LININ fix                                                                    
+PARSE6 MAC 02/06/78 1413 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+CSUBS  MAC 02/06/78 1542 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+OREM to learn that op/om=osub and r>15 means temp. Yuck!                     
+CSUBS  MAC 02/06/78 1558 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+RXAS   MAC 02/06/78 1808 GET by SPTBASAM     to SPTBASAM     from [Master]    
+change RXPSS to zero the string length in add. to addr                       
+RXAS   MAC 02/06/78 1811 RLS by SPTBASAM     to [Master]     from SPTBASAM
+PRINT  MAC 02/06/78 1817 GET by SPTBASAM     to SPTBASAM     from [Master]    
+Make string addr=0 same as length=0                                          
+PRINT  MAC 02/06/78 1818 RLS by SPTBASAM     to [Master]     from SPTBASAM
+COMPIL MAC 02/06/78 2223 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+add new err msg                                                              
+DECLAR MAC 02/06/78 2224 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+add new err msg                                                              
+DECLAR MAC 02/06/78 2233 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+COMPIL MAC 02/06/78 2234 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+MODULE MAC 02/07/78 1037 GET by SPTBASAM     to SPTBASAM     from [Master]    
+Fix STARTPOINT part of program check                                         
+RMSOP  MAC 02/07/78 1111 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+must release body and descriptor from CONVRT                                 
+REPWR  MAC 02/07/78 1113 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+and the body must go first                                                   
+REPWR  MAC 02/07/78 1128 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+RMSOP  MAC 02/07/78 1131 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+MODULE MAC 02/07/78 1206 RLS by SPTBASAM     to [Master]     from SPTBASAM
+MVER   MAC 02/09/78 0914 GET by SPTBAQA      to SPTBAQA      from [Master]    
+UPDATING VERSION NUMBER TO 4.3                                               
+MVER   MAC 02/09/78 0915 RLS by SPTBAQA      to [Master]     from SPTBAQA
+MODULE MAC 02/13/78 1520 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+lastnm must be zeroed more carefully                                         
+MODULE MAC 02/13/78 1524 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+MVER   MAC 02/13/78 1926 GET by SPTBAQA      to SPTBAQA      from [Master]    
+UPDATING VERSION NUMBER TO 4.4                                               
+MVER   MAC 02/13/78 1927 RLS by SPTBAQA      to [Master]     from SPTBAQA
+IOFSUB MAC 02/14/78 1911 GET by SPTBASAM     to SPTBASAM     from [Master]    
+fix val of temp,literal                                                      
+IOFSUB MAC 02/14/78 1915 RLS by SPTBASAM     to [Master]     from SPTBASAM
+DATAR  MAC 02/16/78 1257 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+OBCB to DATAR  + some needed comments                                        
+DATAC  MAC 02/16/78 1258 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+OBCB to DATAC                                                                
+RUNDAT MAC 02/16/78 1258 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+OBCB out of RUNDAT                                                           
+LNDRY  MAC 02/16/78 1258 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+RETRY switch to 1 in GETREP call in CONFRM                                   
+TEROUT MAC 02/16/78 1259 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+OBCB gets set up in GETREP, not at STARTER                                   
+TERINP MAC 02/16/78 1300 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+OBCB set up in GETREP                                                        
+DATAR  MAC 02/16/78 1614 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+DATAC  MAC 02/16/78 1614 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+RUNDAT MAC 02/16/78 1614 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+LNDRY  MAC 02/16/78 1637 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+TERINP MAC 02/16/78 1637 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+TEROUT MAC 02/16/78 1637 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+MVER   MAC 02/19/78 2135 GET by SPTBAQA      to SPTBAQA      from [Master]    
+UPDATING VERSION NUMBER TO 4.5                                               
+MVER   MAC 02/19/78 2136 RLS by SPTBAQA      to [Master]     from SPTBAQA
+CSUBS  MAC 02/20/78 1613 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+screwed up an earlier fix                                                    
+CSUBS  MAC 02/20/78 1629 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+REEOPS MAC 02/20/78 1709 GET by SPTBASAM     to SPTBASAM     from [Master]    
+fix stupid radix problem                                                     
+REEOPS MAC 02/20/78 1710 RLS by SPTBASAM     to [Master]     from SPTBASAM
+PARSE3 MAC 02/22/78 2101 GET by SPTBASAM     to SPTBASAM     from [Master]    
+put out more cref info                                                       
+PARSE8 MAC 02/22/78 2146 GET by SPTBASAM     to SPTBASAM     from [Master]    
+ADD 2 NEW VARS FOR DMP REFS                                                  
+PARSE8 MAC 02/22/78 2147 RLS by SPTBASAM     to [Master]     from SPTBASAM
+ENABLE MAC 02/27/78 1450 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Adding TTY buffer flush                                                      
+ENABLE MAC 02/27/78 1453 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+ENABLE MAC 02/28/78 1559 GET by SPTBAJOHN    to SPTBAJOHN    from [Master]    
+Changing INTERN to ENTRY                                                     
+ENABLE MAC 02/28/78 1602 RLS by SPTBAJOHN    to [Master]     from SPTBAJOHN
+PARSE8 MAC 03/01/78 2100 GET by SPTBASAM     to SPTBASAM     from [Master]    
+add 2 more cells for dump refs                                               
+PARSE8 MAC 03/01/78 2101 RLS by SPTBASAM     to [Master]     from SPTBASAM
+PARSE6 MAC 03/02/78 1002 GET by SPTBASAM     to SPTBASAM     from [Master]    
+support routines and changes for dump refs                                   
+PARSE7 MAC 03/02/78 1003 GET by SPTBASAM     to SPTBASAM     from [Master]    
+support routines and changes for dump refs                                   
+PARSE8 MAC 03/02/78 1004 GET by SPTBASAM     to SPTBASAM     from [Master]    
+support routines and changes for dump refs                                   
+PARSE6 MAC 03/02/78 1124 RLS by SPTBASAM     to [Master]     from SPTBASAM
+PARSE7 MAC 03/02/78 1124 RLS by SPTBASAM     to [Master]     from SPTBASAM
+PARSE8 MAC 03/02/78 1124 RLS by SPTBASAM     to [Master]     from SPTBASAM
+ASM    CMD 03/02/78 1125 GET by SPTBASAM     to SPTBASAM     from [Master]    
+ADD TYPE TO PARSE3,6                                                         
+ASM    CMD 03/02/78 1128 RLS by SPTBASAM     to [Master]     from SPTBASAM
+PARSE3 MAC 03/02/78 1303 RLS by SPTBASAM     to [Master]     from SPTBASAM
+MODULE MAC 03/02/78 1321 GET by SPTBASAM     to SPTBASAM     from [Master]    
+FIX RENAMING STARTPOINT BUG                                                  
+MODULE MAC 03/02/78 1326 RLS by SPTBASAM     to [Master]     from SPTBASAM
+PARSE3 MAC 03/07/78 0914 GET by SPTBASAM     to SPTBASAM     from [Master]    
+FIX TYPO IN NEW DUMP REFS CODE                                               
+PARSE3 MAC 03/07/78 0915 RLS by SPTBASAM     to [Master]     from SPTBASAM
+PARSE3 MAC 03/08/78 0940 GET by SPTBASAM     to SPTBASAM     from [Master]    
+add ! for "Global" to dump refs output, fix title                            
+PARSE3 MAC 03/08/78 0953 RLS by SPTBASAM     to [Master]     from SPTBASAM
+TERINP MAC 03/10/78 1437 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+bug 589, control chars in cmd file                                           
+TERINP MAC 03/10/78 1439 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+PARSE3 MAC 03/10/78 1506 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+renumber clobbers comp. gotos bug                                            
+TBARUN MAC 03/14/78 1107 GET by SPTBASAM     to SPTBASAM     from [Master]    
+ADD SAVE REGS CODEE FOR RUN OF SAVE BINARY FILES                             
+PARSE3 MAC 03/14/78 1203 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+IOISUB MAC 03/15/78 1007 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+COMPLEX STR                                                                  
+PRINT  MAC 03/15/78 1007 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+COMPLEX STR                                                                  
+IOFDRV MAC 03/15/78 1008 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+COMPLEX STR                                                                  
+TBARUN MAC 03/15/78 1053 RLS by SPTBASAM     to [Master]     from SPTBASAM
+IOFDRV MAC 03/15/78 1446 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+IOISUB MAC 03/15/78 1446 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+PRINT  MAC 03/15/78 1447 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+COMPIL MAC 03/15/78 1449 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+give str of string a try                                                     
+ASM    CMD 03/15/78 1455 GET by SPTBASAM     to SPTBASAM     from [Master]    
+Add new user library function STREG                                          
+TBALIB CMD 03/15/78 1455 GET by SPTBASAM     to SPTBASAM     from [Master]    
+Add new user library function STREG                                          
+TBALIB LST 03/15/78 1455 GET by SPTBASAM     to SPTBASAM     from [Master]    
+Add new user library function STREG                                          
+MASTER SRC 03/15/78 1455 GET by SPTBASAM     to SPTBASAM     from [Master]    
+Add new user library function STREG                                          
+COPY4  SRC 03/15/78 1503 GET by SPTBASAM     to SPTBASAM     from [Master]    
+Add new user library routine STREG                                           
+ASM    CMD 03/15/78 1505 RLS by SPTBASAM     to [Master]     from SPTBASAM
+MASTER SRC 03/15/78 1505 RLS by SPTBASAM     to [Master]     from SPTBASAM
+TBALIB LST 03/15/78 1505 RLS by SPTBASAM     to [Master]     from SPTBASAM
+TBALIB CMD 03/15/78 1505 RLS by SPTBASAM     to [Master]     from SPTBASAM
+COPY4  SRC 03/15/78 1505 RLS by SPTBASAM     to [Master]     from SPTBASAM
+RLOC   MAC 03/15/78 2119 GET by SPTBASAM     to SPTBASAM     from [Master]    
+Make it work for command and tout files                                      
+RLOC   MAC 03/15/78 2120 RLS by SPTBASAM     to [Master]     from SPTBASAM
+ROKFIL MAC 03/15/78 2132 GET by SPTBASAM     to SPTBASAM     from [Master]    
+stupid assembly-language programmers shouldn't say movei 1,(6)               
+ROKFIL MAC 03/15/78 2132 RLS by SPTBASAM     to [Master]     from SPTBASAM
+RSST1  MAC 03/16/78 1443 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+str of strings                                                               
+PRINT  MAC 03/16/78 1614 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+str of string                                                                
+STRSTR MAC 03/17/78 1033 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+string of str                                                                
+IOFSUB MAC 03/17/78 1100 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+2 arg str of string                                                          
+IOFSUB MAC 03/17/78 1644 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+PRINT  MAC 03/17/78 1645 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+RSST1  MAC 03/17/78 1645 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+STRSTR MAC 03/17/78 1645 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+COMPIL MAC 03/17/78 1730 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+TABLES MAC 03/17/78 1858 ABT by W.MAIN       to [Master]     from SPTBAWALT
+DECLAR MAC 03/20/78 0943 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+replace 'procedure' for 'subroutine' in err msgs                             
+DECLAR MAC 03/20/78 1009 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+TBAMSG MAC 03/20/78 1051 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+change 'subroutine' to 'procedure'                                           
+TBAMSG MAC 03/20/78 1056 ABT by SPTBAJIM     to [Master]     from SPTBAJIM
+COMPIL MAC 03/20/78 1523 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+vall of arrays, nicer error                                                  
+COMPIL MAC 03/21/78 1624 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+DECLAR MAC 03/22/78 0947 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+new err msg                                                                  
+COMPIL MAC 03/22/78 0948 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+new err msg for str of array                                                 
+DECLAR MAC 03/22/78 1035 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+COMPIL MAC 03/22/78 1036 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+CSUBS  MAC 03/22/78 1450 GET by SPTBAJIM     to SPTBAJIM     from [Master]    
+improve cde looks                                                            
+CSUBS  MAC 03/24/78 1010 RLS by SPTBAJIM     to [Master]     from SPTBAJIM
+RXAMX  MAC 03/24/78 1659 GET by SPTBASAM     to SPTBASAM     from [Master]    
+FIX RELEASE OF STRING ARRAY TEMP PARAM                                       
+RXAMX  MAC 03/24/78 1700 RLS by SPTBASAM     to [Master]     from SPTBASAM
+MVER   MAC 03/28/78 1534 GET by SPTBAQA      to SPTBAQA      from [Master]    
+UPDATING VERSION NUMBER TO NEW NUMBER                                        
+MVER   MAC 03/28/78 1623 RLS by SPTBAQA      to [Master]     from SPTBAQA
+PARSE3 MAC 03/29/78 1656 GET by SPTBASAM     to SPTBASAM     from [Master]    
+fix bug in dump refs: End Block code for Def Entry =                         
+PARSE3 MAC 03/29/78 1700 RLS by SPTBASAM     to [Master]     from SPTBASAM
+MVER   MAC 04/14/78 0946 GET by SPTBAQA      to SPTBAQA      from [Master]    
+UPDATING TO NEW VERSION NUMBER                                               
+MVER   MAC 04/14/78 0947 RLS by SPTBAQA      to [Master]     from SPTBAQA
+COPY3  SRC 04/18/78 1014 GET by SPTBAQA      to SPTBAQA      from [Master]    
+DELETING PROSUB FROM LIST                                                    
+COPY3  SRC 04/18/78 1017 RLS by SPTBAQA      to [Master]     from SPTBAQA
+IWC    MAC 04/18/78 1829 GET by SPTBASAM     to SPTBASAM     from [Master]    
+FIX BUG OF LONG STRING INPUT                                                 
+IWC    MAC 04/18/78 1830 RLS by SPTBASAM     to [Master]     from SPTBASAM
+IOFDRV MAC 04/19/78 1655 GET by SPTBASAM     to SPTBASAM     from [Master]    
+fix bug in input form O                                                      
+IOFDRV MAC 04/19/78 1657 RLS by SPTBASAM     to [Master]     from SPTBASAM
+PARSE5 MAC 04/25/78 1135 GET by SPTBASAM     to SPTBASAM     from [Master]    
+FIX "DELETE ALL??" ANSWER                                                    
+PARSE5 MAC 04/25/78 1145 RLS by SPTBASAM     to [Master]     from SPTBASAM
+PARSE3 MAC 05/03/78 1117 GET by SPTBASAM     to SPTBASAM     from [Master]    
+FIX VERSION PRINTING                                                         
+PARSE3 MAC 05/03/78 1122 RLS by SPTBASAM     to [Master]     from SPTBASAM
+PAGER  MAC 06/26/78 1018 GET by TBASTEVE     to TBASTEVE     from [Master]    
+Fixing WRITW (adding a comma)                                                
+PAGER  MAC 06/26/78 1021 RLS by TBASTEVE     to [Master]     from TBASTEVE
+MVER   MAC 06/26/78 1134 GET by SPTBAQA      to SPTBAQA      from [Master]    
+UPDATING VERSION NUMBER TO 4.7                                               
+MVER   MAC 06/26/78 1135 RLS by SPTBAQA      to [Master]     from SPTBAQA
+TBALIB LST 11/19/79 1733 GET by CALSTATE     to SPTBAQA      from [Master]    
+ATTEMPTING TO FOLLOW LIBORD.HOW INSTRUCTIONS                                 
+TBALIB LST 11/19/79 1734 RLS by CALSTATE     to [Master]     from SPTBAQA
+TBALIB LST 11/20/79 0859 GET by CALSTATE     to SPTBAQA      from [Master]    
+MOVING ENABLE TO CORRESPOND WITH NEWLIB                                      
+TBALIB LST 11/20/79 0901 RLS by CALSTATE     to [Master]     from SPTBAQA
+MVER   MAC 11/27/79 1445 GET by CALSTATE     to SPTBAQA      from [Master]    
+CHANGING DEBUG SWITCH                                                        
+MVER   MAC 11/27/79 1448 RLS by CALSTATE     to [Master]     from SPTBAQA
+   @I„
