@@ -1,0 +1,538 @@
+	TITLE	SFF
+
+; AUG 29 1977 SAMUEL F.: re-wrote queue structure etc etc and page lock
+; policy. Also changed all the frigging bits to conform to one another.
+; VERSION 33 FAFQ REGISTER CLOBBERING
+; VERSION 28 STACK UNSTACK FUNNIES IN FAFQ AND RKLFMT
+; VERSION 27  ERROR SETUPS TO RICKS ROUTINE
+; VERSION 26  RKLFMT FUNNIES IN OCBTXT
+; VERSION 25 UPDATE OF OCB STACKING OBSCENITIES
+; VERSION 24  IOJUNK HORRORS IN SFF  AND RKLFMT
+; VERSION 23  INDIRECTION FUNNIES FOR EXPRESSION FORMATS
+; VERSION 22   DATA  AND OTHER FUNNIES
+; VERSION 21  STR AND VAL BLEMISHES
+; VERSION 19  WIRE TO RICK'S ERROR ROUTINES
+; VERSION 18  SAVE THE FILE REF IN OCBFOP(OCB)
+; VERSION 17  FMTFLG FOR BIN IO  
+; VERSION 16  DONT EAT MICK CONTROL WORD
+; VERSION 15 REVERSE REGS ALA PETER'S ABERRATIONS
+; VERSION 14  FMT SETUP AND LOCATE CALL
+; VERSION 12  OCBTXT FOLLIES
+; version  3  full bore (in every sense)
+; VERSION 2  TO HANDLE SEQUENTIAL FILE SETUPS
+; ASSEMBLE WITH OCBMAP AND FCBMAP (IFF YOU WANT IT TO WORK)
+
+; SETFFL IS THE FOLLOWUP ROUTINE TO RIOI/RIOF
+; AND CREATES AN ACTIVE OPERATION WITH AN OCB (ALLOCATED IN DSA).
+; THE OCB AND RELATED STUFF GETS RELEASED WHEN THE OPERATION IS FLUSHED
+; (NORMALLY AT THE END OF THE INPUT OR PRINT STATEMENT).
+
+
+; AT  ENTRY:::
+; R1=  RECORD NUMBER (IF ANY)
+; R2=  POINTER TO THE FORMAT STRING (IF ANY)
+; R3=  FILE NUMBER AS AN INTEGER (IF ANY)
+; R5=  STRING CODE FOR R2 AS REQUIRED
+; R0= FW1  (THE IN LINE CODE WORD FOLLOWING THE RIOI/RIOF CALL)
+; R6= FMTFLG     ::
+;            0= FREE FORM
+;            =@IMGSCN    IF IMAGE
+;            =@FRMSCN    IF FORM
+
+; R7= DRVADR     ::	(DRIVE ADDRESS)
+;            0=FREE FORM  (?? NOT FFDRVI?)
+;            NON-ZERO =>  INPUT AND OUTPUT DRIVERS FORM/IMAGE
+; R10=FMTPTR
+
+
+; R6,7,10   ARE INSTALLED DIRECTLY INTO THE OCB UNCRITICALLY
+; INOUT(OCB)=0  IF  OUTPUT  ELSE  1
+;+
+;.page.nf
+;
+;The FCB and OCB (Operation Control Block) Trips
+;.s1
+;When a file is opened, particularly a user file in the Run phase,
+;it is assigned an FCB (File Control Block).  If the file is
+;a Run phase user file, VIRTAB(unit #) contains the virtual file
+;address of location zero, from which (through the CHANTB table) can
+;be determined the FCB address.
+;.s1
+;FCBMSK in the FCB contains bits that describe the file (such as
+;random, output allowed, this file is the terminal, etc.)
+;.s1
+;If the file being opened is the terminal, it automatically
+;gets FCB -1 (the terminal only has 1 FCB no matter how many unit
+;numbers it is open on).  The VIRTAB entry for units opened on the
+;terminal is the terminal FCB address (so, by definition, the virtual
+;address of the terminal is its FCB address).  CHANTB(TERNUM) points
+;to the terminal FCB also (channel -1 is considered the terminal).
+;.s1
+;Run Phase Trips
+;.s1
+;In IOINIT, called from TBARUN, the terminal FCB is set up,
+;and FCBMSK is set for sequential IO.
+;.s1
+;Any INPUT or PRINT statement starts an "operation".
+;Associated with each operation is an OCB that contains all the
+;information needed to process this operation.  Register 11 (OCB)
+;points to this OCB.  The OCB is allocated in the DSA and is pointed
+;to by the FCB word FCBOCB.  There also is a back-pointer within
+;the OCB that points to the FCB (OCBFCB).  The OCB is normally released
+;in the RKLFMT call in the generated user code that signals the end
+;of the INPUT or PRINT statement and therefore the end of the operation.
+;.s1
+;An active operation on a file causes a page of the file to be locked
+;in core.  When the operation becomes inactive, the locked
+;page is freed or written depending on whether the operation was input
+;or output, respectively.
+;.s1
+;Note that FCBOCB is a DSA descriptor word.
+;.s1
+;The tricky stuff happens when one of the elements of the print or input
+;list contains a procedure call.  Then, in the procedure, any of the
+;following could happen while an operation is active:
+;.s1
+;1.  Another PRINT or INPUT statement might be executed on the same
+;    or a different unit number.
+;2.  The unit that has an active operation may be closed.
+;3.  An error may occur, that may or may not be trapped by the
+;    user code.
+;4.  A statement may be executed that terminates or interrupts
+;    execution of the program.
+;.s1
+;To solve the problems of keeping track of the DSA space and of
+;having the proper operation context at any given time, the following
+;structure is maintained:
+;.s1
+;1. An OCB pointer to the active operation is kept in the cell AFILE.
+;   AFILE is zero if no operation is active.
+;.s1
+;   An OCB pointer (which is what the OCB register contains)
+;   has bits in the left half and a pointer to an OCB
+;   in the right half.  The left-half bits are in the same format
+;   as the right-half FCBMSK bits in the FCB, with some
+;   extra bits defined.
+;2. If an operation is begun when there is already an active
+;   operation, then:
+;  -the first, supplanted, operation becomes a "pending" operation
+;   and its page is unlocked (freed or written)
+; - the second, supplanting, operation becomes the active operation
+;   and AFILE points to it, and its page is read.
+; - the supplanting operation has an OCB pointer to the supplanted
+;   operation in its OCBAFQ word (Active File Queue [sic]).
+; - if both operation are on the same file (share the same FCB)
+;   then pointers are fixed up so that FCBOCB is the
+;   descriptor for the supplanting OCB and OCBCAQ (channel active
+;   queue, guaranteed the first word of the OCB) in the supplanting
+;   OCB becomes the new descriptor for the supplanted OCB.
+;.s1
+;Thus, there are two kinds of queues: one for all operations,
+;the other for all operations that share the same FCB.
+;.s1
+;Upon an error, if the error occurred within a PRINT or INPUT statement
+;and an operation is active (we check AFILE and compare OCBR16 with rh(R16))
+;then we call RKLFMT once to flush each operation interrupted out of the current line.
+;.s1
+;The way we catch uncompleted operations is as follows:
+;.s1
+;1. If a file is closed, all of its CAQ operations are flushed.
+;2. If a PRINT or INPUT statement is executed that has a pending
+;   or active operation, that operation is first flushed before
+;   a new one is created.
+;3. On transition out of the Run phase, all operations are flushed.
+;.s1
+;If a locate operation is performed on a file that has an active
+;operation, the locked file page is freed/written, the locate is
+;performed, and a new page is read.
+;-
+	TWOSEG
+	EXTERN	AFILE,CHANTB,VIRTAB,RLOCAT,FILER1
+        EXTERN  ASTHRD,RUNTHRD, ALLSP
+	EXTERN	ERROR
+
+
+
+
+	RELOC	0
+
+; SOME LOCAL STORAGE WILL GO IN HERE WHEN WE GET IT ALTOGETHER
+SFFR0:	0
+SFFR1:	0
+SFFR2:	0
+SFFR3:	0
+SFFR4:	0
+SFFR5:	0
+SFFR6:	0
+SFFR7:	0
+SFFR10:	0
+SVDFCB:	0	; DESCRIPTOR FOR STR, READ AND VAL DUMMY FCB
+
+; FW1 BITS (IN-LINE ARG AFTER PUSHJ)
+
+SFF.F==1        ; FORM
+SFF.I==2        ; IMAGE
+SFF.AT==4       ; LOCATION GIVEN
+SFF.FL==10      ; FILE UNIT NUMBER INVOLVED
+SFF.PR==20      ; OUTPUT
+
+
+fmttag==0       ; alloc  tag for fmt block alloc
+FCBTAG==0       ; FOR DUMMY FCB
+	RELOC	400000
+
+        ENTRY SETFFL
+
+	; SAVE REGISTERS FIRST   R0...R10
+SETFFL: MOVEM   R0,SFFR0
+	MOVE	0,[XWD 1,SFFR1]
+	BLT	0,SFFR10
+
+	JUMPE	OCB,SETUP               ; JUMP IF ITS NOT STRING OR VAL FUNCTIONS or READ statement
+;allocate dummy FCB using SVDFCB as descriptor:
+        CALL    ALLSP,<FCBLEN,SVDFCB,FCBTAG>
+	MOVE	FCBREG,R2
+	setzm	(2)             ;zero the new FCB
+	movei	0,1(2)
+	hrl	0,2
+	blt	0,fcblen-1(2)
+        HLRZM   OCB,FCBMSK(FCBREG)
+        MOVEI   R0,FCBOUT
+        TLNN    OCB,FCBSTF              ; STR acts like output,
+        MOVEI   R0,FCBINP               ; VAL and READ act like input
+        ADDM    R0,FCBMSK(FCBREG)
+	MOVE	0,SFFR0                 ; RESTORE OPERATION MASK IN R0
+	TRNN	0,SFF.F+SFF.I           ; SKIP IF FMTED
+	SETZM	SFFR2           ;zero format ptr
+	JRST	VOP.1
+;get the right FCB - terminal/file
+
+SETUP:	MOVE	0,SFFR0                 ; RECOVER ENTRY MASK
+	MOVEI	FCBREG,TERNUM           ; GET TERMINAL FCB ADDR
+	MOVE	FCBREG,CHANTB(FCBREG)   ; (WHICH IS CHANTB(-1))
+	TRNN	0,SFF.FL                ; SKIP IF file unit number appeared in request
+	JRST	VOP.1                   ; TERMINAL IS OK
+
+;File unit number was specified:
+
+	JUMPL	3,.+2                   ;R3 contains file unit #
+	CAILE	3,24                    ; CHECK THAT FILE REF IS IN RANGE
+	JRST	ERR5                    ; FILE NOT IN RANGE 0->20
+	MOVE	FCBREG,VIRTAB(3)
+	JUMPE	FCBREG,ERR0             ;file was never opened
+        TLNN    FCBREG,-1               ; TERMINAL AS A FILE?
+        JRST    VOP.1                   ;yes, tell because VIRTAB(n) points to the terminal FCB!
+	FCB	FCBREG,
+;VOP    VERIFY OPERATION
+
+VOP.1:  HRL     OCB,FCBMSK(FCBREG)      ;get file bits
+        TRNN    R0,SFF.PR               ;PRINT operation specified?
+        JRST    VOP.2                   ;no, input
+
+;output:
+
+        TLNN    OCB,FCBOUT              ;is output allowed to this file?
+        JRST    ERR1                    ;no
+        TLZ     OCB,FCBINP              ;we're not doing input
+        JRST    VOP.$
+
+;input:
+
+VOP.2:  TLNN    OCB,FCBINP              ;is input allowed from this file?
+        JRST    ERR2                    ;no
+        TLZ     OCB,FCBOUT              ;we're not doing output
+        TLNE    OCB,FCBTTY              ;terminal?
+        SKIPN   VIRTAB                  ;and in eighti-level input?
+        SKIPA                           ;no
+        JRST    ERR6                    ;attempted input during eight-level
+VOP.$:
+
+
+
+
+; VERIFY THE FORMAT IF ANY....
+VFMT:	TRNE	0,SFF.F!SFF.I           ; DONT   SKIP IF FORM OR IMAGE
+	JRST	VFMT.4                  ; EITHER FORM  OR IMAGE
+	SETZM	SFFR2                   ; MAKE SURE WE REMEMBER NO FORMAT
+        TLNE    OCB,FCBFRL              ; FRL free-form symbolic illegal
+        TLNE    OCB,FCBBIN              ; FRL free-form binary is ok
+        SKIPA
+        JRST    ERRFRL
+        JRST    VFMT.$
+VFMT.4:	TLNE	OCB,FCBBIN              ; SKIP IF NOT BINARY
+	JRST	ERR3                    ; FORMATTED OUTPUT TO BINARY FILE????? SHAME
+VFMT.$:	; END OF VERIFY FORMAT ROUTINE
+
+
+
+
+VAT:	; VERIFY  AT REFERENCE  ..TERMINAL REFS ARE TRAPPED IN PARSER!!
+	TRNN	0,SFF.AT
+	JRST	VAT.$                   ; NO AT IN REFERENCE
+        TLNN    OCB,FCBRND              ;random file?
+	JRST	ERR4                    ; NOT A RANDOM OR FRL FILE YET AN AT REF!!!
+        CALL    RLOCAT,<,$,SFFR1,,$,SFFR3>
+VAT.$:	; END OF THE VERIFY-AT  ROUTINE
+
+        MOVE    R0,R16
+        HRL     R0,(P)                  ;compose a uniqueness id
+        CALL    FLSHRD                  ;flush redundant operation if any
+
+;Allocate an OCB and set its OCBCAQ and the old OCB's back-pointer (if any),
+;and set FCBOCB in the FCB to point to the new OCB:
+
+        CALL    ASTHRD,<OCBSIZ,FCBOCB(FCBREG),OCBTAG,FCBOCB(FCBREG)>
+        HRR     OCB,R2                  ;OCB addr in RH of OCB register
+        SETZM   1(R2)                   ;zero the new OCB except the first word, which is sacred
+        HRLI    R2,1(R2)
+        HRRI    R2,2(R2)
+        HRRZ    R1,R2
+        BLT     R2,OCBSIZ-3(R1)
+
+        MOVE    R1,R16
+        HRL     R1,(P)                  ;compose a uniqueness id
+        MOVEM   R1,OCBR16(OCB)
+        MOVEM   FCBREG,OCBFCB(OCB)      ;back-pointer to FCB
+
+        MOVE    R1,AFILE
+        JUMPE   R1,SFF1.1               ;no active operation
+
+;There is an active operation.
+;Unlock its file page and make the necessary pointer fixups:
+
+        EXTERN  .LSPAG
+        CALL    .LSPAG,<$,OCBFCB(R1),$,INOUT(R1)>
+        MOVE    R1,AFILE
+        MOVEM   R1,OCBAFQ(OCB)          ;new OCB points to supplanted OCB
+
+SFF1.1: MOVEM   OCB,AFILE
+        MOVE    FCBREG,OCBFCB(OCB)      ;clobbered by .LSPAG
+        CALL    RDFPAG                  ;read a file page
+
+
+CFIN:	; COPY FORMAT IF NECESSARY
+	MOVE	2,SFFR2                 ; PICK UP THE FORMAT POINTER
+	JUMPE	2,CFIN$                 ; ALL DONE IF UNFORMATTED
+        HLRZ	0,1(2)                  ; GET DYNAMIC LENGTH
+	ADDI	0,5                     ; COPY EXTRA WORD AS NEC
+	IDIVI	0,5                     ; WORDWISE
+	MOVEI	1,OCBTXT(OCB)
+	MOVEI	2,FMTTAG                ; TAG CODE 
+        PUSH    P,R0                    ; SAVE THE LENGTH DONE WITH SFFR5
+	ALLOC	                        ; ALLOCATE IT
+	MOVEM	2,FMTADR(OCB)           ; SAVE THE NEW FORMAT ADDR
+        POP     P,R1
+	ADD	1,2                     ; COMPUTE THE END ADR
+	HRL	2,@SFFR2
+	SUBI	1,1
+	BLT	2,0(1)                  ; COPY TO NEW FORMAT BLOCK
+        SKIPN   SFFR5                   ; temporary?
+        JRST    CFIN$                   ; no
+        MOVE    R1,@SFFR2               ; yes, release the body
+        EXTERN  RELSP
+        CALL    RELSP
+CFIN$:
+
+        SKIPE   SFFR6                   ;formatted
+        SETOM   NESTP(OCB)              ;yes
+
+
+SFF2:	DMOVE	0,SFFR6
+	MOVEM	0,FMTFLG(OCB)           ;scanner
+	MOVEM	1,DRVADR(OCB)           ;driver
+	MOVE	1,SFFR10
+	MOVEM	1,FMTPTR(OCB)
+
+
+
+
+
+
+SFF3:   MOVEI   R2,1                    ;flag for INPUT
+	TLNN	OCB,FCBOUT              ; SKIP IF ITS OUTPUT
+	MOVEM	2,INOUT(OCB)            ; SET INPUT MODE
+	MOVEM	2,IOSCAN(OCB)           ; SET ARCANE PARMATER FOR RICK
+	TLNE	OCB,FCBBIN
+	SETOM	FMTFLG(OCB)
+	MOVE	3,SFFR3                 ; PICK UP THE FILE REF
+	MOVEM	3,OCBFOP(OCB)
+	AOS	0(17)                   ; INC  RETURN
+	POPJ	17,0                    ; RETURN
+;Supporting routines
+
+;Routine to flush a redundant operation:
+
+        DCLNE   FLSHRD
+
+        MOVEI   R1,AFILE
+
+FLSHR1: SKIPN   R2,(R1)                 ;next OCB pointer
+        JRST    FLSHR$                  ;none left
+        CAME    R0,OCBR16(R2)
+        JRST    FLSHR2
+        CALL    .RLSOCB,<$,R1>
+        JRST    FLSHR$
+FLSHR2: MOVEI   R1,OCBAFQ(R2)
+        JRST    FLSHR1
+
+FLSHR$: RETURN  FLSHRD
+
+
+;Routine to release the active operation OCB, if any.
+;Preserves r1 (for VAL!).
+
+        DCL     RKLFMT,<,SAVER1>
+
+        SKIPN   AFILE                   ;any operation active?
+        JRST    RKLFM$                  ;no
+        CALL    .RLSOCB,<AFILE>
+
+RKLFM$: RETURN  RKLFMT,<$,SAVER1>
+
+
+        ENTRY IOJUNK
+
+IOJUNK: SKIPN   1,JUNK(ocb)     ; SKIP IF JUNK IS AVAILABLE
+        POPJ    17,0    
+        TLNN    1,-1
+        JRST    IOJUN4          ; NOT STRING ARRAY
+        hlrz    2,1             ; element count to R2
+        hrrz    1,1             ; clean descriptor address in r1
+        EXTERN  .RELSA
+        pushj   17,.RELSA       ; Release string array
+        jrst    iojun5          ; exit
+IOJUN4: SKIPN   1,0(1)          ; SKIP IF SOMETHING TO REL
+        JRST    IOJUN5
+        tlnn    1,-1            ; skip if slice (LH bits on)
+        pushj   17,RELSP        ; release array body
+IOJUN5: SETZM   JUNK(ocb)
+        POPJ    17,0
+
+
+
+
+;Routine to release the OCB pointed to by the pointer whose address
+;is passed as an argument in R0.  All DSA space associated with this
+;OCB is released.  Both the AFQ and CAQ pointers are fixed up.
+;Pages are read and freed/written as necessary, and the OCB register
+;is renewed if appropriate.
+
+        DCLNE   .RLSOCB,<PTRADR>,<ACTIVE>,2
+
+        SETZM   ACTIVE
+        MOVE    R1,PTRADR
+        MOVE    OCB,(R1)
+        CAIE    R1,AFILE
+        JRST    RLSCB1
+        CALL    .LSPAG,<$,OCBFCB(OCB),$,INOUT(OCB)>
+        SETOM   ACTIVE
+RLSCB1: SKIPE   R1,OCBTXT(OCB)
+        PUSHJ   P,RELSP
+        PUSHJ   P,IOJUNK                ;release temp array body if any
+        MOVE    R1,PTRADR
+        MOVE    R2,OCBAFQ(OCB)
+        MOVEM   R2,(R1)                 ;pointer now points to next OCB
+        HRRZ    R1,OCB
+        MOVE    R3,OCBFCB(OCB)          ;back-pointer to FCB
+        MOVEI   R3,FCBOCB(R3)           ;pointer to this OCB
+        PUSHJ   P,RUNTHRD               ;release OCB, fixup CAQ pointers
+        MOVE    R1,SVDFCB
+        TLNE    OCB,FCBSTF!FCBVAL!FCBRED
+        PUSHJ   P,RELSP                 ;release dummy FCB
+
+        SKIPN   ACTIVE
+        JRST    RLSCB$
+        MOVE    OCB,AFILE
+        JUMPE   OCB,RLSCB$
+        MOVE    FCBREG,OCBFCB(OCB)
+        CALL    RDFPAG
+
+RLSCB$: RETURN  .RLSOCB
+
+
+;Routine to read a symbolic or binary file page.
+
+
+        DCLNE   RDFPAG
+
+        TLNE    OCB,FCBTTY!FCBVAL!FCBRED!FCBSTF
+        JRST    RDFPG$
+        TLNN    OCB,FCBBIN
+        JRST    REDSYM
+        READ    FCBCUR(FCBREG)
+        JRST    RDFPG$
+REDSYM: READCR  FCBCUR(FCBREG),7
+RDFPG$: RETURN  RDFPAG
+
+
+;Routine to flush all pending or active operations associated with the
+;file whose virtual address is passed as an argument in R1.
+
+        DCL     .FLSHO,<,VIRADR>,<FCBADR>
+
+        TLNN    R1,-1
+        JRST    GOTFCB                  ;terminal viradr=fcb addr
+        FCB     R1;                     ;get FCB addr in R1
+GOTFCB: MOVEM   R1,FCBADR
+
+NXTOCB: SKIPN   R1,FCBOCB(R1)           ;any operations?
+        JRST    FLSHO$
+
+;Now, search down the Active File Queue (AFQ) to see who points
+;to this OCB.  Given this, we can release this OCB and make the
+;necessary fixups.
+
+        MOVEI   R2,AFILE                ;get first OCB pointer
+
+LOOK:   HRRZ    R3,(R2)                 ;OCB addr R2 points to
+        JUMPE   R3,FLSHO$               ;give up
+        CAMN    R3,R1                   ;found our OCB?
+        JRST    FOUND                   ;yes
+
+        MOVEI   R2,OCBAFQ(R3)           ;next pointer
+        JRST    LOOK
+
+FOUND:  CALL    .RLSOCB,<$,R2>
+        MOVE    R1,FCBADR
+        JRST    NXTOCB
+
+FLSHO$: RETURN  .FLSHO
+;Error Conditions
+
+ERR0:	MOVEI	0,SFFERR+0
+	MOVE	1,SFFR3
+	PUSHJ	17,FILER1               ; FILE WAS NEVER OPENED
+
+
+ERR1:	MOVEI	0,SFFERR+1
+	MOVE	1,SFFR3
+	PUSHJ	17,FILER1
+
+ERR2:	MOVEI	SFFERR+2
+	MOVE	1,SFFR3
+	PUSHJ	17,FILER1               ; ATTEMPTED OUTPUT TO READ ONLY FILE
+
+
+ERR3:	MOVEI	SFFERR+3
+	MOVE	1,SFFR3
+	PUSHJ	17,FILER1               ; FORMATTED OUTPUT TO BINARY FILE !!!
+
+
+ERR4:	MOVEI	0,SFFERR+4
+	MOVE	1,SFFR3
+	PUSHJ	17,FILER1               ; ILLEGAL  AT REF (FIILE IS NOT RANDOM)
+
+
+ERR5:	MOVEI	0,SFFERR+5
+	PUSHJ	17,ERROR                ; FILE RE OUT OF BOUNDS CALL RICK
+
+ERRFRL:	MOVEI	SFFERR+6                ; UNFORMATTED OP TO FRL FILE
+	MOVE	1,SFFR3
+	PUSHJ	17,FILER1
+
+ERR6:   MOVEI   0,IN8ERR                ; TERMINAL INPUT IN EIGHTI MODE
+        MOVE    1,SFFR3
+        PUSHJ   17,FILER1
+
+	END
+  L~
