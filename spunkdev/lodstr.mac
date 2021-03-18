@@ -1,0 +1,409 @@
+	TITLE	LODSTR
+        TWOSEG
+        RELOC   ^O400000
+;
+;  TRRZL:  TRANSFER TO RUN INITIALIZATION
+;
+        ENTRY   TRRZL
+        EXTERN  SXWORK,WMNAME,DSNAME,MDUT,MDUFG,LIBT,LIBFG,SEGNO,CLOSEF
+        EXTERN  COMLOD,TLOC,CXER2,PSW,RCLN,RDTY,LOOKMD,RUNPPN
+        EXTERN  .JBERR,MDCNT,DEBGSW,XJOBNO,.GARYS
+;
+;
+R0==0
+R1==1
+R2==2
+R3==3
+R4==4
+R5==5
+R6==6
+R7==7
+;
+;
+;  TRRZL.1.1
+delloa: sixbit  /LOA/
+        iowd    0,delbuf
+        reloc
+delbuf: block   1
+        reloc
+
+TRRZL:  move    r1,[xwd 2,delloa]       ; delete LOA tmpcor file
+        tmpcor  r1,
+        skip
+
+        MOVEI   R1,2
+        MOVEM   R1,SEGNO
+        MOVE    R1,RUNPPN
+        MOVEM   R1,SYSPPN
+        SETZM   MDCNT
+        SETZM   IMPLFG
+        SETZM   WRKNUM          ;rec # of wksp on mdl list if wksp also temp
+
+        HRLZ    R2,XJOBNO
+        HRRI    R2,'LOA'
+        MOVEM   R2,LOANAM+SXNAM
+        HRLZI   R2,'TMP'
+        MOVEM   R2,LOANAM+SXEXT
+        SETZM   LOANAM+SXUN
+        SETZM   LOANAM+SXUN2
+
+        OPEN    LOANAM,,SUPERCEDE,,<MESSAGES,NO.TER,RET.ZERO>
+;  .1.6
+        MOVEM   R2,VCA
+        READCR  R2,7
+        MOVEM   R2,CMDPTR
+;  .1.7
+        MOVE    R0,WRELNM+SXNAM
+        HRL     R1,XJOBNO
+        HRRI    R1,'WRK'
+        CAME    R1,R0
+        JRST    TRR19
+;  .1.8
+TRR18:  MOVE    R0,MDUFG        ;know wksp temp, but is it on mdl list too?
+        JUMPLE  R0,TRR111       ;NO. mdl list empty
+        SKIPN   SXWORK+SXNAM    ;will be zero if wksp empty -> not on mdl list
+        JRST    TRR111
+        CALL    LOOKMD,<SXWORK>
+        JUMPL   R1,TRR111       ;shouldn't jump - if mdl list & SXWORK#0,wksp must be on list
+        MOVEM   R1,WRKNUM       ;if so, save rec # to use to avoid loading mdl list copy
+        JRST    TRR111
+
+TRR19:  SKIPG   MDUFG           ;wksp not temporary
+
+TRR111: SETOM   IMPLFG          ;NO. WORKSPACE IMPLICITLY ON LIST
+
+        MOVE    R1,MDUFG
+        SKIPN   R1
+        MOVEI   R1,1
+        MOVEM   R1,MDCNT        ;number of modules we're loading
+;  .2.1
+        CALL    APPCMD,<,TRRM1>         ;TRRM1="TBAREK"
+;  .2.2
+        CALL    PPNUM,<$,SYSPPN>
+;  .2.3
+        CALL    APPCMD,<,TRRM7>         ;TRRM7="/-3Y,/E,"
+                                        ; OR   "/-3Y"  (DEBMOD = 1)
+;  .2.4
+ ;        CALL    SYSLST,<FILTAB>
+        CALL    APPCMD,<,TRRM10>        ;USER BEGIN FILE MARKER
+        CALL    PPNUM,<$,SYSPPN>
+        CALL    APPCMD,<,<[ASCIZ /,/]>>
+;  .3
+        CALL    PPNVER,<$,MDUFG,$,MDUT,0>
+;  .4.1
+        MOVE    R1,IMPLFG
+        JUMPE   R1,TRR48        ;IS WORKSPACE IMPLICIT?
+;  .4.2
+        EXTERN  WRELNM
+        CALL    .GARYS,<WRELNM,0> ;convert from sixbit & put addr in R1
+        CALL    APPCMD           ;YES. NEED TO ADD IT TO LOAD STRING SEPARATELY
+        CALL    APPCMD,<,<[ASCIZ /,/]>>
+;  .4.8
+TRR48:  MOVE    R1,PSW
+        CAIL    R1,3
+        JRST    TRR411          ;not direct statement
+;  .4.9
+        CALL    .GARYS,<DSNAME,0> ;DSNAME now sixbit - convert & put addr in R1
+        CALL    APPCMD                  ;DIRECT STATEMENT
+        CALL    APPCMD,<,<[ASCIZ /,/]>>
+;  .4.11
+;  .5
+TRR411: CALL    PPNVER,<$,LIBFG,$,LIBT,1>       ;put out library list,
+                                        ;surrounded by /L, and /-L,
+        CALL    APPCMD,<,<[ASCIZ "/F,"]>>       ;force default lib search now
+;  .6.1
+        CALL    APPCMD,<,TRRM11>        ;TBAUND -end of user files
+        CALL    PPNUM,<$,SYSPPN>
+        CALL    APPCMD,<,<[ASCIZ /,/]>>
+
+        CALL    APPCMD,<,[JMPLIB]>      ;TBALIB
+        CALL    PPNUM,<$,SYSPPN>
+        CALL    APPCMD,<,TRRM4>         ;/L,
+;  .7.1
+        CALL    APPCMD,<,[JMPEND]>		;***last file loaded***
+;  .7.2
+        CALL    PPNUM,<$,SYSPPN>
+;  .7.3
+        CALL    APPCMD,<,TRRM6>         ;TRRM6=",/G"
+;  .7.4
+        SETZ    R0,
+        OUTCR   R0,CMDPTR
+;  .8.1
+        WRITCR  CMDPTR
+;  .8.2
+        CALL    CLOSEF,<$,VCA>
+;  .8.3
+        CALL    COMLOD
+;  .8.4
+        SETZM   .JBERR
+	MOVSI	R1,1
+	HRRI	R1,R2		;MAKE RUN BLOCK IN REGISTERS
+	MOVSI	R2,(SIXBIT /DSK/)	;E+0/ DEVICE DSK:
+	MOVE	R3,[SIXBIT /TBALDR/]	;E+1/ FILE TBALDR
+	SETZ	R4,			;E+2/ EXT 0
+	SETZ	R5,			;E+3/ CORE 0
+	MOVE	R6,RUNPPN		;E+4/ PPN RUNPPN
+	SETZ	R7,
+;  .8.5
+        RUN     R1,
+;  .8.6                         ;RUN ERROR RETURN
+;  .8.7
+        CALL    CXER2,<TRRM3>
+        JRST    RESUME          ;ERROR EXIT
+;
+;
+;
+;  ERROR - TRANSFER TO PARSER COMMAND LEVEL
+RESUME: JMPTBA		;Go to parser
+;
+;
+;
+;  TRRZL CONSTANTS
+;
+TRRM1:  JMPREK
+TRRM3:  ASCIZ   "CANNOT RUN SYSTEM LOADER."
+TRRM4:  ASCIZ   "/L,"
+TRRM6:  ASCIZ   ",/G"
+        IFE     DEBMOD,<
+TRRM7:  ASCIZ   "/-3Y,/E,"
+                       >
+        IFN     DEBMOD,<
+TRRM7:  ASCIZ   "/-3Y,"
+                       >
+TRRM10: JMPUBG
+TRRM11: JMPUND
+TRRM12: ASCIZ "/-L,"
+;
+;
+;
+RNBLK:  SIXBIT  /SYS/
+        SIXBIT  /LOADER/
+        XWD     0
+        XWD     0
+        XWD     0
+        XWD     0
+;
+;
+;
+;  SUBROUTINE PPNVER
+;
+        DCL     PPNVER,<CNT,NAME,MODE>,<PPN,RLOC,NDX,UNMFLG>
+;
+
+        MOVEI   R1,1
+        MOVEM   R1,NDX
+
+        JUMPE   R0,PPNV$$
+        SKIPN   MODE                    ;doing library list?
+        JRST    PPNV1
+        CALL    APPCMD,<,TRRM4>         ;yes, precede by /L,
+
+PPNV1:  SKIPE   MODE    ;doing module list?
+        JRST    PPNV2
+        MOVE    R0,NDX  ;yes. do we have a temp wksp & a mdl list copy too?
+        CAMN    R0,WRKNUM
+        JRST    PPNV17   ;yes. don't load copy from mdl list
+
+PPNV2:  CALL    TLOC,<$,NAME,$,NDX>,<RLOC>
+
+        CALL    .GARYS,<$,R1,TMP7NM>    ;module list now sixbit
+        MOVE    R1,RLOC         ;this code expects R1 to point to mdl record
+
+        SETZM   UNMFLG          ;haven't seen username yet
+        MOVE    R3,[POINT 7,NAMBUF]
+        MOVEI   R4,TMP7NM       ;was ,R1 but R1 now pointing to sixbit name
+        HRLI    R4,^O440700
+        MOVEI   R5,4
+        SETZM   NAMBUF(R5)
+        SOJGE   R5,.-1
+        ILDB    R0,R4
+
+        SKIPE   MODE            ;looking at module list?
+        JRST    PPNV4           ;no
+        FGET    R5,R1,MDUDIR
+        JUMPE   R5,PPNV4
+
+        CAIE    R0,"("          ;# 0 means we want to load this file from LOCAL directory no matter what
+        JRST    PPNV6
+
+PPNV3:  ILDB    R0,R4
+        CAIE    R0,")"
+        JRST    PPNV3
+        ILDB    R0,R4
+        JRST    PPNV6
+
+PPNV4:  CAIE    R0,"("  ;library list or load this mdl list file normally
+        JRST    PPNV6
+        SETOM   UNMFLG  ;have seen username - may have to open file for PPN
+PPNV5:  IDPB    R0,R3
+        ILDB    R0,R4
+        CAIE    R0,")"
+        JRST    PPNV5
+        IDPB    R0,R3
+        ILDB    R0,R4
+
+PPNV6:  CAIN    R0,"."
+        JRST    PPNV7
+        JUMPE   R0,PPNV9               ;END OF STRING
+        IDPB    R0,R3
+        OUTCR   R0,CMDPTR       ;write filename char to loadstring
+        ILDB    R0,R4
+        JRST    PPNV6
+
+;BUILD THE EXTENSION INTO R2 WITH BYTE POINTER R5. IF IT IS .REL OR
+;.RDL DO NOT CHANGE IT. OTHERWISE USE THE EXTENSION CORRESPONDING TO THE
+;DEBUG/NO DEBUG MODE OF THE PARICULAR MODULE.
+
+PPNV7:  MOVE    R5,R4   ;in case doing lib list - for PPNV11 loop
+        SKIPE   MODE    ;doing module list?
+        JRST    PPN11A ;no
+        SETZM   R2      ;yes. need to choose extension
+        MOVE    R5,[POINT 7,R2]
+        IDPB    R0,R5                   ;DOT
+PPNV8:  ILDB    R0,R4                   ;GET NEXT CHAR OF EXTENSION
+        IDPB    R0,R5
+        JUMPN   R0,PPNV8
+        MOVE    R5,[POINT 7,R2]
+        CAME    R2,[ASCIZ /.REL/]
+        CAMN    R2,[ASCIZ /.RDL/]
+        JRST    PPNV11                  ;EXTENSION IS GOOD AS IS
+
+PPNV9:  FGET    R5,R1,MDUMD     ;debug switch field
+        JUMPN   R5,PPNV10
+
+        MOVE    R5,[POINT 7,[ASCIZ /.REL/]]
+        JRST    PPNV11
+
+PPNV10: MOVE    R5,[POINT 7,[ASCIZ /.RDL/]]
+
+PPNV11: ILDB    R0,R5                   ;DEPOSIT EXTENSION
+PPN11A:JUMPE   R0,PPNV12
+        IDPB    R0,R3
+        OUTCR   R0,CMDPTR       ;write extension char to loadstring
+        JRST    PPNV11
+
+PPNV12: FGET    R3,R1,MDUPPN    ;note library & module ppn fields in same place
+        MOVEM   R3,PPN
+
+        SKIPN   UNMFLG
+        JRST    PPNV16  ;don't put out ppn if no username or MDUDIR set
+        JUMPN   R3,PPNV15  ;need to output ppn - if already know it, don't open file
+
+        LNDRY   NAMBUF,[ASCIZ//],<NO.TER,MESSAGES,NO>
+        JUMPLE  R1,PPNV13
+        OPEN    <(R2)>,,READ,,<RET.FCB,CLOSE,MESSAGES,NO>
+        JUMPG   R1,PPNV14
+
+PPNV13: CALL    RCLN,<,$,RLOC>
+
+        CALL    CLOSEF,<$,VCA>
+        JRST    RESUME                  ;ERROR EXIT
+
+PPNV14: MOVE    R3,PTR(R3)              ; GET PPN
+        MOVEM   R3,PPN
+        MOVE    R5,RLOC
+        FPUT    R3,R5,MDUPPN    ;write ppn into record for next time
+
+PPNV15: CALL    PPNUM,<$,PPN>
+
+PPNV16: MOVEI   R0,","
+        OUTCR   R0,CMDPTR
+
+        CALL    RDTY,<,$,RLOC>  ;only 1st time library will be dirty
+
+PPNV17: AOS     R1,NDX
+        CAMG    R1,CNT
+        JRST    PPNV1
+
+        SKIPN   MODE                    ;doing library list?
+        JRST    PPNV$$
+        CALL    APPCMD,<,TRRM12>        ;yes, append with /-L,
+
+PPNV$$: RETURN  PPNVER
+;
+;
+;
+;  SUBROUTINE  APPCMD
+;
+        DCL     APPCMD
+;  .1
+        HRLI    R1,^O440700
+;  .2
+APPCM2: ILDB    R0,R1
+;  .3
+        JUMPE   R0,APPCM5
+;  .4
+        OUTCR   R0,CMDPTR
+        JRST    APPCM2
+;  .5
+APPCM5: RETURN  APPCMD
+;
+;
+;
+;
+;   PROJECT-PROGRAMMER NUMBER UNPACKING ROUTINE
+;
+        DCL     PPNUM,<PPNNUM>
+        MOVEI   R1,"["
+        OUTCR   R1,CMDPTR
+        HLLZ    R1,PPNNUM
+        PUSHJ   P,PPNHLF
+        MOVEI   R1,","
+        OUTCR   R1,CMDPTR
+        HRLZ    R1,PPNNUM
+        PUSHJ   P,PPNHLF
+        MOVEI   R1,"]"
+        OUTCR   R1,CMDPTR
+        RETURN  PPNUM
+
+PPNHLF: SETZ    R0,
+        MOVEI   R3,6
+PPNHL1: SETZ    R2,
+        ROTC    R1,3
+        SKIPE   R2
+        JRST    .+3
+        SKIPN   R0
+        JRST    PPNHL2
+        SETO    R0,
+        ADDI    R2,^O60
+        OUTCR   R2,CMDPTR
+PPNHL2: SOJN    R3,PPNHL1
+        POPJ    P,
+;
+;
+;  SYSTEM FILE NAME LIST ROUTINE
+;
+        DCL     SYSLST
+;  .1
+        MOVE    R7,R0           ;NDX
+        MOVE    R6,SYSPPN
+;  .2
+SYSL2:  SKIPN   0(R7)
+        JRST    SYSL6
+;  .3
+        CALL    APPCMD,<,$,(R7)>
+;  .4
+        CALL    PPNUM,<$,R6>
+;  .5
+        MOVEI   R0,","
+        OUTCR   R0,CMDPTR
+        ADDI    R7,1
+        JRST    SYSL2
+;  .6
+SYSL6:  RETURN  SYSLST
+
+
+        LIT
+        RELOC   0
+
+WRKNUM: 0
+IMPLFG: 0
+SYSPPN: 0
+VCA:    0
+CMDPTR: 0
+LOANAM: BLOCK SXSIZ
+NAMBUF: BLOCK   5
+TMP7NM: BLOCK 5
+
+        END
+  
