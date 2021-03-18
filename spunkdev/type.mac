@@ -1,0 +1,286 @@
+        subttl  TYPE
+;+
+;.nj .p 0
+;.flag cap
+;.center
+;The <type Macro
+;.skip 2
+;.p
+;The purpose of this macro is to provide a simple mechanism for outputting
+;strings to the terminal and/or the <tout file.
+;.p
+;Some of the arguments utilize keywords which the macro recognizes
+;and converts to the proper value. All keywords may be lower case or
+;upper case but any given keyword may not be mixed.
+;.p
+;Calling Sequence:
+;.p
+;.i 8
+;<type####<mode,text,options
+;.p
+;Arguments:
+;.lm +2
+;.p
+;<mode - Specifies the basic mode of the <type macro. 
+;The following keywords are recognized with <terminal being the default:
+;.lm +2
+;.p
+;<terminal, <term, <ter - Terminal directed output.  This is for printing
+;information normally posted to  the Physical Terminal, such
+;as a listing of the user's program in response to the <list
+;command.
+;.p
+;<message, <msg - Message output. This is for printing output not
+;explicitly requested by the user, such as 
+;_"Adding <fang.tba to module list_".
+;.p
+;<command, <com, <cmnd - Command echo output. This is used solely for
+;echoing the user's input.
+;.p
+;<warning, <warn, <wrn - Warning output. This can be thought of as
+;printing a non-fatal error message, one that does not close
+;command files. It can also be used to print the leading
+;portions of a fragmented fatal error message with <error being used
+;to print the last portion.
+;.p
+;<error, <err - Error output. Prints an error message. Command files
+;are closed, terminal status is changed
+;as appropriate, input buffer is closed.
+;Closes <tout file after printing the message.
+;.lm -2
+;.p
+;<text - Basically this is the <asciz string to be printed or the
+;address of such a  string.
+;A couple of special constructs are recognized to give the programmer
+;convenience and/or flexibility:
+;.lm +2
+;.p
+;Slashes - If the first character is a slash then it is assumed to be
+;part of a string literal. Thus "/Test One/" is expanded to
+;"[asciz /Test One/]". The slash construct should usually be enclosed
+;in angle brackets.
+;.p
+;Parentheses - If the first character is a left parenthesis then
+;it is assumed that the programmer wants the contents of the enclosed
+;expression rather than the value. Thus while "<ralph" would
+;generate "<movei <r0,ralph", "(<ralph)" will generate
+;"<move <r0,ralph". Only the outer level of parentheses is
+;removed. This construct must be enclosed in angle brackets.
+;.lm -2
+;.p
+;<options - An optional list of keywords, enclosed in angle
+;brackets, indicating carriage return and linefeed actions to be taken.
+;The recognized keywords are:
+;.lm +2
+;.p
+;<crlf.before, <crlf.b, <cr.b - Print a carriage return before
+;printing the string.
+;.p
+;<crlf.after, <crlf.a, <cr.a - Print a carriage return
+;after printing the string.
+;.p
+;<guarantee.crlf.before, <g.crlf.before, <g.crlf.b, <g.cr.b - Guarantee
+;that we are at the start of a line before printing the string.
+;This option is tested before the <crlf.before option.
+;.p
+;<guarantee.crlf.after, <g.crlf.after, <g.crlf.a, <g.cr.a - Guarantee
+;that we are at the start of a line after printing the string. This
+;option is tested before the <crlf.after option.
+;.lm -2
+;.lm -2
+;.page
+;.center
+;The <typec Macro
+;.skip 2
+;.p
+;The purpose of this macro is to provide a simple mechanism for outputting
+;a character to the terminal and/or the <tout file.
+;.p
+;Some of the arguments utilize keywords which the macro recognizes
+;and converts to the proper value. All keywords may be lower case or
+;upper case but any given keyword may not be mixed.
+;.p
+;Calling Sequence:
+;.p
+;.i 8
+;<typec####<mode,char
+;.p
+;Arguments:
+;.lm +2
+;.p
+;<mode - Specifies the basic mode of the <typec macro. 
+;The following keywords are recognized with <terminal being the default:
+;.lm +2
+;.p
+;<terminal, <term, <ter - Terminal directed output.  This is for printing
+;information normally posted to  the Physical Terminal, such
+;as a listing of the user's program in response to the <list
+;command.
+;.p
+;<message, <msg - Message output. This is for printing output not
+;explicitly requested by the user, such as 
+;_"Adding <fang.tba to module list_".
+;.p
+;<command, <com, <cmnd - Command echo output. This is used solely for
+;echoing the user's input.
+;.p
+;<warning, <warn, <wrn - Warning output. This can be thought of as
+;printing one character of a
+;a non-fatal error message, one that does not close
+;command files. It can also be used to print the leading
+;portions of a fragmented fatal error message with <error being used
+;to print the last portion.
+;.p
+;<error, <err - Error output.
+;Prints one character of an error message. Command files
+;are closed, terminal status is changed
+;as appropriate, input buffer is closed.
+;Closes <tout file after printing the character.
+;.lm -2
+;.p
+;<char - This is the value or address of the <ascii character to be printed.
+;If the first character is a left parenthesis then
+;it is assumed that the programmer wants the contents of the enclosed
+;expression rather than the value. Thus while "<ralph" would
+;generate "<movei <r0,ralph", "(<ralph)" will generate
+;"<move <r0,ralph". Only the outer level of parentheses is
+;removed. This construct must be enclosed in angle brackets.
+;.lm -2
+;-
+.msg==1
+.com==2
+.wrn==3
+.err==4
+.trm==5
+
+.crb==1
+.cra==2
+.gcrb==4
+.gcra==10
+
+define type(..mode,..text,..opts)<
+xcref
+..edef <"TYPE">,..mct1
+irpc ..text<..c==ascii*'..text'*
+stopi>
+ife <..c>-<ascii*/*>,<gencode<movei r0,[asciz ..text]>>
+ifn <..c>-<ascii*/*>,<..mem move, r0,<..text>>
+ifidn <..opts><>,<gencode <setz r2,>>
+ifdif <..opts><>,<
+..bt==0
+irp ..opts,<..key2 ..opts,..btx
+..bt==..bt!..btx>
+gencode <hrrzi r2,..bt>>
+ifidn <..mode><>,<gencall pr.trm>
+ifdif <..mode><>,<
+..key1 ..mode,..msw
+ife ..msw-.msg,<gencall pr.msg>
+ife ..msw-.com,<gencall pr.com>
+ife ..msw-.wrn,<gencall pr.wrn>
+ife ..msw-.trm,<gencall pr.trm>
+ife ..msw-.err,<gencall pr.err>>>
+
+define typec(..mode,..char)<
+xcref
+..edef <"TYPEC">,..mct2
+irpc ..char<..c==ascii*'..char'*
+stopi>
+..mem move,r0,<..char>
+ifidn <..mode><>,<gencall ch.trm>
+ifdif <..mode><>,<
+..key1 ..mode,..msw
+ife ..msw-.msg,<gencall ch.msg>
+ife ..msw-.com,<gencall ch.com>
+ife ..msw-.wrn,<gencall ch.wrn>
+ife ..msw-.trm,<gencall ch.trm>
+ife ..msw-.err,<gencall ch.err>>>
+
+define ..mem (..opc,..r,..text)<
+irpc ..text<..c==asciz*'..text'*
+stopi>
+ifn <..c>-<ascii*(*>,<gencode<..opc'i ..r,..text>>
+ife <..c>-<ascii*(*>,<
+..grbg==0
+..tdon==0
+..last==0
+..plvl==1
+..pstr ..opc,..r,,<..text>,<..text>,2
+ifn ..grbg,<
+..perr <Garbage after rparen>,<..text>>
+ife ..tdon,<
+..perr <Missing rparan>,<..text>>>>
+
+define ..pstr (..opc,..r,..fstg,..stg1,..stg2,..cnum)<
+..t==1
+irpc ..stg1<
+ife ..t-..cnum,<
+ifidn <..stg1><)>,<..plvl==..plvl-1>
+ifidn <..stg1><(>,<..plvl==..plvl+1>
+ife ..plvl,<
+..f==0
+ifidn <..fstg><r0>,<..f==1>
+ifidn <..fstg><R0>,<..f==1>
+ifidn <..fstg><0>,<..f==1>
+ife ..f,<gencode <..opc ..r,..fstg>>
+..tdon==1>
+ifn ..plvl,<
+..y==..cnum+1
+..pstr ..opc,..r,<..fstg'..stg1>,<..stg2>,<..stg2>,..y>
+ifn ..last,<stopi>>
+ife ..last,<ifg ..t-..cnum,<ifnb <..stg1>,<..grbg==1>>>
+..t==..t+1>
+..last==1>
+
+define gencode (..code)<
+rcref
+	    ..code
+xcref
+>
+
+define gencall (..rtn)<
+ifndef ..type,<extern ..rtn>
+gencode <pushj p,..rtn>>
+
+define ..key1(s,d)
+<..kf==0
+..key s,<message,MESSAGE,msg,MSG>,.msg
+ife ..kf,<..key s,<command,COMMAND,com,COM,cmnd,CMND>,.com
+ife ..kf,<..key s,<terminal,TERMINAL,term,TERM,ter,TER>,.trm
+ife ..kf,<..key s,<warning,WARNING,warn,WARNING,wrn,WRN>,.wrn
+ife ..kf,<..key s,<error,ERROR,err,ERR>,.err
+ife ..kf,<..perr <unrecognized MODE switch>,<s>>>>>>
+ifn ..kf,<d==..kv>>
+
+define ..key2(s,d)
+<..kf==0
+..key s,<crlf.before,CRLF.BEFORE,crlf.b,CRLF.B,cr.b,CR.B>,.crb
+ife ..kf,<..key s,<crlf.after,CRLF.AFTER,crlf.a,CRLF.A,cr.a,CR.A>,.cra
+ife ..kf,<..key s,<guarantee.crlf.before,GUARANTEE.CRLF.BEFORE>,.gcrb
+ife ..kf,<..key s,<g.crlf.before,G.CRLF.BEFORE,g.cr.b,G.CR.B>,.gcrb
+ife ..kf,<..key s,<g.crlf.b,G.CRLF.B>,.gcrb
+ife ..kf,<..key s,<guarantee.crlf.after,GUARANTEE.CRLF.AFTER>,.gcra
+ife ..kf,<..key s,<g.crlf.after,G.CRLF.AFTER>,.gcra
+ife ..kf,<..key s,<g.cr.a,G.CR.A,g.crlf.a,G.CRLF.A>,.gcra
+ife ..kf,<..perr <unrecognized OPTIONS>,<s>>>>>>>>>
+ifn ..kf,<d==..kv>>
+
+define ..key(s,t,b)
+<irp t,<..tky s,t,b
+ifn ..kf,<stopi>>>
+
+define ..tky(s,t,b)
+<ifidn <s><t>,<..kv==b
+..kf==1>>
+
+define ..edef (..name,..cnt)<
+if1 <define ..perr(..err,..gbg)<>>
+if2 <
+ifndef ..cnt,<..cnt==0>
+..cnt==..cnt+1
+..edf2 ..name,\..cnt>>
+define ..edf2(..name,..cnt)<
+define ..perr(..err,..gbg)<
+if2 <printx <In macro ..name, call # ..cnt, ..err': ..gbg>>>>
+
+
+  
