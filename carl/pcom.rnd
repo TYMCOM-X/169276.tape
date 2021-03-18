@@ -1,0 +1,385 @@
+.first title
+.Title PCOM - Periodic Command File Processor for TYMCOM-X
+.Flag index
+.flag macro $
+.lm 5;.rm 72
+.subtitle Introduction
+.hl 1 $Bold(Preface)
+.paragraph
+This document and the program which is described herin should be
+considered PRELIMINARY.  Most of the features described will be
+upward compatible with future versions, however no commitment is
+made that things will always work as they do now.
+.paragraph
+Non-compatible changes will be announced with plenty of lead time for
+users to update their command files appropriately.  It is suggested
+that all commands in user command files be COMPLETELY specified to
+avoid ambiguity.
+.hl 1 $Bold(Introduction)
+.paragraph
+The PCOM program provides a mechanism within the TYMCOM-X system
+environment for the general user to execute a list of commands
+from a file.  The file may contain XEXEC commands, input to user
+programs and special commands to PCOM as well.  Note: PCOM is
+ideal for performing procedures which are done often, and for
+procedures which are long or complicated.
+.paragraph
+PCOM reads the specified file of commands (hereafter called the
+command file) and passes those commands to another frame which
+processes them.  PCOM then records both the commands and the
+output from the processing frame in a log file.  That is, any response
+from the job which would normally be printed on the terminal during
+an interactive timesharing session is written in the PCOM log file.
+.paragraph
+When the PCOM job is completed, the PCOM program terminates the
+processing frame, closes the log file and exits.  A more detailed
+explanation of the options and commands available are listed below.
+
+.page
+.Subtitle Using PCOM
+.hl 1 $Bold(Creating a PCOM command file)
+.paragraph
+To use PCOM, the user must first create a COMMAND file.  This is a
+file which contains commands which would normally be typed at the
+terminal during a timesharing session.  For example, if the terminal
+session looks like:
+.tp 9
+.s1
+.nf
+	-RUN PROGRM
+	Overlap period: DAILY
+	Separate divisions: YES
+	Selection criteria: REPORT ALL
+	Abort on error: YES
+	Output file name: REPORT.LST
+	-
+.s1.fill
+.tp 8
+then, the PCOM command file would contain the following:
+.s1
+.nf
+	RUN PROGRM
+	DAILY
+	YES
+	REPORT ALL
+	YES
+	REPORT.LST
+.fill
+.paragraph
+The PCOM command file is a normal text file which may be created
+using any text editor available, (EDITOR, TECO, EDIT10, etc.), or by
+any program which writes normal text (for example, output from a
+FORTRAN program).
+
+.page
+
+.hl 1 $BOLD(Running a PCOM job)
+.paragraph
+After the PCOM command file has been created, to execute the
+commands in it, the user would type the following in XEXEC:
+.s1.nf
+	-R#PCOM
+	####or#
+	-R#PCOM#[;#[#[logfile#=]#commandfile]#[param]#[/switch]#]
+.s1.fill
+where logfile is the filename for the PCOM log file, commandfile is
+the filename of the command file, param is an optional list of user
+definable parameters and /switch is one or more of the option
+switches available.
+.paragraph
+Please note:#The square-bracketed parts of the command line are
+optional.  If commandfile is omitted, PCOM requests the user to enter
+the command file name on the next line, with the prompt "Command#file:".
+The user may enter the full optional PCOM file specification:
+.s1.nf
+	logfile = commandfile param /switches
+.s1.fill
+The user must enter a command file name on this line.  Any switches
+that the user wants to specify may also be entered on this line.  If
+the logfile has not been specified, PCOM reads the first line of the
+input command file to search for a log file specification in
+TYMCOM-IX PERP format (i.e.  :logfile ).  If the first line of the
+command file does not contain a log file name, PCOM then prompts the
+user for one, with "Log#file:".  For example, a normal PCOM execution
+might look like:
+.tp 12
+.s1.nf
+	-R PCOM; PROGRM.LOG = PROGRM.CTL
+	[PCOM in frame 7]
+.s1
+	####or
+.s1
+	-R PCOM
+	PCOM version 0.1
+	(Type ? for help)
+	Command file: PROGRM.CTL
+	Log file: PROGRM.LOG
+	[PCOM in frame 7]
+.fill
+.paragraph
+The default PCOM processing mode is DETACHED.  PCOM normally spawns
+another frame and performs the task of reading the command file and
+having it processed from yet another frame.  When the processing is
+complete, PCOM attempts to notify you via MAIL of the success or
+failure of the command file.  If you would prefer to watch the
+execution of the command file as it occurs, you should reply to the
+"Command#file:"  request with the /NODETACH option.
+
+.tp  16
+.paragraph
+An example of the /NODETACH switch might look like:
+.s1.nf
+	-R PCOM;PROGRM.LOG=PROGRM.CTL/NODETACH
+	-RUN PROGRM
+	Overlap period: DAILY
+	Separate divisions: YES
+	Selection criteria: REPORT ALL
+	Abort on error: YES
+	Output file name: REPORT.LST
+	-LOGOUT
+	412.14 tru
+	terminal time: 0:15:26
+	[job PROGRM.CTL completed]
+	[output recorded in file PROGRM.LOG]
+.s1.fill
+
+
+.hl 1 $Bold(Option Switches)
+.paragraph
+PCOM allows the user to specify the following option switches on the
+initial command line, or on the command-file prompt line.  If no
+switches are specified, then /DETACH, /MAIL and /LOG are assumed
+as the defaults.  However, if /NODETACH is specified on the command
+line, then PCOM will assume /NOMAIL and /NOLOG as the defaults.  Of
+course, these defaults may be overridden simply by specifying the
+desired option with the appropriate switch.  An example run of PCOM
+using the /NODETACH switch can be found elsewhere in this document.
+.s1.nf
+	/DETACH     - Run the job in DETACHED mode.  (Default)
+	/ERRORLOG   - Create a log file, but delete it if no errors.
+	/HELP       - Prints this message (same as ?).
+	/LOG        - Create a log file for this job.  (Default)
+	/MAIL       - Send mail when detached PCOM job completes.
+	/NEWS       - Prints latest enhancements.
+.s1.fill
+Please note: Switches specified on the command line will always
+override any commands inside the command file.
+
+.page
+
+.hl 1 $Bold(Other PCOM Features)
+.paragraph
+As mentioned earlier, PCOM command files may
+contain XEXEC commands, input to programs and various commands
+to PCOM itself.  These imbedded PCOM commands are mostly similar
+to those available in the TYMCOM-IX PERP system and have the same
+format.  Each PCOM command must begin in column 1 with a ":"
+colon, followed immediately with the command.
+.paragraph
+The following command features are available in the current
+version of PCOM:
+.ts 22,32,40,48
+.s1.lm +18
+.indent -16
+::_<name_>	- Defines a label called "name".
+.indent -16
+:COM filename	- Begins taking commands  from  the  named  file.
+Command files may be nested approximately 25 deep with this command.
+An optional syntax for this command includes specifying parameters
+on the same line after the filename.
+.indent -16
+:ESCAPE	- Returns job to XEXEC level.
+.indent -16
+:GOTO label	- Transfers control to label.
+.indent -16
+:LET _<par_>=_<val_>##Set parameter value. (See below).
+.indent -16
+:LOG _<arg_>	- Where _<arg_> is omitted or one of ERROR, RESUME, SUSPEND.
+.break;:LOG#[RESUME]#- Resume output logging.
+.break;:LOG#SUSPEND##- Suspend output logging.
+.break;:LOG#ERROR####- Save logfile "only" if errors occur.
+Equivalent to the /ERRORLOG option switch.
+.indent -16
+:MAIL _<arg_>	- Set the status of the MAIL option.  _<Arg_> may be
+omitted or one of "OFF" or "ON" as follows:
+.break;:MAIL [ON]#- Send mail when the job completes.
+.break;:MAIL OFF##- No mail when the job completes.
+.indent -16
+:PARAMETERS par-list###Define parameter list. (See below).
+.indent -16
+:QUIT	- Cause normal termination of the running job.
+.indent -16
+:STOP	- Cause abnormal termination of the running job.  If the option
+switch /ERRORLOG is specified or if ":LOG ERROR" occurs in the command
+file, then :STOP will cause the logfile file to be saved.
+.indent -16
+:SET _<item_>	- Set the value for various subcommands.
+.break;:SET DELIMITER char######- Set delimiter to "char"
+.break;:SET LOG _<arg_>#########- Same as :LOG _<arg_>
+.break;:SET MAIL _<arg_>########- Same as :MAIL _<arg_>
+.break;:SET PARAMETERS _<arg_>##- Set substitution mode
+.break;:SET TIME _<arg_>########- Same as :TIME _<arg_>
+.indent -16
+:TIME n	- Changes time limit to n minutes.  Please note that
+the default time limit for job execution is 60 minutes.
+.lm -18
+.ts 8,16,24,32,40,48,56,64,72
+.paragraph
+Note that if the first line of the command file begins with a colon
+":", it will always be assumed to be a logfile.  Specifying a
+logfile on the command line will override one specified in the
+file.  Also, specifying /NOLOG or will cause the logfile
+specification to be ignored.
+
+.page
+
+.hl 1 $Bold(Advanced Features - Substitution Parameters)
+.paragraph
+PCOM has the capability to pass parameters into the PCOM command file
+from command level.  This is done through the introduction of ordered
+keywords defined by the user.  To use the parameter substitution
+mechanism, the user must either specify a list of parameters on the
+command line, or provide a parameter declaration inside the command
+file.
+.sk.literal
+    .R PCOM ; filename parameter-list /switches
+    :COM filename parameter-list
+        and
+    :PARAMETERS parameter-name-list
+.end literal.sk
+where
+.lm +20
+.sk.i -20
+parameter-list######is the list of values, separated by commas, which
+the user wants to substitute inside the PCOM command file.
+.sk.i -20
+parameter-name-list#is the list of named parameters which the user
+wants to have replaced with the values from the parameter-list.
+Parameter names may contain any alphabetic character (A-Z and a-z)
+and the punctuation characters dash (-) and underscore (__).
+.lm -20
+
+.paragraph
+There are two types of parameters:  ordered and named.  The "ordered"
+parameters are taken from the parameter-list in the order they are
+specified and matched one-by-one against the names specified in the
+parameter-name-list.  For example:
+.sk.literal
+    .R PCOM ; filename sub1,sub2,sub3,...,subN
+    :PARAMETERS  A,B,C,...,N
+.end literal.sk
+will match the string "sub1" with parameter name "A", "sub2" with "B",
+"sub3" with "C", and so on.  The substitution strings specified in the
+parameter-list may be of any length or value, at the discretion of the
+user.  Likewise, the parameter-name-list is not restricted to single
+letter names.  This example used parameter names A, B, and C, etc., but
+could just as easily have used names TITLE, BOX, and CRATE-NUMBER.
+.paragraph
+"Named" parameters allow the user to specify the value of a declared
+parameter name, or to declare new parameters by name.  For example:
+.sk.literal
+    .R PCOM ; filename name=test,new=wanted,news="a formality"
+    :PARAMETERS  USER,NAME,EXT
+.end literal.sk
+will assign the string "test" to parameter "NAME".  It will also define
+two new parameter names: NEW and NEWS, and will assign them the values
+specified: "wanted" and "a formality".
+.paragraph
+The interaction between "ordered" and "named" parameters is something
+which the user should be aware.  In the previous example, there were
+two ordered parameters which were not specified: USER and EXT.  These
+would be assigned the null string and thus would have "no value".
+However, if the user had instead specified:
+.sk.literal
+    .R PCOM ; filename SYS,FILE,TXT,name=FOO
+.end literal.sk
+then the values "SYS", "FILE" and "TXT" would be matched with parameter
+names USER, NAME and EXT.  NAME would also be assigned the value "FOO".
+As you might guess, NAME cannot contain both "FOO" and "FILE".  Thus,
+some form of arbitration must occur.  This is done by having "named"
+parameters provide "default" values to parameter names.  The parameter
+"NAME" is assigned the default value "FOO" from the command line.  When
+the ":PARAMETERS" statement is encountered within the command file,
+this default is then overridden with the specified value "FILE".
+If the default value is constant, then it may be specified inside the
+command file:
+.sk.literal
+    :PARAMETERS  USER, NAME="FILE", EXT="DAT"
+.end literal.sk
+To allow the default value to be used, the user simply omits that
+parameter from the command line.  For example:
+.sk.literal
+    .R PCOM ; filename SYS,FILE,DAT
+    .R PCOM ; filename SYS
+    .R PCOM ; filename SYS,,DAT
+    .R PCOM ; filename USER=SYS
+    .R PCOM ; filename SYS, EXT=DAT, FILE
+.end literal.sk
+would all produce equivalent results using the ":PARAMETERS" line
+from above.  As shown in the last item, "named" parameters may be
+specified anywhere in the list and are "NOT" counted as part of the
+"ordered" list of parameters: "SYS" is matched with USER, EXT is
+defaulted with the value "DAT" and then "FILE" is matched with NAME.
+THe order of precidence for defaults is as follows:
+.sk.literal
+    (1) - A specified "ordered" parameter on the command line.
+    (2) - A specified "named" parameter on the command line.
+    (3) - A specified default value in the command file.
+.end literal
+
+.paragraph
+Substitution parameters may be used anywhere within a command file
+after they have been declared, including PCOM command lines.  The
+way to invoke a substitution is to preceed the name of the parameter
+with the parameter-delimiter character.  This is initially set to the
+character backslash (_\) but may be changed at the discretion of the
+user.  For example, to use the parameter named USER from the examples
+above:
+.sk.literal
+    (\USER)
+       or
+    copy (\USER)file.ext to same
+.end literal.sk
+would fill in the username from the parameter USER.  The parameter
+name MUST be preceeded by the delimiter and MUST be terminated with
+a second delimiter or a character which is not valid in a parameter
+name.  For example, "_\PAR-NAME.", "_\PAR-NAME_\text" or "_\PAR_\_\PAR#".
+If the delimiter is used, it is removed from the file when the parameter
+is substituted.  If a non-parameter-name character is used to terminate
+the parameter-name, then it is "NOT" removed.
+
+.paragraph
+The user may also declare "named" parameters inside the command file via
+the ":LET" command.  For example:
+.sk.literal
+    :LET RHYME="Mary had a little lamb.", SPEC=\NAME.\EXT
+.end literal.sk
+declares the two parameter names: RHYME and SPEC and assigns them their
+respective values.  Note that this command is useful for combining
+previously defined parameters (e.g.#NAME and EXT) into new parameters.
+
+.paragraph
+During the processing of a command file, the user may suspend or resume
+parameter substitution by using the ":SET PARAMETERS" command as follows:
+.sk.literal
+    :SET PARAMETERS [ON]  Resume parameter substitution.
+    :SET PARAMETERS OFF   Suspend parameter substitution.
+.end literal
+.paragraph
+As mentioned elsewhere, the delimiter character may be changed at the
+discretion of the user.  However, it is not recommended to do this
+because it could become confusing and would then be a source of
+aggravation while attempting to report and track down problems in
+complicated PCOM command files.  To change the delimiter to another
+character (other than "_\") use the command:
+.sk.literal
+    :SET DELIMITER char
+.end literal.sk
+where "char" is the first non-blank character after the command.  If
+you do use this command, then you should understand that the setting
+of the delimiter follows the scope rules of ALGOL-like languages.  A
+delimiter declared in an outer level command file is passed down to
+inner level command files.  However, a delimiter declared inside an
+inner level command file reverts back to the previous delimiter set
+outside that file when the inner level file is completed.
+   
