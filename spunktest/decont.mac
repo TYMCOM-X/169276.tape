@@ -1,0 +1,42 @@
+TITLE   DECONT
+SUBTTL  ?
+
+;+
+;.FIRST TITLE .NJ .P 0 .FLAG CAP .FLAG IND
+;.SUBTITLE ?
+;-
+
+; Initial compiler stuff
+        TWOSEG
+        RELOC   ^O400000
+        RADIX   10               ;*** CAUTION !! RADIX 10 FILE !! CAUTION ***;
+
+; Externals
+        EXTERN  ARRAY
+
+; Entry points
+        ENTRY   DECONT
+
+;
+;************************************************************
+        SUBTTL  DECONT  CHART R63
+        DCL     DECONT
+;************************************************************
+;
+        SKIPGE  R6,ARRAY                ; R63.1
+        JRST    DECT$$
+        JUMPE   R6,DECT05       ; R63.2
+        CAIG    STAGE,19        ; R63.3
+        SOS     ,ARRAY          ; R63.4
+        JRST    DECT$$
+DECT05: CAILE   STAGE,19        ; R63.5
+        JRST    DECT08
+        SETOM   ,ARRAY          ; R63.6
+        OSETZM  ,IOSCAN         ; R63.7
+        OMOVEM  STAGE,OCBSTG
+        JRST    DECT$$
+DECT08: CAIN    STAGE,24        ; R63.8
+        SETOM   ,ARRAY          ; R63.9
+DECT$$: RETURN  DECONT
+
+        END
