@@ -1,0 +1,122 @@
+        TITLE   LOOKMD
+        RADIX   10              ;*** HERE BE DRAGONS ***
+        TWOSEG
+        RELOC   ^O400000
+
+        EXTERN MDUFG,TNEXT,TSTART
+        EXTERN  MDUT,RDTY,RCLN
+
+        SUBTTL  LOOKMD  CHART UX
+        DCL     LOOKMD,<LKMDNM>,<MODLFT,INEXAC,LOOKAD>
+
+;input:  R0 = address of sixbit filename
+
+;output: R0 = record # of record on module list having same module name
+;             (filename excluding username & extension) as input name
+;             if there is one
+;        R0 = -1 if no match found
+
+;        R1 = 0 iff the filename found on the module list matches to within
+;             a default extension
+
+        SETOM   INEXAC          ;inexact match so far
+
+        MOVE    R0,MDUFG        ;# of records on module list
+        JUMPLE  R0,LKMD4        ;module list empty
+        MOVEM   R0,MODLFT
+
+        CALL    TSTART,<$,MDUT> ;reset module list counter
+
+LKMD1:  CALL    TNEXT,<$,MDUT>,<LOOKAD> ;R1 & LOOKAD_core addr of next record
+
+        MOVE    R2,LKMDNM
+        MOVE    R3,SXNAM(R1)
+        CAME    R3,SXNAM(R2)    ;module name of entry = module name of LKMDNM?
+        JRST    LKMD3           ;NO. so this can't be the right one
+
+        HRL     R1,LKMDNM       ;YES. so have at least an inexact match
+        CALL    SX.FNQ          ;R0_0 IFF filenames equal to within default ext
+        TLZ     R1,             ;module entry core addr left in R1
+        JUMPN   R0,LKMD2        ;filenames equal?
+
+        SETZM   INEXAC          ;this is an exact match (to within default ext)
+        LDB     R0,[DEXPT(SXEXT(R2))]
+        JUMPN   R0,LKMD2        ;don't write a defaulted ext into mdl list
+
+        MOVE    R3,SXEXT(R2)    ;YES. fixup extension word on module list
+        MOVEM   R3,SXEXT(R1)    ;...but we may be writing same thing as before
+
+LKMD2:  CALL    RDTY,<,$,LOOKAD> ;unlock found record
+        MOVE    R1,MDUFG
+        SUB     R1,MODLFT
+        ADDI    R1,1            ;R1_record # of found record
+        JRST    LOOK$$
+
+LKMD3:  CALL    RCLN,<,$,LOOKAD> ;unlock nonmatching record
+
+        SOSLE   MODLFT
+        JRST    LKMD1           ;go on to next record if there is one
+
+LKMD4:  SETO    R1,             ;no matching record found
+
+LOOK$$: MOVE    R2,INEXAC       ;R2=0 IFF exact match
+        RETURN  LOOKMD
+
+                                SUBTTL  SX.FNQ
+        DCL     SX.FNQ,<,AD1AD2>,,2
+
+;input: R1 = addr of sixbit filename 1 ,, addr of sixbit filename 2
+;
+;output: R0 = 0 IFF filenames equal
+;        all registers except R0 are restored
+;
+;this routine depends heavily on defaulting practices - it was written
+;to compare two sixbit filenames which default primarily to some extension
+;which .LNDRY has already written into the name block, and secondarily
+;to a null extension. thus two extensions are considered the same
+;if the two extensions themselves are identical (either or both may be 
+;defaulted) OR if the extension of one filename is null (and PRESUMABLY
+;its default bits are off) and the default bits of the other
+;filename are on.
+
+        REG1==R10
+        REG2==R11       ;remember ther's a RADIX 10 in this file
+
+        HLRZ    REG1,AD1AD2
+        HRRZ    REG2,AD1AD2
+
+        MOVE    R0,SXNAM(REG1)
+        CAME    R0,SXNAM(REG2)  ;module names = ?
+        JRST    SX.FN3          ;no. file names different
+
+        HLRZ    R0,SXEXT(REG1)  ;yes
+        HLRZ    R1,SXEXT(REG2)
+        CAMN    R0,R1           ;extensions = ?
+        JRST    SX.FN2          ;yes. check rest of file names
+
+        JUMPN   R0,SX.FN1       ;no. try defaulting cases
+        LDB     R0,[DEXPT(SXEXT(REG2))]
+        JUMPN   R0,SX.FN2       ;check rest of fnms if default case 1 holds
+
+SX.FN1: JUMPN   R1,SX.FN3
+        LDB     R1,[DEXPT(SXEXT(REG1))]
+        JUMPE   R1,SX.FN3       ;fnms different if default case 2 doesn't hold
+
+SX.FN2: MOVE    R0,SXUN(REG1)
+        CAME    R0,SXUN(REG2)   ;1st halves of usernames = ?
+        JRST    SX.FN3          ;no. file names different
+
+        MOVE    R0,SXUN2(REG1)  ;yes
+        CAME    R0,SXUN2(REG2)  ;2nd halves of usernames = ?
+        JRST    SX.FN3          ;no. file names different
+
+        SETZ    R0,             ;yes. file names equal
+        JRST    SX.F$$
+
+SX.FN3: SETO    R0,             ;file names different
+
+SX.F$$: MOVE    R1,AD1AD2       ;restore R1 and then...
+        RETURN  SX.FNQ          ;let the RETURN macro restore the rest
+
+
+        END
