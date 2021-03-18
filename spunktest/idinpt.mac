@@ -1,0 +1,244 @@
+TITLE   IDINPT
+SUBTTL  Routines for user input (free form, formatted, etc)
+
+;+
+;.FIRST TITLE .NJ .P 0 .FLAG CAP .FLAG IND
+;.SUBTITLE Routines for user input (free form formatted, etc)
+;-
+
+; Initial compiler stuff
+        TWOSEG
+        RELOC   ^O400000
+        RADIX   10               ;*** CAUTION !! RADIX 10 FILE !! CAUTION ***;
+
+; Externals
+        EXTERN  DATPTR, LNPTR, SAVREG, STEPCR, VLNPTR, FILERR
+        EXTERN  INPROMPT, ERROR, GETREP, PROMPT
+
+; Entry points
+        ENTRY   IDGCHR, IDGLIN, IDPROM
+
+;
+;
+;*************************************************************
+        SUBTTL  IDGCHR  CHART R78
+        DCL     IDGCHR
+;*************************************************************
+;
+;
+IGCH01: TLNE    OCB,FCBTTY
+        JRST    IGCH02
+        TLNN    OCB,FCBVAL
+        JRST    IGCH03
+
+; VAL
+
+        IGC(VLNPTR)
+        JRST    IGCH3C
+;
+
+; TERMINAL
+
+IGCH02: IGC(LNPTR)              ; R78.2
+        CAIE    A0,"&"          ; R78.2A
+        JRST    IGCH3C
+
+; TERMINAL- FOUND AN &
+        IGC(LNPTR)              ; R78.2B LOOK FOR &-CR (ACTUALLY &-0)
+        JUMPN   A0,IGCH2E
+        CALL    IDGL03          ; R78.2C GET NEXT LINE
+        SETZM   ,FCBPOS(FCBREG) ; R78.2D
+        JRST    IGCH01
+IGCH2E: MOVEM   R0,LNPTR        ; BACK UP INPUT LINE 1 CHAR
+        MOVEI   A0,"&"          ; REPLACE
+        JRST    IGCH3C
+
+IGCH03: TLNN    OCB,FCBRED      ; SKIP IF READ STATEMENT
+        JRST    IGCH3D
+
+; READ STATEMENT (DATA)
+
+IGCH3E: IGC(DATPTR)             ; GET NEXT DATA CHAR
+        CAIE    A0,^O12         ; IGNORE LINE FEEDS IN DATA STREAM
+        JRST    IGCH3C          ; (THEY ARE &-CR'S FROM THE EDIT SIDE)
+        JRST    IGCH3E
+
+; FILE
+
+IGCH3D: MOVE    R6,FCBPOS(FCBREG) ; R78.3
+        TLNE    OCB,FCBFRL      ; SKIP OVER RECORD OVERFLOW TEST IF NOT FRL RANDOM FILE
+        CAMGE   R6,FCBLOL(FCBREG)
+        JRST    IGCH3A
+;
+;       ONLY /, FORM R, AND IMAGE EOS MAY "READ" A RECORD TERMINATOR
+;       OTHERWISE, YIELDS "Attempt to overflow fixed record..."
+;
+        SETZ    A0,
+        CAIE    STAGE,19        ; /
+        CAIN    STAGE,24        ; EOS
+        JRST    IGCH05
+        CAIN    STAGE,22        ; FORM R
+        JRST    IGCH05
+        CALL    FILERR,<RSJMSG+^D10>
+;
+IGCH3A: INCR    A0,FCBCUR(FCBREG)       ; GET NEXT INPUT CHARACTER
+        JRST    [SETZ   A0,             ; EOF
+                 JRST   IGCH3C]
+        AOS     ,FCBPOS(FCBREG)
+        CAIE    A0,^O15                 ; CARRIAGE RETURN
+        JRST    IGCH3C
+        MOVE    R6,FCBPOS(FCBREG)
+        TLNE    OCB,FCBFRL
+        CAMGE   R6,FCBLOL(FCBREG)       ;if getting the LF will cross record boundary, don't do it
+        JRST    GETLF
+        JRST    IGCH3C
+GETLF:  INCR    A0,FCBCUR(FCBREG) ; SEE IF LF FOLLOWS
+        JRST    [SETZ   A0,             ; EOF
+                 JRST IGCH3C]
+        CAIE    A0,^O12
+        JRST    IGCH3F
+
+;CRLF FROM FILE:
+
+        TLNN    OCB,FCBFRL
+        JRST    IGCH3B                  ; CRLF TRANSLATES TO CR
+        AOS     R1,FCBPOS(FCBREG)
+        CAMG    R1,FCBLOL(FCBREG)       ; TEST FOR OVERFLOW-CRLF SPANS RECORD BOUNDARY
+        JRST    IGCH3B
+        CALL    FILERR,<RSJMSG+^D10>
+;
+IGCH3F:                         ;  NOT A CRLF - JUST A SINGLE CR - BACK UP FILE PTR
+        HRRZI   R6,SAVREG
+        BLT     R6,SAVREG+R13
+        HRREI   R0,-1
+        MOVE    R1,FCBCUR(FCBREG)
+        SETZ    R2,
+        CALL    STEPCR          ; BACK UP 1 CHAR
+        MOVEM   R1,FCBCUR(FCBREG) ; REPLACE UPDATED FILE CURSOR
+        HRLZI   R13,SAVREG
+        BLT     R13,R13
+;
+
+;SET TERFLG:
+;
+;0  NOTHING SPECIAL
+;1  SPACE
+;2  COMMA
+;3  CR OR EOR
+;4  CR FROM TERMINAL (??)
+;5  EOF  (0)
+
+IGCH3B: MOVEI   A0,^O15
+IGCH3C: SETZ    R6,             ; R78.3C
+        JUMPE   A0,IGCH4A
+        CAIN    A0,^O15
+        JRST    IGCH05
+        CAIN    A0,^O54         ;  (COMMA)
+        MOVEI   R6,2
+        CAIN    A0,^O40
+        MOVEI   R6,1
+        JRST    IGCH$$
+
+; EOF / ZERO
+
+IGCH4A: MOVEI   R6,5            ; R78.4A-.4C
+        TLNN    OCB,FCBRED      ; SKIP IF READ STMNT
+        SETZM   ,FCBPOS(FCBREG)
+        TLNN    OCB,FCBTTY!FCBVAL
+        JRST    IGCH$$
+        SUBI    R6,2
+        CAMG    R6,TERFLG(FCBREG)
+        ADDI    R6,1
+        JRST    IGCH$$
+
+; CR OR EOR
+
+IGCH05: MOVEI   R6,3            ; R78.5
+        TLNN    OCB,FCBRED      ; SKIP IF DATA STMNT
+        TLNE    OCB,FCBFRL      ; SKIP IF NOT FRL RANDOM FILE
+        SKIPN   ,A0             ; SKIP IF NOT RECORD TERMINATOR (FRL)
+        SETZM   ,FCBPOS(FCBREG)         ; NEW RECORD - RESET POSITION
+        TLNE    OCB,FCBFRL      ; PROPOGATE AN FRL CARRIAGE RETURN
+        CAIE    A0,^O15         ; UP TO FORM R, / , EOS (IMAGE STRING END)
+        JRST    IGCH06
+        CAIE    STAGE,19
+        CAIN    STAGE,22
+        JRST    IGCH5A
+        CAIE    STAGE,24
+IGCH06: TDZA    A0,A0           ;zero A0 and skip - set EOR indicator
+
+IGCH5A: SETZ    R6,
+
+IGCH$$: MOVEM   R6,TERFLG(FCBREG)
+        RETURN  IDGCHR
+
+
+
+;
+;
+;*************************************************************
+        SUBTTL  IDPROM  CHART R77
+        DCL     IDPROM
+;*************************************************************
+;
+
+; INITIALLY, SET THE PROMPT TO BE NULL
+; THE GLOBAL CELL 'INPROMPT' IS THE ADDRESS OF THE NEXT INPUT PROMPT
+        SETZM   INPROMPT        ;NO PROMPT RIGHT NOW
+
+        CALL    IDGCHR          ; R77.1
+        JUMPN   A0,IPRM06       ; R77.2
+                                ; R77.3 *TIW*
+                                ; R77.4
+        MOVEI   R0,PROMPT       ;ADR OF /? / PROMPT
+        MOVEM   R0,INPROMPT     ;SAVE IT FOR LATER
+
+        JRST    IPRM$$
+
+IPRM06: MOVEM   R0,LNPTR        ; R77.6 (RESTORE POINTER)
+IPRM$$: RETURN  IDPROM
+
+
+;
+;*************************************************************
+        SUBTTL  IDGLIN  CHART R79
+        DCL     IDGLIN
+;*************************************************************
+;
+;
+        TLNN    OCB,FCBVAL      ; SKIP IF VAL FUNCTION
+        JRST    IDGL01
+        CALL    ERROR,<RSJMSG+^D11>
+;
+IDGL01: OSKIPE  ,FMTFLG         ; R79.1
+        JRST    IDGL03
+        CALL    IDPROM          ; R79.2  R77
+
+; IDGLX3 IS PLACE FOR IDGL03 TO BRANCH TO - FOR &-CR AND NO PROMPT
+IDGLX3: HRRZI   R6,SAVREG
+        BLT     R6,SAVREG+R13
+ ;call=GETREP(buffer.adr, retry.sw, prompt.adr, ctrl.sw, buffer.len, cmd.er.sw)
+        CALL    GETREP,<0,1,$,INPROMPT,1,0,0>
+        CAIE    R1,^D11         ; R79.4
+        JRST    IDGL06
+                                ;  R79.5  REGEN
+        INISTK                  ; R79.5.1
+        MOVEI   R0,4            ; R79.5.2
+        MOVEM   R0,TERFLG(FCBREG)
+        JRST    1(R16)          ; R79.5.3
+;
+IDGL06: SETZM   ,TERFLG(FCBREG) ; R79.6
+        MOVE    R6,[POINT 7,0]  ; R79.7
+        HRR     R6,R2
+        MOVEM   R6,LNPTR
+        HRLZI   R13,SAVREG
+        BLT     R13,R13
+        RETURN  IDGLIN
+
+;       IDGL03 IS AN ENTRY PT FOR &-CR SEARCHES FROM IDGCHR
+;
+;       NO PROMPT FOR &-CR
+IDGL03: SETZM   INPROMPT        ;NO PROMPT  ADDRESS
+        JRST    IDGLX3          ;GO GET LINE
+
+        END
