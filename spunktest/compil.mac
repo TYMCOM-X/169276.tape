@@ -1,0 +1,5463 @@
+               TITLE   COMPIL
+        ; COPYRIGHT 1978, TYMSHARE,INC.
+
+; WARNING! . . . WARNING! . . . THIS FILE IN RADIX 10
+        radix   ^d10    ;RADIX 10 Radix 10 radix 10
+
+OPDSTK: BLOCK   160             ; THE OPERAND STACK
+RGSV:BLOCK 16                   ; RGSV TELLS US WHICH REGISTERS ARE BUSY
+
+        INTEGER FORTYP,FORP,O1P,O2P,PIFXP,OPDN,RZMA,RZMR,CDEFLG,GDIM
+        INTEGER CSTKP,RTAD,RTFG,CFOR,DSFLG,FDLV,FDND,FDTP,STFSW
+        INTEGER DATAW,DATAP,MBUFP,LRTN
+        INTEGER DFSTHD  ;DEFERED STATMENT HEADER FLAG FOR ELSE AND ORIF
+
+TEMP:   BLOCK   2
+XTBL:   BLOCK   XRMAX+1		; FIXUP CHAINS FOR RUNSIDE ROUTINES
+CLITB:  BLOCK   2               ; BUFFER USED TO HOLD STRING LITERAL WHEN POOLING LITERALS
+CLITBF: BLOCK   ^O100
+LITBLK::BLOCK   LBSZE           ; BLOCK FOR HASHES OF LITERALS
+
+
+VAR
+        RELOC   ^O400000
+
+        SALL
+
+;   LITERAL HASH TABLE
+
+        TBL     LHSHC,1,LBSZE
+
+;       LITERAL TABLE
+
+        TBL     LITC,40,LITR
+
+;       STRING LITERAL TABLE
+
+        VTBL    SLITC,,7
+
+;       TEMP CELL DESCRIPTOR TABLE
+
+        TBL     TQDTC,1,TQSZE
+
+;       CONTROL STACK
+
+        FTBL    CSTKC,15,CSTKR
+
+;       FOR STACK
+
+        FTBL    FORSTC,15,FORSR
+
+        XALL
+
+;        BYTE POINTERS USED FOR BUILDING INSTRUCTIONS
+OPCDZ:  POINT   9,0,8   ; XXX XXX XXX ... ... ...  ... ... ... ... ... ...
+RELZ:   POINT   3,0,8   ; ... ... XXX ... ... ...  ... ... ... ... ... ...
+ACZ:    POINT   4,0,12  ; ... ... ... XXX X.. ...  ... ... ... ... ... ...
+XRZ:    POINT   4,0,17  ; ... ... ... ... ..X XXX  ... ... ... ... ... ...
+
+; Generate table of radix50 names of all the runtime routines
+
+        DEFINE  R%R(NAME,LDRNAM,TYPE,NG)
+        <
+        IFB<LDRNAM>,<POINT 7,[ASCIZ"NAME"]>
+        IFNB<LDRNAM>,<POINT 7,[ASCIZ"LDRNAM"]>
+        >
+
+;       XTBH is used in RFEND to put out global requests for all runside
+;       routines that have a nonzero XTBL entry
+
+XTBH:
+        RLIST1
+        RLIST2
+        RLIST3
+
+; THE FOLLOWING DATA IS USED BY COMPIL BUT NOT JARGON
+FOR==4
+
+; THE FOLLOWING NUMBERS COME FROM THE PMC OPTYPE NUMBERS
+CELSE==0
+CIF==29
+CORIF==102
+CUNLS==26
+CUNTL==28
+CWHIL==27
+
+        EXTERN  RCLN,RDTY,DERR
+        EXTERN  MAKSDT,SDTGET,FRESDT
+        EXTERN  CDELN2,BUFPCL,BCBGN,CXLNUM,PGCNFG,P.MOD,VSTART,VNEXT,TPOP
+        EXTERN  ALLOCS,CDELN1,CMSG,CNERR,CXR2,CXTDO,DTAV,ESCFLG
+        EXTERN  DATA,TDO,DECLSW,CERRN,CKND,BFOR,NFOR,ARYCNT,CKLVA
+        EXTERN  GETID,GLNUM,IISC,LRT,LRTP,MBUF,MBUFD,PARDT,PMC,PMCBF,PMCDP
+        EXTERN  PRODT,PSW,RFRE,SEGNO,SETDOL,SWPSCT,TLOC,TNEW,TNEXT
+        EXTERN  TOPN,TRLS,TSET,VGET,VOPN,VPUT,VRLS,FNDNZ,CXRR,CLIT,LBPNT
+        EXTERN  AC1,AC13,AC1S,AC2S,CALLF,CALLX,CERR,CEXIT,CHFXP,LVNP8
+        EXTERN  CJMP,CKC,CKNT,CKT,CMP,CNVRT,CRIP,CXR,DPLIT,EXCK,EXDR,EZLD
+        EXTERN  RFEND,FIXD,FNDR,FND2R,FORN,GAEL,GLST,GR,GR1M,GR2M,GRG,GRI,GRJ,GRNT,GRSH
+        EXTERN  GRO,GROF,GTVID,IMPOS,JMP,LD,LDR,LDS,MULNG,NNG12,NXT4P,ONULL,OREM
+        EXTERN  SAMC,SAMTYP,SAVREG,SETKXT,STHED,STO,STREL,SVFR,SVR,SWP
+        EXTERN  TQCLR,TQAFND,TTLOG,TV,TVF,TVID,TVKI,TVMATE,TVR,XAEL,LDA,TRCXR
+        EXTERN  LHSH,LIT,SLIT,TQDT,CSTK,FORSTK,SGNAM,CERCNT,SUBNM,PMCP,PMCK
+        EXTERN  FFFXP,CXRRR,ALLOCA,ALLOCS,PREL,FDIM,GRM,DEBGSW
+        EXTERN  DRLS,SDTP2,WRKCMP,SUBPTR,NNG1,BNDRY,MMI,SIGNIF,LINLEN,BPOINT
+        EXTERN  MDATPT,BAS,LOS,ADRPI    ;LOSEG STUFF DEFINED IN DECLAR
+        INTERN  OPDSTK,RGSV,FORTYP,FORP,O1P,O2P,PIFXP,GDIM
+        INTERN  OPDN,RZMA,RZMR,CDEFLG,XTBL,PI,PILO
+        INTERN  RLNG,OPDL,RTAD,RTFG,XTBH,XRMAX,DSFLG
+        INTERN  CGOTO,GLREF,CSTKP,CLITB,CLITBF
+
+PI:     ^O202622077325
+PILO:   ^O021026430215
+LGTB==.-6
+;  OPCODES FOR BAN, BOR, AND BEX
+BINOP==.-19
+        EXP     ^O430,^O434,^O404   ; XOR , IOR , AND
+;       sort of a silly way to speed up operand stack operations
+OPDL:OPDSTK
+OPDSTK+4
+OPDSTK+8
+OPDSTK+12
+OPDSTK+16
+OPDSTK+20
+OPDSTK+24
+OPDSTK+28
+OPDSTK+32
+OPDSTK+36
+OPDSTK+40
+OPDSTK+44
+OPDSTK+48
+OPDSTK+52
+OPDSTK+56
+OPDSTK+60
+OPDSTK+64
+OPDSTK+68
+OPDSTK+72
+OPDSTK+76
+OPDSTK+80
+OPDSTK+84
+OPDSTK+88
+OPDSTK+92
+OPDSTK+96
+OPDSTK+100
+OPDSTK+104
+OPDSTK+108
+OPDSTK+112
+OPDSTK+116
+OPDSTK+120
+OPDSTK+124
+OPDSTK+128
+OPDSTK+132
+OPDSTK+136
+OPDSTK+140
+OPDSTK+144
+OPDSTK+148
+OPDSTK+152
+OPDSTK+156
+
+RLNG:EXP 4,5,6,7,0,1,2,3
+; The following names are to be used as locals and params in this file.
+; Use as == symbols will lead only to obscure bugs
+
+        DEFINE  MAC.OK(NAME)
+        <       CKCOMN (NAME,<CNT,LVAR,N,OPID,OPL,OXP,OYP,PROP,PWT,REL,RGX,RGY,SCD,SDTP,TYP,WW,WWWW,INS,PDTP,PARNM>)>
+
+
+        DEFINE PMC(NUMBER,NAME,DECLR,COMPL,SIGHZE)
+        <
+        EXP COMPL
+        >
+
+; This table is used by COPT . Watch out for the hole between COPTX and COPTY
+COPTX:  LOPMCS
+COPTY=.-235
+        HIPMCS
+
+        SUBTTL COMPIL 1.7       THE TOP OF COMPIL
+
+; From the PMC and LRT created by the parser, and from the LRXT,SDT,PARDT and
+; PRODT created by DECLAR, we generate the code for a program or a direct
+; statement
+
+        DCL     COMPIL,,<PMCP2,CNT,SDTP,FDCL,SFG,SDTN,PDTP,PARNM,FORDEF>
+
+;                       COMPIL 1A
+        SETZM   0,RGSV
+        MOVE    2,[RGSV,,RGSV+1]
+        BLT     2,RGSV+^D15
+        SETZM   DFSTHD          ;DEFERED STATEMENT HEADER FLAG FOR ELSE AND ORIF
+        SETZM   BPOINT          ;TQDT RECORD POINTER
+        SETZM   LBPNT           ; # OF CURRENT LHSH TABLE RECORD IN LITBLK
+        MOVEI   0,CLITBF        ; SET UP CLITB
+        MOVEM   0,CLITB
+        MOVEI   0,^O500
+        MOVEM   0,CLITB+1
+        CALL    MAKSDT
+        SKIPLE  DECLSW          ;DECLSW IS USED TO INITIALIZE STUFF ONLY ONCE
+        J       CMPL2
+
+;                       COMPIL 1B  THIS STUFF IS DONE ONLY ONCE IN A -R TBA
+        CALL    TOPN,<LHSHC>
+        MOVEM   1,LHSH
+        CALL    TOPN,<LITC>
+        MM      1,LIT
+        CALL    VOPN,<SLITC>
+        MM      1,SLIT
+        CALL    TOPN,<TQDTC>
+        MM      1,TQDT
+        CALL    TOPN,<CSTKC>
+        MM      1,CSTK
+        CALL    TOPN,<FORSTC>
+        MM      1,FORSTK
+        MI      1,1
+        MM      1,DECLSW
+
+;               COMPIL 2  IF PSW=12 OR PSW=13 THEN 0->CDEFLG ELSE -1->CDEFLG
+CMPL2:  SETOM   CDEFLG
+        MOVE    1,PSW
+        CAIE    1,12
+        CAIN    1,13
+        SETZM   CDEFLG
+
+;               COMPIL 4 skip over if there exists a program unless were doing a CDE
+COMPL4: M       1,P.MOD
+        AOJE    1,COMPL5
+        M       1,PSW
+        CAIE    1,13
+        J       COMPL9
+
+;               COMPIL 5  compile the program
+COMPL5: BCALL   CWPRG
+
+;               COMPIL 6  ANY ERRORS?
+        SKIPN   CERCNT
+        J       COMPL8
+
+;               COMPIL 7    YES, WE CANCEL THE REL FILE
+        SKIPN   RELFLG##
+        CALL    RFCANCEL##
+
+        MI      1,2
+        MM      1,SEGNO
+        J       CMPL15
+
+;               COMPIL 8    NO, WE END THE REL FILE
+COMPL8: SKIPN   RELFLG##
+        CALL    RFEND
+        MI      1,5
+        MM      1,SEGNO
+
+;               COMPIL 9
+COMPL9: SKIPL   WRKCMP
+        J       CMPL15          ;Not compiling the workspace
+        M       1,PSW
+        CAIE    1,12
+        CAIN    1,13
+        JRST    CMPL14          ;CDE
+        CAIN    1,1
+        JRST    CMPL10          ;Direct Statement
+        CAIE    1,2
+        J       CMPL15
+
+;               COMPIL10  COMPILE A DIRECT STATEMENT
+CMPL10: BCALL   CDST
+
+;               COMPIL 11  ANY ERRORS COMPILING THE DIRECT STATEMENT?
+        SKIPN   CERCNT
+        J       CMPL13
+
+;               COMPIL 12    YES, RELEASE FOR STACK AND CONTROL STACK AND CANCEL THE REL FILE
+        CALL    TRLS,<$,FORSTK>
+        CALL    TRLS,<$,CSTK>
+        SKIPN   RELFLG
+        CALL    RFCANCEL##
+        MI      1,2
+        MM      1,SEGNO
+        J       CMPL15
+
+;               COMPIL 13    NO, END THE REL FILE
+CMPL13: SKIPN   RELFLG
+        CALL    RFEND
+        MI      1,5
+        MM      1,SEGNO
+        J       CMPL15
+
+;               COMPIL 14
+CMPL14: MI      1,2
+        MM      1,SEGNO
+
+;               EXIT COMPIL
+CMPL15: CALL    FRESDT
+        RETURN  COMPIL
+        SUBTTL CWPRG 1.7.5      COMPIL A WHOLE PROGRAM
+        BDCL    CWPRG
+
+;                       CWPRG 1A  GET READY TO STEP THROGH LINE REFERENCE TABLE
+        CALL    TLOC,<$,LRT,FSTH>,<LRTP>
+
+;               CWPRG1
+CWPRG1:
+        SETZM   0,SUBNM
+        SETZM   0,PIFXP         ;PI FIXUP, USED TO POOL PI AND DPI
+;        WE SET UP OPDN,O1P, and O2P
+        SETZM   0,OPDN
+        MI      1,OPDSTK
+        MM      1,O2P
+        SUBI    1,4
+        MM      1,O1P
+
+        SETZM   0,XTBL          ; we zero XTBL with a BLT
+        HRLZI   1,XTBL		; (XTBL is the runside routine fixup chain table)
+        HLR     1,1
+        ADDI    1,1
+        BLT     1,XTBL+XRMAX
+
+;		and now we do the trip with for loops.
+;		The parser counted the for loops in each line and put the count in an
+;		LRT field. DECLAR summed them all up into NFOR and allocated
+;		a block of size NFOR for return address cells. BFOR eas set up as
+;		the r%vrlc address of the start of that block. So now we set up CFOR as
+;		a pointer into the block. We increment CFOR in CFRID as we allocate
+;		these cells to particular for loops.
+        M       1,BFOR
+        MM      1,CFOR
+
+        SETZM   0,DSFLG		; DSFLG=0 => we are compiling a program, not a direct statement
+
+;               CWPRG2
+        CALL    TSET,<$,DTAV,1>
+        MOVEM   P,RZMR          ; SAVE STACK POINTER TO RESUME FROM ERROR
+        MOVEI   1,CWPRG4        ; SET UP CWPRG4 AS THE RESUME POINT
+        MM      1,RZMA
+;        START REL FILE
+        SKIPN   RELFLG
+        CALL    STREL
+
+;                       CWPRG 3  GENERATE FIRST FOUR WORDS OF HISEG AND THE MODULES DATA
+        BCALL   RINIT
+
+;               CWPRG4   STEP THE LRT
+CWPRG4: M       1,LRTP
+        FGET    0,1,LNXT
+        MM      0,LRTN
+        MOVE    1,LRTP
+        CALL    RDTY
+
+;               CWPRG5  IF WE ARE DONE, OR AN ESCAPE  GO CALL CDONE
+        M       1,LRTN
+        CAIN    1,LSTH
+        J       CWPG11
+        SKIPE   ESCFLG
+        J       CWPG11
+
+;               CWPRG6  GET THE POINTER TO THE NEXT LINE, FIXUP REFERENCES TO THAT LINE.
+;                       PUT THE LOCATION OF THE COMPIL CODE FOR THE LINE IN THE LRT
+        CALL    TLOC,<$,LRT,$,LRTN>,<LRTP>
+;  Fixup forward references to this line
+        FGET    0,1,LCOD
+        CALL    CHFXP
+        M       1,LRTP
+        M       0,r%cdlc
+        FPUT    0,1,LCOD
+        MI      0,1
+        FPUT    0,1,LEFG
+
+;               CWPRG6A  CHECK TO SEE IF CODE FOR THIS LINE SHOULD BE PRINTED, IF SO PRINT LINE NUMBER
+        BCALL   CDECK
+
+;               CWPRG7   CHECK TO SEE IF WE NEED TO LOOK AT THIS LINE
+        M       1,LRTP
+        FGET    0,1,LCFG
+        JUMPN   0,CWPRG4
+
+;               CWPRG8A   MESS WITH PMC POINTER, COMPILE RHED CODE
+        BCALL   CSTMI
+
+;               CWPRG8   COMPILE ONE STATEMENT
+        CALL    CSTM
+
+;               CWPRG9 CHECK FOR LEFT OVER OPERANDS OR BUSY TEMP CELLS
+        SKIPE   OPDN
+        J       CWPG10
+        CALL    TQCLR
+        JUMPE   1,CWPRG4
+        JRST    CWP10A
+
+;               CWPRG10  GIVE 'INTERNAL STACK ERROR' IF ANY FOUND
+CWPG10: CALL    CERR,<20>
+        J       CWPRG4
+
+;                       'INTERNAL ERROR: TEMP CELL NOT FREED'
+CWP10A: CALL    CERR,<^d49>
+        JRST    CWPRG4
+
+;               CWPRG11  CHECK FOR CSTAK OR FORSTK ERRORS, DEPOSIT LITERALS
+CWPG11: BCALL   CDONE
+
+;               EXIT CWPRG
+CWPG$$: BRETURN CWPRG
+        SUBTTL RINIT 1.7.5.3
+
+;       RECALL THAT THE HISEG OF EACH MODULE LOOKS LIKE THIS:
+
+;       HISEG+0 JRST to the start of the program
+;       HISEG+1 somthing to do with for loops
+;       HISEG+2 JRST 0(1)
+;       HISEG+3 address of the module initialization routine (which rinit2 will generate)
+;       HISEG+4  the data area
+;                       the data gets put here in its original ascii text
+
+
+;       WELL RINIT SETS UP THE FIRST FOUR WORDS AS BEST IT CAN
+;       THEN IT GOES THRU THE DATA AND PUTS IT IN THE HISEG. AND THEN IT
+;       FIXES UP THE ADDRESS FOR THE JRST AT HISEG+1 NOW THAT IT NOWS WHAT
+;       TO PUT THERE
+
+        BDCL    RINIT
+;                       RINIT 1  PUT IN THE FIRST FOUR WORDS OF THE HISEG
+        MOVSI   0,(JRST)
+        CALL    GRI,<,0>
+        M       0,BFOR
+        HRL     0,NFOR
+        CALL    GRI,<,LVR>
+        MOVSI   0,(JRST 0(1))
+        CALL    GRI,<,0>
+        CALL    GRI,<0,0>
+
+;                       RINIT 2  WE GET THE DATA FROM DTAV AND PUT IT IN THE HISEG
+        CALL    VSTART,<$,DTAV>
+        M       0,[POINT 7,DATAW]     ; DATAW  HOLDS 5 ASCII CHARACTERS
+        MM      0,DATAP         ; DATAP  IS A BYTE POINTER INTO DATAW
+        SETZM   DATAW
+;        READ FIRST DATA ITEM INTO MBUF
+        CALL    VNEXT,<MBUFD,$,DTAV>
+
+;                       RINIT 3 IF WERE OUT OF DATA GOTO RINIT 12
+        JUMPE   1,RINT12
+
+;                       RINIT 4  SET POINTER TO START OF MBUF, ADD WORD OF NULLS TO STRING IN MBUF
+        M       0,[POINT 7,MBUF]
+        MM      0,MBUFP
+        HLRZ    1,MBUFD+1
+        ADDI    1,4
+        IDIVI   1,5
+        SETZM   MBUF(1)
+
+;                       RINIT 5  GET CHAR FROM MBUF, SEE IF ITS NULL
+RINIT5: ILDB    1,MBUFP
+        JUMPE   1,RINIT7
+
+;                       RINIT 6  IF NOT NULL, DEPOSIT IT IN DATAW
+        IDPB    1,DATAP
+        J       RINT10
+
+;                       RINIT 7  GET NEXT DATA ITEM INTO MBUF
+RINIT7: CALL    VNEXT,<MBUFD,$,DTAV>
+        JUMPE   1,RINT12
+
+;                       RINIT 9 POINT MBUFP TO START OF MBUF, ADD WORD OF NULLS TO MBUF
+        M       0,[POINT 7,MBUF]
+        MM      0,MBUFP
+        HLRZ    1,MBUFD+1
+        ADDI    1,4
+        IDIVI   1,5
+        SETZM   MBUF(1)
+        MI      1,","           ; PUT A COMMA IN DATAW TO SEPERATE DATA ITEMS
+        IDPB    1,DATAP
+
+;                       RINIT 10 DO WE HAVE 5 CHARACTERS IN DATAW
+RINT10: M       1,DATAP
+        TLNE    1,^O760000
+        JRST    RINIT5          ; NO, GO GET ANOTHER CHARACTER
+
+;                       RINIT 11  YES, DEPOSIT A WORD OF DATA
+        CALL    GRI,<$,DATAW,0>
+        M       0,[POINT 7,DATAW]     ; RESET POINTER TO START OF DATAW
+        MM      0,DATAP
+        J       RINIT5
+
+;                       RINIT 12 DEPOSIT LAST PIECE OF DATA, FIXUP JRST AROUND DATA
+RINT12: SETZ    1,0
+        IDPB    1,DATAP
+        CALL    GRI,<$,DATAW,0>
+        skipe   relflg##
+        jrst    rint$$
+        scall   r%rfix,<0,rlcode,$,r%cdlc,rlcode>
+;                       EXIT RINIT
+RINT$$: BRETURN RINIT
+        SUBTTL CDECK 1.7.5.6A   PRINT THE LINE NUMBER IF WE ARE DOING A CDE
+        BDCL    CDECK
+
+;  CDELN1 is first line to print code for, CDELN2 is last line
+
+; CDEFLG= -1: CDE not requested, or LRTP/LNUMB > CDELN2
+;                0: CDE requested and LRTP/LNUMB < CDELN1
+;                1: CDE requested and CDELN1 <= LRTP/LNUMB <= CDELN2
+
+
+;               CDECK1
+        M       1,CDEFLG
+        JUMPL   1,CDECK8
+        JUMPG   1,CDECK6
+
+;               CDECK2
+        M       1,LRTP
+        FGET    0,1,LNUMB
+        CAMGE   0,CDELN1
+        J       CDECK8
+
+;               CDECK3
+        CAMLE   0,CDELN2
+        J       CDECK5
+
+;               CDECK4
+        MI      1,1
+        MM      1,CDEFLG
+        J       CDECK8
+
+;               CDECK5
+CDECK5: SETOM   0,CDEFLG
+        J       CDECK8
+
+;               CDECK6
+CDECK6: M       1,LRTP
+        FGET    0,1,LNUMB
+        CAMG    0,CDELN2
+        J       CDECK8
+
+;               CDECK7
+        SETOM   0,CDEFLG
+
+;               CDECK8
+CDECK8: SKIPG   CDEFLG
+        J       CDCK$$
+
+;               CDECK9  PRINT THE LINE NUMBER
+        SETZM   0,MBUF
+        SETZM   0,MBUF+1
+        M       1,LRTP
+        FGET    0,1,LNUMB
+        M       1,[POINT 7,MBUF]
+        CALL    IISC
+        CALL    TDO,<MBUF,MOCR>
+
+;               EXIT CDECK
+CDCK$$: BRETURN CDECK
+        SUBTTL CSTMI 1.7.5.8A   PREPARE TO CALL CSTM
+        BDCL    CSTMI
+
+;               CSTMI1  GET A LINE OF PMC
+        M       1,LRTP
+        FGET    2,1,LPMC
+        CALL    VGET,<PMCDP,$,PMC>
+        M       1,[POINT 9,PMCBF]
+        MM      1,PMCP
+        MM      1,PMCP2
+        MI      1,PMCDP
+        FGET    0,1,SDCL
+        MM      0,PMCK
+
+;               CSTMI2  IS THIS A DEF,ELSE , or ORIF
+        ILDB    1,PMCP2
+        CAIN    1,^D99          ;DEF
+        J       CSMI$$
+
+        CAIN    1,^D114         ;BORIF
+        SKIPA
+        JUMPN   1,CSMI13        ;ELSE
+        SETOM   DFSTHD
+        JRST    CSMI$$
+;               CSTMI3  NO, PUT OUT AN RHED CALL
+CSMI13: MOVE    1,LRTP
+        FGET    0,1,LNUMB
+        CALL    STHED
+
+;               EXIT CSTMI
+CSMI$$: BRETURN CSTMI
+        SUBTTL CDONE 1.7.5.11   CLEAN UP AFTER COMPIL
+        BDCL    CDONE
+
+;               CDONE 1  RELEASE THE TEMP CELL DESCRIPTORS
+        CALL    TRLS,<$,TQDT>
+
+;               CDONE 2 IS THE FORSTK EMPTY
+CDONE2: MOVE    1,FORSTK
+        HRRE    0,7(1)
+        JUMPL   0,CDONE4
+
+;               CDONE 3  NO, GIVE ERRORS FOR REMAINING FORs
+        CALL    TLOC,<$,FORSTK,0>,<FORP>
+        FGET    2,1,FLNM
+        CALL    TLOC,<$,LRT,$,2>,<LRTP>
+        ;  call DERR to print line number, error msg, and return
+        CALL    DERR,<^D48>
+        MOVE    1,LRTP
+        CALL    RCLN
+        MOVE    1,FORP
+        CALL    RCLN
+        CALL    TPOP,<$,FORSTK>
+        JRST    CDONE2
+
+
+;               CDONE 4  IS THE CONTROL STACK EMPTY
+CDONE4: M       1,CSTK
+        HRRE    0,7(1)
+        JUMPL   0,CDONE6
+
+;               CDONE 5  NO, GIVE ERRORS FOR REMAINING CONDITIONALS
+        CALL    TLOC,<$,CSTK,0>,<CSTKP>
+        FGET    2,1,CLNM
+        CALL    TLOC,<$,LRT,$,2>,<LRTP>
+        ; call DERR to print line #, error msg  and return
+        CALL    DERR,<^D21>
+        MOVE    1,LRTP
+        CALL    RCLN
+        MOVE    1,CSTKP
+        CALL    RCLN
+        CALL    TPOP,<$,CSTK>
+           CDONE4
+
+
+;               CDONE6
+CDONE6: M       1,LRTN
+        CAIN    1,LSTH
+        J       CDONE8
+
+;               CDONE7
+        AOS     CERCNT
+        J       CDNE$$
+
+;               CDONE 8
+CDONE8: SKIPE   CERCNT
+        J       CDNE9A
+
+        SKIPG   CDEFLG
+        JRST    CDONE9
+        MOVEI   0,[ASCIZ / PROGRAM OVER   CALL TO RUNCOM /]
+        CALL    TDO,<,1>
+
+;               CDONE 9 GENERATE CALL TO RUNCOM AT END OF PROGRAM
+CDONE9: MOVSI   0,(SETZ 1,)
+        MOVEI   1,0
+        CALL    GRI
+        CALL    CXR,<RUNCOM>
+        BCALL   RINT2
+        CALL    DPLIT,,<CERCNT>
+        J       CDNE$$
+;                       CDNE9A
+CDNE9A: CALL    DRLS
+
+;               CDONE 10
+CDNE$$: CALL    TRLS,<$,LHSH>
+        CALL    TRLS,<$,LIT>
+        CALL    VRLS,<$,SLIT>
+        BRETURN CDONE
+        SUBTTL RINT2 1.7.5.11.9  Generate Module Initialization Routine
+        BDCL    RINT2
+
+; The Module initialization routine looks like this:
+;
+;  If there are any arrays in this module:
+;               MOVEI   2,ME15
+;               HRLI    2,^o032000      ; reference to undelclared array message
+;
+;  If there are any string variables in this module:
+;               MOVEI   1,^d4095   ; max string length
+;
+;  Then for each array, we put the error message into the acces code with:
+;               MOVEM   2,SLOC+.CADR(SN)
+;
+;  For array parameters we do it a little differently:
+;               MOVE    3,SLOC+1
+;               MOVEM   3,SLOC
+;               MOVEM   2,1+SLOC+.CADR(SN)
+;
+;  For each string, we put the max length in the descriptor:
+;               MOVEM   1,SLOC+1
+;
+;  We end it all with a POPJ
+;
+; We first look at all the sdt entries. Then we look at pardt entries looking only for strings
+
+;                       RINT2 0
+        SKIPG   CDEFLG
+        JRST    RINT21
+        MOVEI   0,[ASCIZ / MODULE INITIALIZATION ROUTINE /]
+        CALL    TDO,<,1>
+
+;                       RINT2 1
+; remember that the 3rd word of the hiseg is an unfinished jrst to this code
+RINT21: CALL    CHFXP,<3>
+        SETZM   0,SFG           ; SFG is used to move max string length into r1 one time only
+        MOVEI   1,4             ; accounting for sinits 4 sdt entries
+        MOVEM   1,SDTN          ; FOR SDTN= 4 TO UDFSYM
+
+;                       RINT2 2   any arrays?
+        SKIPN   ARYCNT
+        J       RINT24
+
+;                       RINT2 3   yes, load the error thing into r2
+        M       0,[MI 2,ME15]
+        CALL    GRI,<,0>
+        M       0,[HRLI 2,^O32000]
+        CALL    GRI,<,0>
+
+;                       RINT2 4  we look at every symbol
+RINT24: CALL    SDTGET,<,$,SDTN>,<SDTP>
+;                       RINT2 5
+        JUMPE   1,RNT215
+
+;                       RINT2 6  what kind of symbol is it?
+        FGET    2,1,SKND
+        JRST    @RTTBL(2)
+
+;                       RINT2 7   Scalar variable
+RINT27: FGET    0,1,STYP
+        CAIE    0,STR
+        J       RNT214
+;                       RINT2 8
+        SKIPE   SFG
+        J       RNT210
+;                       RINT2 9  Move max length into r1 (we do this once only)
+        M       0,[MOVEI 1,4095]
+        CALL    GRI,<,0>
+        SETOM   0,SFG
+;                       RINT2 10 move r1 (max length) into string descriptor
+RNT210: M       1,SDTP
+        FGET    0,1,SLOC
+        ADDI    0,1
+        HRLI    0,(MOVEM 1,)
+        CALL    GRI,<,LVR>
+        J       RNT214
+
+;                       RINT2 11  Array variaable
+RNT211:SETZ 0,0
+        J       RNT213
+
+;                       RINT2 12  Array parameter
+RNT212: FGET    0,1,SLOC
+        ADDI    0,1
+        HRLI    0,(MOVE 3,)
+        CALL    GRI,<,LVR>
+        M       2,SDTP
+        FGET    0,2,SLOC
+        HRLI    0,(MOVEM 3,)
+        CALL    GRI,<,LVR>
+        MOVEI   0,1
+;                       RINT2 13
+RNT213: M       1,SDTP
+        FGET    2,1,SLOC
+        ADD     0,2
+        FGET    2,1,SN
+        EXTERN  .CADR
+        ADD     0,.CADR(2)
+        HRLI    0,(MOVEM 2,)
+        CALL    GRI,<,LVR>
+
+;                       RINT2 14  GO LOOK AT ANOTHER SYMBOL
+RNT214: AOS     1,SDTN
+        CAMG    1,UDFSYM##
+        JRST    RINT24
+
+
+;                       RINT2 15  Now we look at the pardt entries watching for strings
+RNT215: CALL    TLOC,<$,PARDT,0>
+        JUMPE   2,RNT219
+        CALL    RCLN
+        MOVEM   2, PARNM
+        CALL    TSET,<$,PARDT,1>
+RNT216: CALL    TNEXT,<$,PARDT>,<PDTP>
+        JUMPE   1,RNT219
+
+        FGET    0,1,PAKND
+        CAIE    0,SSCAL
+        JRST    RNT218
+
+        FGET    0,1,STYP
+        CAIE    0,STR
+        JRST    RNT218
+
+        SKIPE   SFG
+        JRST    RNT217
+        MOVE    0,[MOVEI 1,^D4095]
+        CALL    GRI,<,0>
+        SETOM   SFG
+
+RNT217: MOVE    1,PDTP
+        FGET    0,1,SLOC
+        JUMPE   0,RNT218        ; sloc=0 means its an external parameter
+        ADDI    0,1
+        HRLI    0,(MOVEM 1,)
+        CALL    GRI,<,LVR>
+
+RNT218: MOVE    1,PDTP
+        CALL    RCLN
+        SOSL    PARNM
+        JRST    RNT216
+
+RNT219: MOVSI   0,(POPJ P,)
+        CALL    GRI,<,0>
+;                       EXIT RINT2
+        BRETURN RINT2
+RTTBL:  RINT27                  ; SCALAR VARIABLE
+        RNT211                  ; ARRAY VARIABLE
+        RNT214                  ; PROCEDURE
+        RNT212                  ; ARRAY PARAMETER
+        SUBTTL CDST 1.7.10      COMPIL A DIECT STATEMENT
+        BDCL    CDST
+
+;               CDST 1A
+        HLRZ    1,BUFPCL
+        MM      1,PMCK
+        M       1,BCBGN
+        MM      1,PMCP
+
+;               CDST1
+        SKIPN   PGCNFG   ;PROGRAM CONTINUABILITY FLAG i think
+        J       CDST3
+
+;               CDST2
+        CALL    SETKXT,<$,CXLNUM>
+        J       CDST4
+
+;               CDST3
+CDST3:  SETZM   0,SUBNM
+
+;               CDST4
+CDST4:  SETZM   0,XTBL		; we zero XTBL with a BLT
+        HRLZI   1,XTBL		; (XTBL is the runside routine fixup chain table)
+        HLR     1,1
+        ADDI    1,1
+        BLT     1,XTBL+XRMAX
+
+        MI      1,1
+        MM      1,DSFLG         ; DSFLG := 1  set direct statement flag
+
+        MOVEI   1,STRTUV##	; we initialize r%vrlc to the start of the user variables
+        MM      1,r%vrlc
+
+        MI      1,OPDSTK		; initialize the operand stack
+        MM      1,O2P
+        SUBI    1,4
+        MM      1,O1P
+        SETZM   0,PIFXP  ; special pi and dpi fixup chain
+        SETZM   0,OPDN
+        SKIPN   RELFLG
+        CALL    STREL
+
+;               CDST5
+        MM      P,RZMR         ; save stack pointer
+        MI      1,CDST11        ; define the resume point
+        MM      1,RZMA
+
+;               CDST6
+        MOVSI   0,(JFCL)
+        MOVEI   1,0
+        CALL    GRI             ; This jfcl is needed only because the code generators
+                                ;       refuse to put out a symbol reference to the first word (0)
+                                ;       of the code area.  (The sthed call puts out jsp 16,rhed)
+        CALL    STHED,<100000>
+        CALL    CSTM
+
+;               CDST7
+        CALL    GRI,<$,<[MI 1,14]>,0>
+        CALL    CXR,<RUNCOM>
+
+;               CDST8
+        SKIPN   ESCFLG
+        J       CDST10
+
+;               CDST9
+CDST9:  AOS     CERCNT
+        J       CDST11
+
+;               CDST10
+CDST10: CALL    DPLIT,,<CERCNT>
+
+;               CDST11
+CDST11: M       1,r%vrlc
+        CAIGE   1,118
+        J       CST11B
+;                       CDST 11A
+        AOS     CERCNT
+        CALL    CXR2,<$,CMSG+LVNP8,MOCR>
+;                       CDST 11B
+        EXTERN  SUBSTK, SWPPOP
+CST11B: SKIPN   SUBNM           ;within a procedure?
+        JRST    CDST13          ;no
+        CALL    SWPSCT          ;Swap its locals back into PARDT
+        MOVE    R1,SUBPTR
+        CAIN    R1,SUBSTK       ;last one?
+        JRST    CDST13
+        SUBI    R1,SUBSIZ
+        MOVEM   R1,SUBPTR
+        MOVE    R1,(R1)
+        MOVEM   R1,SUBNM
+        JRST    CST11B
+
+;               CDST13
+CDST13: CALL    TRLS,<$,TQDT>
+        CALL    TRLS,<$,LHSH>
+        CALL    TRLS,<$,LIT>
+        CALL    VRLS,<$,SLIT>
+
+;               EXIT CDST
+        BRETURN CDST
+        SUBTTL CSTM    COMPIL A STATEMENT.  THIS IS THE HEART OF COMPIL
+        DCL     CSTM,,<RGX,RGY,REL,SCD,WW,WWWW,PWT,TYP,OPTYP,OXP,OYP,OPL,FRFLG,ID,LITP,LVAR,NDIM,NPAR,OP1,OP2,OPID,PAR,PARNM,PROP,SDTP,N,LOK,PDTP>
+
+;               CSTM 1
+        SETZM   0,PARNM
+        SETZM   0,FRFLG
+
+;               CSTM 2
+CSTM2:  SOSG    1,PMCK
+
+;               CSTM 3
+        JRST    CSTM3
+
+;               CSTM 4
+        ILDB    1,PMCP
+        MM      1,OPTYP
+
+;               CSTM 5
+        BCALL   COPT
+        J       CSTM2
+
+;               EXIT CSTM
+CSTM3:
+        SALL
+        IFN DEBMOD,<
+; PMCK ought to be zero here. If its negative then we over subtracted
+        JUMPE   1,CSTM$$
+        CALL    CERR,<^D46>
+        >
+        XALL
+
+
+CSTM$$: RETURN CSTM
+        SUBTTL COPT CSTM.4  FROM THE OPTYPE OF THE PMC, COMPIL THIS LINE
+        BDCL    COPT
+
+;               COPT1
+			; OPTYP in R1 from call in CSTM
+        CAIG    1,124
+        J       @COPTX(1)
+        J       @COPTY(1)
+
+; See tables COPTX and COPTY
+
+;       resume
+COPT12: CALL    CXR,<RRSUM>
+        J       COPT$$
+
+;       read
+COPT14: CALL    CRIP,<RREAD>
+        J       COPT$$
+
+;       kilfm   discard the currnt I/O format
+COPT19: CALL    CXR,<RKLFMT>
+        J       COPT$$
+
+;       impossible
+COPT20: CALL    IMPOS
+        J       COPT$$
+
+;       inpfl    set up file and format for input
+COPT21: CALL    CIFPF,<0>
+        J       COPT$$
+
+;       prtfl   set up file and format for print
+COPT22: CALL    CIFPF,<16>
+        J       COPT$$
+
+;       input   input data into a variable
+COPT23: CALL    CRIP,<RINPT>
+        J       COPT$$
+
+;       cns     a colon was not seen in evluating current dimension range
+COPT24: CALL    TVF,<ONSC,OUVAR,INT,BAS,0,0>
+        CALL    SWP
+        J       COPT$$
+
+;       renam   rename the specified file using the specified new name
+COPT27: CALL    AC2S
+        CALL    CXR,<RRNAM>
+        J       COPT$$
+
+;       remov   remove the specified file
+COPT28: CALL    AC1S
+        CALL    CXR,<RRMOV>
+        J       COPT$$
+
+;       copy    perform the copy statement; two expressions precede.
+COPT30: CALL    AC2S
+        CALL    CXR,<RCOPY>
+        J       COPT$$
+
+;       goto    trnsfer control to the specified line
+COPT31: MOVSI   0,(JRST)
+        CALL    CGOTO
+        J       COPT$$
+
+;       exit    exit a user defind multi-line subroutine entered with a call
+COPT33: CALL    CEXIT
+        J       COPT$$
+
+;       exit1   exit and returna value from a user defind multi-line function
+COPT34: CALL    EXTV
+        J       COPT$$
+
+;       slstr   slice star
+COPT45: CALL    TVF,<OSST,0,0,0,0,0>
+        J       COPT$$
+
+;       ongo    on expression goto statement
+COPT51: CALL    GLST,<0>
+        J       COPT$$
+
+;       ongsb   on expression gosub statement
+COPT52: CALL    GLST,<1>
+        J       COPT$$
+
+;       oneof   on endfile(n) goto statement
+COPT53: CALL    CNTS,<ENDNUM>
+        J       COPT$$
+
+;       onesc   on escape goto statement
+COPT54: CALL    CNTS,<ESCNUM>
+        J       COPT$$
+
+;       onmth   on matherror goto statement
+COPT55: CALL    CNTS,<MATNUM>
+        J       COPT$$
+
+;       ontrn   on transform goto statement
+COPT56: CALL    CNTS,<TFONUM>
+        J       COPT$$
+
+;       onfil   on fileerror goto statement
+COPT57: CALL    CNTS,<FILNUM>
+        J       COPT$$
+
+;       ondat   on dataend goto statement
+COPT58: CALL    CNTS,<DATNUM>
+        J       COPT$$
+
+; ON DIV BY ZER GOTO statement:
+CPT260: CALL    CNTS,<DIVNUM>
+        J       COPT$$
+
+;       call    call function (no arguments)
+COPT59: CALL    CALLX,<0>
+        J       COPT$$
+
+;       calla   call function (with arguments)
+COPT60: CALL    CALLX,<1>
+        J       COPT$$
+
+;       cib     clear terminal input buffer
+COPT63: CALL    CXR,<RCIB>
+        J       COPT$$
+
+;       cob     clear terminal output buffer
+COPT64: CALL    CXR,<RCOB>
+        J       COPT$$
+
+;       foriv   initialize for loop index variable
+COPT68: CALL    CKC,<$,O2P,ONSC>
+        MI      1,FOR
+        M       2,O2P
+        FPUT    1,2,OC
+        J       COPT$$
+
+;       restr   restore the data list
+COPT70: SETOM   0,STFSW
+        J       COPT$$
+COPT74: CALL    GRI,<$,<[HRLZI 0,^O440700]>,ABS>   ; POINT 7,0
+        CALL    GRI,<$,<[ADDI 0,4]>,LOC>        ;DATA AT 4TH WORD OF HISEG
+        CALL    GRI,<$,<[MOVEM 0,0]>,UVAR>      ;DATA PTR 0TH WORD LOSEG
+        J       COPT$$
+
+;       nodat   no dataend
+COPT75: CALL    CNTO,<DATNUM>
+        J       COPT$$
+
+;       noeof   no endfile(n)
+COPT76: CALL    CNTO,<ENDNUM>
+        J       COPT$$
+
+;       noerr   no error
+COPT77: CALL    CNTO,<ERRNUM>
+        J       COPT$$
+
+;       noesc   no escape
+COPT78: CALL    CNTO,<ESCNUM>
+        J       COPT$$
+
+;       nofil   no file(n)
+COPT79: CALL    CNTO,<FILNUM>
+        J       COPT$$
+
+;       onerr   on error
+COPT80: CALL    CNTS,<ERRNUM>
+        J       COPT$$
+;       nomth   no matherror
+COPT81: CALL    CNTO,<MATNUM>
+        J       COPT$$
+
+;       notrn   no transform
+COPT82: CALL    CNTO,<TFONUM>
+        J       COPT$$
+
+;       nodvz   no div by zer
+CPT261: CALL    CNTO,<DIVNUM>
+        J       COPT$$
+
+;       star    * used in an expression
+CPT103: SETO    0,0
+        CALL    TVKI
+        J       COPT$$
+
+;       varbl   variable
+CPT104: CALL    GTVID
+        J       COPT$$
+
+;       sicon   short integer constant
+CPT105: ILDB    0,PMCP
+        TRNE    0,^O400
+        OR      0,[XWD ^O777777,^O777000]
+        CALL    TVKI
+        SOS     PMCK
+        J       COPT$$
+
+;       icon    integer constant
+CPT106: CALL    NXT4P,,<WW>
+        CALL    TVKI,<$,WW>
+        J       COPT$$
+
+;       mfn     math function
+CPT112: SOS     PMCK
+        ILDB    0,PMCP
+        CALL    CMFN
+        J       COPT$$
+
+;       cfn     complex function
+CPT114: SOS     PMCK
+        ILDB    0,PMCP
+        CALL    CCFN
+        J       COPT$$
+
+;       afn     array function
+CPT115: CALL    CAFN
+        JRST    COPT$$
+
+;       slcln   slice colon
+CPT121: CALL    TVF,<OSC,0,0,0,0,0>
+        J       COPT$$
+
+;       itdon   iterative for loop done
+CPT122: CALL    TPOP,<$,FORSTK>
+        CALL    OREM,<1>
+        JRST    COPT$$
+
+; GENERATE FOR "RESUME LINE#"
+; USE CGOTO TO PUT OUT "MOVEI 1,LINEADDRESS"
+; USE CXR TO PUT OUT THE PUSHJ 17,RRSUMP
+
+CPT256:
+        MOVSI   0,(MOVEI 1,)
+        CALL    CGOTO
+        CALL    CXR,<RRSUMP>
+        J       COPT$$
+
+
+;       aka     procedures aka name
+CPT257: ILDB    1,PMCP
+CP257A: SOS     PMCK
+        SOJGE   1,[     ILDB    0,PMCP
+        JRST    CP257A  ]
+        JRST    COPT$$
+
+
+
+;       ondiv   on div by zer error
+        EXTERN  DIVZER
+CPT258: CALL    GRSH,<O(SETZM),0,DIVZER>
+        JRST    COPT$$
+
+;       nodiv   on div by zer no error
+CPT259: CALL    GRSH,<O(SETOM),0,DIVZER>
+        JRST    COPT$$
+
+COPT$$: BRETURN COPT
+        SUBTTL CELS CSTM.3.2    ELSE OR ORIF  
+        BDCL    CELS
+
+;                               CELS 1
+        CALL    TLOC,<$,CSTK,0>,<CSTKP>
+        M       2,CSTKP
+        JUMPE   2,CELS2
+        FGET    1,2,CMODF
+        CAIN    1,CIF
+        J       CELS3
+        CAIN    1,CORIF
+        J       CELS3
+
+;                               CELS 2  ENDIF ELSE or ORIF not preceeded by IF
+CELS2:  CALL    CERR,<^D19>
+
+;                               CELS 3
+CELS3:  FGET    0,2,CBGL        ; CSTKP IN R2, ABOVE
+        CALL    JMP
+        M       1,r%cdlc
+        SUBI    1,1
+        M       2,CSTKP
+        FPUT    1,2,CBGL
+        FGET    0,2,CFXL
+        CALL    CHFXP
+
+;                               CELS 4
+        SKIPE   OPTYP   ; OPTYPE=0 IS AN ELSE
+        J       CELS6
+
+;                               CELS 5   ELSE
+        MI      1,CELSE
+        M       2,CSTKP
+        FPUT    1,2,CMODF
+        J       CELS$$
+
+;                               CELS 6   ORIF
+CELS6:  MI      1,CORIF
+        M       2,CSTKP
+        FPUT    1,2,CMODF
+
+;                               EXIT CELS
+CELS$$: MOVE    1,CSTKP
+        CALL    RDTY
+
+;       AND NOW WE GENERATE THE STATEMENT HEADER WHICH WAS POSTPONED.
+;       THIS WAS DONE TO FIX BUG 428 (E254) : 'ORIF AND ELSE STATEMENTS
+;       SHOULD PROPERLY SET CONTEXT WHEN BRANCHED TO'
+
+        SKIPN   DFSTHD
+        JRST    COPT$$
+        MOVE    1,LRTP
+        FGET    0,1,LNUMB
+        CALL    STHED
+        SETZM   DFSTHD
+
+        J       COPT$$
+        SUBTTL CNDIF CSTM.3.3   END OF A MODIFIED STATEMENT
+        BDCL    CNDIF
+
+;                               CNDIF 1
+        CALL    TLOC,<$,CSTK,0>,<CSTKP>
+        M       2,CSTKP
+        JUMPN   2,CNDIF1
+        CALL    CERR,<^D19>     ; "ENDIF , ELSE, OR ORIF NOT PRECEEDED BY IF"
+CNDIF1: FGET    1,2,CMODF
+        CAIN    1,CWHIL
+        J       CNDIF2
+        CAIE    1,CUNTL
+        J       CNDIF3
+
+;                               CNDIF 2 UNTIL or WHILE
+CNDIF2: FGET    0,2,CBGL        ; CSTKP IN R2, BOX 1
+        CALL    JMP
+
+;                               CNDIF 3
+CNDIF3: M       1,CSTKP
+        FGET    2,1,CMODF
+        CAIN    2,CELSE
+        J       CNDIF5
+        CAIE    2,CORIF
+        J       CNDIF6
+
+;                               CNDIF 4
+        FGET    0,1,CBGL
+        CALL    CHFXP
+        M       1,CSTKP
+        FGET    0,1,CFXL
+        CALL    CHFXP
+        J       CNDF7
+
+;                               CNDIF 5
+CNDIF5: FGET    0,1,CBGL
+        CALL    CHFXP
+        J       CNDF7
+
+;                               CNDIF 6
+CNDIF6: FGET    0,1,CFXL
+        CALL    CHFXP
+
+;                               CNDIF 7
+CNDF7:  MOVE    R1,CSTKP
+        CALL    RCLN
+        CALL    TPOP,<$,CSTK>
+
+;                               EXIT CNDIF
+        J       COPT$$
+        SUBTTL CTVA CSTM.3.4 TAKE VALUE OF AN ARRAY ELEMENT OR CALL A FUNCTION
+;       THAT IS THE PROGRAM SAID SOMTHING LIKE X=FOO(2)
+        BDCL    CTVA
+
+;                               CTVA 1
+        CALL    GETID,,<SDTP,ID>
+        ILDB    1,PMCP
+        MM      1,NPAR
+        SOS     PMCK
+
+;                               CTVA 2   LOOK AT SDTP/SKND TO SEE IF ITS AN
+;                                        ARRAY OR A PROCEDURE
+        M       2,SDTP
+        FGET    1,2,SKND
+        CAIN    1,SPRO
+        J       CTVA4
+
+;                               CTVA 3   ACCESS ARRAY
+        CALL    TVMATE,<$,SDTP,$,NPAR,$,ID>
+        CALL    XAEL,<$,O2P,0>
+        CALL    GAEL,<$,O2P>
+        J       CTVA$$
+
+;                               CTVA 4   CALL PROCEDURE
+CTVA4:  CALL    CALLF,<$,SDTP,$,NPAR,1>
+
+;                               EXIT CTVA
+CTVA$$: J       COPT$$
+        SUBTTL CSTV CSTM.3.5  STORE INTO A VARIABLE
+        BDCL    CSTV
+
+;                       CSTV 1
+        CALL    GTVID
+        CALL    STO,<$,O1P,$,O2P,1>
+        CALL    OREM,<2>
+
+;                               EXIT CSTV 
+        J       COPT$$
+        SUBTTL CSTA CSTM.3.6    STORE INTO AN ARRAY
+        BDCL    CSTA
+
+;                               CSTA 1
+        CALL    TTLOG
+        CALL    XAEL,<$,O1P,0>
+        CALL    STO,<$,O2P,$,O1P,1>
+        CALL    OREM,<2>
+
+;                               EXIT CSTA
+        J       COPT$$
+        SUBTTL CMSTV CSTM.3.7  STORE INTO A VARIABLE, RETAIN VALUE TO DO IT AGAIN
+;       THE PROGRAM SAID SOMTHING LIKE A,B=1
+        BDCL    CMSTV
+
+;                               CMSTV 1
+        CALL    GTVID
+        CALL    STO,<$,O1P,$,O2P,0>
+        CALL    OREM,<1>
+
+;                               EXIT CMSTV
+        J       COPT$$
+        SUBTTL CMSTA CSTM.3.8  STORE INTO AN ARRAY, RETAIN VALUE TO DO IT AGAIN
+;       FOR SOMTHING LIKE A(1),A(2)=1
+        BDCL    CMSTA
+
+;                               CMSTA 1
+        CALL    TTLOG
+        CALL    XAEL,<$,O1P,0>
+        CALL    STO,<$,O2P,$,O1P,0>
+        CALL    ONULL,<$,O1P>
+
+;                               EXIT CMSTA
+        J       COPT$$
+        SUBTTL CTA CSTM.3.9  TAKE ADRESS OF AN ARRAY ELEMENT
+        BDCL    CTA
+
+;                               CTA 1
+        CALL    GETID,,<SDTP,ID>
+        ILDB    1,PMCP
+        MM      1,NPAR
+        SOS     PMCK
+
+;                               CTA 2
+        M       2,SDTP
+        FGET    1,2,SKND
+        CAIN    1,SARY
+        J       CTA4
+        CAIN    1,SPARY
+        J       CTA4
+
+;                               CTA 3
+        MI      0,27
+        CAIE    1,SPRO
+        MI      0,7
+        CALL    CERRN,<,$,ID>
+
+;                               CTA 4
+CTA4:   CALL    TVMATE,<$,SDTP,$,NPAR,$,ID>
+
+;                               EXIT CTA
+        J       COPT$$
+        SUBTTL CDEC CSTM.3.10  COMPIL A DECLARATION  DIM,INTEGER,REAL ETC
+        BDCL    CDEC
+
+;                               CDEC 1
+        CALL    GETID,,<SDTP,ID>
+
+;                               CDEC 2
+        M       1,OPTYP
+        TRNE    R1,1            ;an array?
+        JRST    CDEC4           ;no
+
+;                               CDEC 3
+        IBP     PMCP
+        SOS     PMCK
+
+;                               CDEC 4 if this declaration is for a parameter,
+;                                      do not emit any code
+CDEC4:  SKIPN   PARNM
+        J       CDEC5
+
+;                               CDEC 4A
+        SOS     PARNM
+        J       CDEC$$
+
+;                               CDEC 5
+CDEC5:  M       2,SDTP
+        FGET    1,2,STYP
+        MM      1,TYP
+
+;                               CDEC 6
+        M       1,OPTYP
+        CAILE   1,21
+        J       CDEC8
+        M       1,TYP
+        CAIE    1,STR
+        J       CDEC8
+
+;                               CDEC 7
+CDEC7:  CALL    TVF,<ONSC,OUVAR,INT,LOS,0,0>
+
+;                               CDEC 8
+CDEC8:  M       2,SDTP
+        FGET    1,2,SKND
+        CAIN    1,SARY
+        J       CDEC15
+        CAIN    1,SPARY
+        JRST    CDEC15
+        CAIE    1,SSCAL
+        J       CDEC13          ;Impossible
+
+;                       CDEC 8B A scalar
+        CALL    TVID,<$,SDTP,$,ID>
+
+;                       CDEC 9
+        M       1,TYP
+        CAIN    1,STR
+        J       CDEC11
+
+;                       CDEC 10 Numeric Scalar
+        CALL    TVKI,<0>
+        CALL    STO,<$,O2P,$,O1P>
+        J       CDEC12
+
+;                       CDEC 11 String Scalar
+CDEC11: CALL    CNVRT,<$,O1P,INT>
+        CALL    LDR,<3,$,O1P>
+        M       1,O2P
+        FGET    0,1,OL
+        HRLI    0,(MOVEI 1,)
+        CALL    GRI,<,LVR>
+        HRLZI   2,^O15740
+        CALL    TRCXR,<RDXSS,$,O2P>
+
+;                       CDEC 12
+CDEC12: CALL    OREM,<2>
+        J       CDEC$$
+
+;                       CDEC 13-14
+CDEC13: CALL    IMPOS
+;                       CDEC 15
+CDEC15: BCALL   CDMAT
+
+;                               EXIT CDEC
+CDEC$$: J       COPT$$
+        SUBTTL CDMAT CSTM.3.10.13  DECLAR A MATRIX
+        BDCL    CDMAT
+
+;                       CDMAT 1  GET LOC OF DESCRIPTOR AND # OF DIMENSIONS
+        M       2,SDTP
+        FGET    1,2,SLOC
+        MOVEM   1,LOK           ; SDTP.SLOC -> LOK,WW
+        MM      1,WW
+        FGET    1,2,SN
+        MOVEM   1,NDIM          ; SDTP.SN -> NDIM
+
+;                       CDMAT 2
+        M       2,SDTP
+        FGET    1,2,SKND
+        CAIE    1,SPARY         ; SDTP.SKND=SPARY? IS IT AN ARRAY PARAMETER ?
+        J       CDMAT4
+
+;                       CDMAT 3   YES
+        MOVSI   0,(MOVE 1,)
+        HRR     0,LOK
+        CALL    GRI,<,LVR>
+        M       0,[JUMPN 1,3]
+        ADD     0,r%cdlc
+        CALL    GRI,<,LOC>
+        M       0,[MOVEI 1,1]
+        ADD     0,LOK
+        CALL    GRI,<,LVR>
+        MOVSI   0,(MOVEM 1,)
+        HRR     0,LOK
+        CALL    GRI,<,LVR>
+        MOVSI   0,1             ; 1 in index field
+        MM      0,LOK
+        SETZM   0,REL
+        MI      1,ORSVD
+        MM      1,RGSV+1
+        J       CDMAT5
+
+;                       CDMAT 4   NO, ITS NOT AN ARRAY PARAMETER
+CDMAT4: MI      1,LVR
+        MM      1,REL
+
+;                       CDMAT 5   PUT THE TYPE AND # OF DIMS INTO THE DESCRIPTOR
+CDMAT5: M       0,NDIM
+        HRL     0,TYP
+        CALL    TVKI
+        CALL    SVR,<2>
+        CALL    GRO,<O(MOVE),2,$,O2P>
+        CALL    OREM,<1>
+        MOVSI   0,(MOVEM 2,)
+        IOR     0,LOK
+        ADDI    0,2
+        CALL    GRI,<,$,REL>
+        MI      1,3
+        ADDM    1,LOK
+
+;                       CDMAT 6   TYPE = STRING ?
+        M       1,TYP
+        CAIE    1,STR
+        J       CDMAT8
+
+;                       CDMAT 7   YES, PUT MAX STRING LENGTH IN R2
+        CALL    CNVRT,<$,O2P,INT>
+        CALL    LDR,<2,$,O2P>
+        CALL    OREM,<1>
+        MI      1,ORSVD
+        MM      1,RGSV+2
+
+;                       CDMAT 8  STORE A BOUNDS PAIR IN THE DESCRIPTOR
+CDMAT8: CALL    CNVRT,<$,O2P,INT>
+        CALL    LD,<$,O2P>,<RGX>
+        CALL    CNVRT,<$,O1P,INT>
+        CALL    NNG1,<$,O1P>
+        CALL    GRO,<O(HRL),$,RGX,$,O1P>
+        MOVSI   0,(MOVEM)
+        M       1,RGX
+        DPB     1,ACZ
+        IOR     0,LOK
+        CALL    GRI,<,$,REL>
+        CALL    OREM,<2>
+        AOS     LOK
+        SOSLE   NDIM
+
+;                       CDMAT 9  GO DO ANOTHER BOUNDS PAIR
+        J       CDMAT8
+
+;                       CDMAT 10  IS IT A PARAMETER ARRAY?
+        M       2,SDTP
+        FGET    1,2,SKND
+        CAIN    1,SPARY
+        J       CDMT12
+
+;                       CDMAT 11   NO, LOAD ADRRESS OF DESCRIPTOR
+        MOVSI   0,(MOVEI 1,)
+        HRR     0,WW
+        CALL    GRI,<,LVR>
+
+;                       CDMAT 12   CALL RDXMX
+CDMT12: SETZM   0,RGSV+1
+        SETZM   0,RGSV+2
+        CALL    CXR,<RDXMX>
+
+;                               EXIT CDMAT
+        BRETURN CDMAT
+        SUBTTL CCND CSTM.3.13   GENERATE CODE FOR A CONDITIONAL
+        BDCL    CCND
+
+;                               CCND 1
+        CALL    TLOC,<$,CSTK,0>,<CSTKP>
+        M       2,CSTKP
+        M       1,OPTYP
+        FPUT    1,2,CMODF
+;                               CCND 1A-1B
+        CAIE    1,CIF           ;R1 SET IN .1 ABOVE
+        J       CCND2
+        MI      1,0
+        FPUT    1,2,CBGL        ;R2 SET ABOVE
+
+;                               CCND 2
+CCND2:  M       2,O2P
+        FGET    1,2,OC
+        CAIN    1,OTST
+        J       CCND5
+        CAIE    1,ONSC
+        J       CCND8
+
+;                               CCND 3
+        CALL    CNVRT,<$,O2P,LOG>
+
+;                               CCND 4
+        BCALL   CNLOG
+        J       CCND9
+
+;                               CCND 5
+CCND5:  FGET    1,2,OT          ; O2P IN R2, BOX 2
+        JE      1,CCND7
+
+;                               CCND 6
+        IFE     FTCLOG,<HALT>
+        IFN     FTCLOG,<BCALL CNINT>
+        J       CCND9
+
+;                               CCND 7
+CCND7:  BCALL   CNTST
+        J       CCND9
+
+;                               CCND 8
+CCND8:  CALL    CERR,<9>
+
+;                               CCND 9
+CCND9:  M       1,r%cdlc
+        SUBI    1,1
+        M       2,CSTKP
+        FPUT    1,2,CFXL
+
+;                               EXIT CCND
+        MOVE    1,CSTKP
+        CALL    RDTY
+        J       COPT$$
+        SUBTTL CNLOG CSTM.3.13.4  COMPIL A CONDITIONAL BRANCH ON A LOGICAL VALUE
+        BDCL    CNLOG
+
+;                               CNLOG 1
+        M       2,O2P
+        FGET    1,2,ONG
+        JE      CNLOG3
+
+;                               CNLOG 2
+        CALL    LD,<$,O2P>
+
+;                               CNLOG 3
+CNLOG3: CALL    TVF,<ONSC,OKON,LOG,0,0,0>
+
+;                               CNLOG 4
+        M       1,OPTYP
+        CAIN    1,CUNLS
+        J       CNLOG6
+        CAIN    1,CUNTL
+        J       CNLOG6
+
+;                               CNLOG 5
+        CALL    CJMP,<$,O1P,$,O2P,OEQ,0>
+        J       CNLOG7
+
+;                               CNLOG 6
+CNLOG6: CALL    CJMP,<$,O1P,$,O2P,ONE,0>
+
+;                               CNLOG 7
+CNLOG7: CALL    OREM,<2>
+
+;                               EXIT CNLOG
+        BRETURN CNLOG
+        SUBTTL CNINT CSTM.3.13.6  COMPIL A CONDITIONAL BRANCH ON AN INTEGER
+        IFN     FTCLOG,<
+        BDCL    CNINT
+
+;                       CNINT 1A
+        M       1,O2P
+        FGET    2,1,OM
+        MM      2,REL
+
+;                               CNINT 1
+        M       1,OPTYP
+        CAIN    1,CUNLS
+        J       CNINT3
+        CAIN    1,CUNTL
+        J       CNINT3
+
+;                               CNINT 2
+        M       1,REL
+        M       2,RLNG(1)
+        MM      2,REL
+
+;                          CNINT 3
+CNINT3: MOVSI   0,(JUMP 1,)
+        M       1,REL
+        DPB     1,RELZ
+        CALL    GRI,<,0>
+        CALL    OREM,<2>
+
+;                               EXIT CNINT
+        BRETURN CNINT
+
+        >                       ; IFN FTCLOG
+        SUBTTL CNTST CSTM.3.13.7  COMPIL A COMPARISON ENDING IN A CONDITIONAL BRANCH
+        BDCL    CNTST
+
+;                               CNTST 1
+        M       1,O2P
+        FGET    0,1,OM
+        MM      0,REL
+        CALL    OREM,<1>
+        CALL    NNG12
+
+;                               CNTST 2
+        M       1,OPTYP
+        CAIN    1,CUNLS
+        J       CNTST4
+        CAIN    1,CUNTL
+        J       CNTST4
+
+;                               CNTST 3
+        M       1,REL
+        M       2,RLNG(1)
+        MM      2,REL
+
+;                               CNTST 4
+CNTST4: CALL    CJMP,<$,O1P,$,O2P,$,REL,0>
+        CALL    OREM,<2>
+
+;                               EXIT CNTST
+        BRETURN CNTST
+        SUBTTL COPEN CSTM.3.15   THE OPEN STATMENT
+        BDCL    COPEN
+; the open statement has many different configurations. When we get
+; here, the file name, unit number, error line number, etc have all
+; been stacked on the operand stack. They could be in any one of
+; a dozen or so possible orders. We look at the
+; acces mode (the second pmc of OPEN) and figure out what kind
+; of open it was and thus in what order the various operands are stacked.
+;  Then we set up the call to UOPEN which takes arguments in acs 0 thru 5
+; as follows
+;       0 - record length
+;       1 - protection
+;       2 - file name
+;       3 - file number
+;       4 - error address
+;       5 - string release code
+;
+; In addition, the access mode is in the word after the PUSHJ to UOPEN.
+;
+
+;                               COPEN 0
+        SKIPG   CDEFLG
+        JRST    COPEN1
+        MOVEI   0,[ASCIZ / WE OPEN A FILE /]
+        CALL    TDO,<,1>
+
+;                               COPEN 1
+COPEN1: SETZM   0,SCD           ; zero the string release code cell
+; we resolve a logical operator (is this nessecary?)
+        CALL    TTLOG
+        SOS     PMCK
+        ILDB    1,PMCP          ; get the access mode from the pmc
+        LSH     R1,9
+        MOVEM   R1,OPID
+        ILDB    R1,PMCP
+        SOS     PMCK
+        ADDB    R1,OPID
+
+;                               COPEN 2   Was an error line number given?
+        TRNN    R1,OPNELN       ;error line number given?
+        J       COPEN4
+
+;                               COPEN 3  Yes, load the error line number address
+        CALL    SVR,<4>
+
+        MOVSI   0,(MOVEI 4,)
+        MOVE    2,O2P
+        FGET    1,2,OV
+        CALL    GLREF           ; glref([movei 4,],o2p.ov)
+
+                                ;       unstack the error line number
+        CALL    OREM,<1>
+
+        MOVEI   0,ORSVD
+        MOVEM   0,RGSV+4        ; rgsv[4] := orsvd
+
+;                               COPEN 4  Was protection code specified?
+COPEN4: M       1,OPID
+        TRNN    R1,OPNPRT       ;protection given?
+        J       COPEN6
+
+;                               COPEN 5  Yes
+                                ;       make sure its a string scalar
+        CALL    CKC,<$,O2P,OSSC>
+        MI      1,1
+        MOVEM   1,WW            ; acount for its space on the operand stack
+        J       COPEN7
+
+;                               COPEN 6
+COPEN6: SETZM   WW
+
+;                               COPEN 7  Was a star given instead of a file num?
+COPEN7: M       1,OPID
+        TRNE    R1,OPNSTR       ;star specified rather than unit number?
+        J       COPN14
+
+;                               COPEN 8   No, we have a file number
+        TRNE    R1,OPNSRT       ; Was it short form?
+        J       COPN10
+
+;                               COPEN 9  Yes, its normal form.
+        M       1,WW
+        MOVEM   1,WWWW          ; WWWW tells us where to find the file number operand
+        J       COPN13
+
+;                               COPEN 10  No, its short form
+COPN10: TRNN    R1,FCBFRL       ; Was a record length specified?
+        J       COPN12
+
+;                               COPEN 11
+        M       1,WW
+        ADDI    1,2
+        MM      1,WWWW
+        J       COPN13
+
+;                               COPEN 12
+COPN12: M       1,WW
+        ADDI    1,1
+        MM      1,WWWW
+
+;                               COPEN 13 Load file number into ac3
+                                ;       WWWW tells us where to find the file number operand
+COPN13: CALL    CKL,<3,$,WWWW>
+
+;                               COPEN 14  Was a record length specified?
+COPN14: M       1,OPID
+        TRNN    R1,FCBFRL
+        J       COPN16
+
+;                               COPEN 15 Yes, load it (WW tells us where to find it)
+        CALL    CKL,<0,$,WW>
+
+;                               COPEN 16 was there a protection code?
+COPN16: SKIPN   WW
+        J       COPN18
+
+;                               COPEN 17 Yes, load it and unstack it
+        CALL    LDS,<1,$,O2P>
+        LSH     1,2             ; since we have a protection code
+        MOVEM   1,SCD           ; we know there will be two strings
+        CALL    OREM,<1>
+
+;                               COPEN 18 And we finish the call to UOPEN
+                                ;       make sure file name is a string scalar
+COPN18: CALL    CKC,<$,O2P,OSSC>
+        CALL    LDS,<2,$,O2P>
+        ADDM    1,SCD
+        CALL    OREM,<1>
+        CALL    SVR,<5>
+                                ;       put out the string release code
+        CALL    GRSH,<O(MOVEI),5,$,SCD>
+        CALL    SAVREG
+                                ;       and heres the actual call
+        CALL    CXR,<UOPEN>
+;               ; followed by the acces mode
+        CALL    GRI,<$,OPID,0>
+
+;                               EXIT COPEN
+        J       COPT$$
+        SUBTTL CCLOS CSTM.3.16  THE CLOSE STATMENT
+        BDCL    CCLOS
+
+;                               CCLOS 1
+        CALL    TTLOG
+        CALL    CNVRT,<$,O2P,INT>
+        CALL    AC1
+        CALL    CXR,<RCLOS>
+
+;                               EXIT CCLOS
+        J       COPT$$
+        SUBTTL CLOKT CSTM.3.17  THE LOCATE STATEMENT
+        BDCL    CLOKT
+        CALL    CLOCUN,<RLOCAT>
+        J       COPT$$
+
+CPT262: CALL    CLOCUN,<.LOCK>
+        J       COPT$$
+
+CPT263: CALL    CLOCUN,<.ULOCK>
+        J       COPT$$
+
+        DCLNE   CLOCUN,<INTNAM>
+;Generate the call to RLOCATE, .LOCK or .ULOCK
+
+        CALL    TTLOG
+        CALL    CNVRT,<$,O1P,INT>
+        CALL    CNVRT,<$,O2P,INT>
+        CALL    AC13
+        CALL    CXR,<$,INTNAM>
+
+        RETURN  CLOCUN
+        SUBTTL CERAS CSTM.3.18  THE ERASE STATEMENT
+        BDCL    CERAS
+
+;                               CERAS 1
+        CALL    TTLOG
+        CALL    CNVRT,<$,O2P,INT>
+        CALL    CNVRT,<$,O1P,INT>
+        CALL    AC13
+        CALL    CNVRT,<$,O2P,INT>
+        CALL    LDR,<4,$,O2P>
+        CALL    OREM,<1>
+        CALL    CXR,<RERAS>
+
+;                               EXIT CERAS
+        J       COPT$$
+        SUBTTL CPRNT    PRINT A VALUE, OR MAYBE JUST SPACING
+        BDCL    CPRNT
+
+;                               CPRNT 1
+        CALL    TTLOG
+        ILDB    1,PMCP
+        MM      1,OPID
+        SOS     PMCK
+
+;                               CPRNT 2
+        M       1,OPID
+        CAIG    1,3
+        J       CPRNT4
+
+;                               CPRNT 3
+        M       2,O2P
+        FGET    1,2,OC
+        LSH     1,9
+        FGET    3,2,OT
+        ADD     1,3
+        HRLM    1,OPID
+        CALL    LDA
+;                       CPRNT 4
+CPRNT4: CALL    CXR,<RPRTV>
+        CALL    GRI,<$,OPID,0>
+
+;                               EXIT CPRNT
+CPNT$$: J       COPT$$
+        SUBTTL CLOL CSTM.3.26   SET TERMINAL OUTPUT WIDTH
+        BDCL    CLOL
+
+;                               CLOL 1
+        CALL    CNVRT,<$,O2P,INT>
+        CALL    AC1
+        CALL    CXR,<RFOLD>
+
+;                               EXIT CLOL
+        J       COPT$$
+        SUBTTL CLOS CSTM.3.29   SET MAXIMUM STRING LENGTH
+        BDCL    CLOS
+
+;                               CLOS 1
+        CALL    CNVRT,<$,O2P,INT>
+        CALL    LD,<$,O2P>,<RGX>
+
+;                               CLOS 2
+        CALL    GRSH,<O(CAILE),$,RGX,4095>
+        CALL    GRSH,<O(MOVEI),$,RGX,4095>
+        CALL    GR,<O(MOVEM),$,RGX,0,0,LOS,UVAR>
+
+;                               CLOS 3
+        CALL    OREM,<1>
+
+;                               EXIT CLOS
+        J       COPT$$
+        SUBTTL CGSB CSTM.3.32   COMPIL A GOSUB
+        BDCL    CGSB
+
+;                               CGSB 1
+        MOVSI   0,(MOVEI 2,)
+        CALL    CGOTO           ; cgoto([movei 2,])
+
+;                               CGSB 5
+CGSB5:  MOVSI   0,(JSP RXJ,)
+        M       1,XTBL+RGOSUB
+        CALL    GRJ
+        M       1,r%cdlc
+        SUBI    1,1
+        MM      1,XTBL+RGOSUB
+        CALL    CXRR,<RGOSUB>
+
+;                               EXIT CGSB
+        J       COPT$$
+        SUBTTL CFRID CSTM.3.35  IDENTIFY A FOR LOOP INDEX VALUE
+        BDCL    CFRID
+
+;                               CFRID 1  GET AND STACK INDEX VARIABLE
+        CALL    GTVID
+
+;                               CFRID 2  MAKE A NEW FORSTK ENTRY
+        CALL    TNEW,<$,FORSTK>,<FORP>
+        M       1,O2P
+        FGET    0,1,OV
+        M       2,FORP          ; O2P/OV -> FORP/FVAR
+        FPUT    0,2,FVAR
+        FGET    0,1,OT          ; O2P/OT -> FORP/FTYP
+        FPUT    0,2,FTYP
+        FGET    0,1,OL          ; O2P/OL -> FORP/FLVAR
+        FPUT    0,2,FLVAR
+        MOVE    0,LRTN
+        FPUT    0,2,FLNM
+
+;                               CFRID 3   MUST BE A NUMERIC SCALAR,NOT COMPLEX
+        CALL    CKC,<$,O2P,ONSC>
+        CALL    CKNT,<$,O2P,CPLX>
+
+;                               CFRID 4
+        SKIPE   DSFLG
+        J       CFRID6
+        M       1,OPTYP
+        CAIE    1,51
+        J       CFRID6
+
+;                       CFRID 5 Non-direct FORID
+        M       1,CFOR
+        M       2,FORP          ; CFOR -> FORP/FRET
+        FPUT    1,2,FRET
+        AOS     CFOR            ; CFOR+1 -> CFOR
+        MOVE    1,FORP
+        CALL    RDTY
+        J       FRD$$
+;                       CFRID 6 Direct Statement or Optype=IFRID
+CFRID6: M       0,r%vrlc
+        M       1,FORP          ; R%VRLC -> FORP/FRET
+        FPUT    0,1,FRET
+        AOS     r%vrlc
+;                       CFRID 7
+        M       1,OPTYP
+        CAIN    1,51
+        JRST    FRD$$           ;direct statement regular FOR
+
+;                       CFRID 8 IFRID
+        CALL    SAVREG
+        MI      1,1
+        MOVE    2,FORP          ; 1 -> FORP/FFLG
+        FPUT    1,2,FFLG
+        J       FORDN1          ;GO FIXUP FORWARD REFERNECE, DOSNT COME BACK
+;                       EXIT CFRID
+FRD$$:  J       COPT$$
+        SUBTTL CFOR0 CSTM.3.36   A FOR LOOP WHERE THE VARIABLE ASSUMES BUT ONE VALUE
+        BDCL    CFOR0
+
+;                               CFOR0 1
+        M       1,O2P
+        FGET    0,1,OC
+        CAIN    0,FOR
+        J       CFOR03
+
+;                               CFOR0 2
+        CALL    IMPOS
+
+;                               CFOR0 3
+CFOR03: MI      0,ONSC
+        M       1,O2P
+        FPUT    0,1,OC
+        CALL    STO,<$,O2P,$,O1P>
+
+;                       CFOR0 4
+        CALL    FFFXP
+        CALL    OREM,<1>
+
+;                               EXIT CFOR0
+        J       COPT$$
+        SUBTTL CFOR1 CSTM.3.37 FOR LOOP WITH INITIAL AND FINAL VALUE
+        BDCL    CFOR1
+
+;                               CFOR1 1
+        M       1,O1P
+        FGET    0,1,OC
+        CAIN    0,FOR
+        J       CFOR13
+
+;                               CFOR1 2
+        CALL    IMPOS
+
+;                               CFOR1 3
+CFOR13: MI      0,ONSC
+        M       1,O1P
+        FPUT    0,1,OC
+        CALL    TVKI,<1>
+
+;                               CFOR1 4
+        CALL    FORN
+
+;                               EXIT CFOR1
+        J       COPT$$
+        SUBTTL CFR23 CSTM.3.38  FOR LOOP WITH INITIAL AND FINAL VALUE AND AN INCREMENT
+        BDCL    CFR23
+
+;                               CFR23 1
+        M       2,OPDN
+        M       1,OPDL-2(2)
+        FGET    0,1,OC
+        CAIN    0,FOR
+        J       CFR233
+
+;                               CFR23 2
+        CALL    IMPOS
+
+;                               CFR23 3
+CFR233: MI      0,ONSC
+        M       2,OPDN
+        M       1,OPDL-2(2)
+        FPUT    0,1,OC
+
+;                               CFR23 4
+        M       1,OPTYP
+        CAIE    1,55
+        J       CFR236
+
+;                               CFR23 5
+        CALL    SWP
+
+;                               CFR23 6
+CFR236:CALL FORN
+
+;                               EXIT CFR23
+        J       COPT$$
+        SUBTTL CFORC CSTM.3.39  FOR LOOP INVOLVING A CONDITIONAL
+        BDCL    CFORC
+
+;                               CFORC 1
+        CALL    FFFXP
+        CALL    LD,<$,O2P>,<RGX>
+
+;                               CFORC 2
+        CALL    GRG,<QADD,$,RGX,$,O1P>
+        CALL    STO,<$,O2P,$,O1P>
+
+;                               CFORC 11
+CFRC11: M       2,O1P
+        FGET    1,2,OC
+        CAIE    1,ONSC
+        J       CFRC12
+        FGET    1,2,OM
+        CAIN    1,OUVAR
+        J       CFRC13
+
+;                               CFORC 12
+CFRC12: CALL    IMPOS
+
+;                               CFORC 13
+CFRC13: CALL    OREM,<1>
+
+;                               EXIT CFORC
+        J       COPT$$
+        SUBTTL FORDN CSTM.3.40  FIXUP FORWARD REFERENCE,STORE RETURN ADRESS
+        BDCL    FORDN
+;                       FORDN 0
+        CALL    TLOC,<$,FORSTK,0>,<FORP>
+;                       FORDN 1
+FORDN1: MOVSI   0,(JRST)        ;CFRID may jump into here
+        CALL    GRI,<,0>
+;                       FORDN 2
+        M       2,FORP
+        FGET    1,2,FFLG
+        JUMPN   1,FRDN4
+;                       FORDN 3 Regular FOR
+        FGET    0,2,FFXP
+        CALL    CHFXP
+        CALL    OREM,<1>
+;                       FORDN 4
+FRDN4:  M       1,r%cdlc
+        SUBI    1,1
+        M       2,FORP
+        FPUT    1,2,FFXP
+        FGET    0,2,FRET
+        HRLI    0,(MOVEM RXJ,)
+        CALL    GRI,<,LVR>
+        MOVE    1,FORP
+        CALL    RDTY
+
+;                               EXIT FORDN
+        J       COPT$$
+        SUBTTL CNXT CSTM.3.41  CALCULATE THE NEXT VALUE OF THE INDEX VARIABLE
+        BDCL    CNXT
+
+;                               CNXT 1  GET VARAIABLE FROM PMC
+        CALL    GETID,,<,ID>
+
+;                               CNXT 2  GET INNERMOST FORSTK RECORD
+        CALL    TLOC,<$,FORSTK,0>,<FORP>
+        JUMPE   1,CNXT5
+
+;                               CNXT 3  INDE X VARAIBLE CORRECT?
+        M       1,FORP
+        FGET    0,1,FVAR
+        CAMN    0,ID
+        J       CNXT6
+
+;                               CNXT 4  NO,  FREE RECORD
+        M       1,FORP
+        CALL    RCLN
+        CALL    TPOP,<$,FORSTK>
+
+;                               CNXT 5       AND GIVE ERROR
+CNXT5:  CALL    CERR,<15>
+
+;                       CNXT 6 VARIABLE CORRECT, LOOK AT OPTYPE
+CNXT6:  M       1,OPTYP
+        CAIN    1,61            ;WAS IT A REAL NEXT, OR PART OF A MAX,MIN,SUM OR PROD
+        J       CNXT8
+;                       CNXT 7  IF NOT A NEXT, CALL ITFRS
+        BCALL   ITFRS
+
+;                       CNXT 8     JUMP TO RETURN ADRESS
+CNXT8:  M       2,FORP
+        FGET    0,2,FRET
+        M       1,OPTYP
+        CAIE    1,61
+        J       CNXT10
+        SKIPE   DSFLG
+        J       CNXT10
+;                       CNXT 9  FOR A NEXT,USE A JSP
+        HRLI    0,(JSP 1,@)
+        J       CNXT11
+;                       CNXT 10 FOR A MAX,MIN,SUM OR PROD  OR DIRECT STATEMENT
+CNXT10: HRLI    0,(JRST @)      ;USE A JRST
+
+;                       CNXT 11
+CNXT11: CALL    GRI,<,LVR>
+        M       1,FORP
+        FGET    0,1,FFXP
+;       FIXUP THE JRST OVER THE LOOP BODY
+        CALL    CHFXP
+
+;                       CNXT 12  IS THIS A NEXT?
+        M       1,OPTYP
+        CAIE    1,61
+        J       CNXT14
+;                       CNXT 13A  IS THIS A DIRECT STATEMENT?
+        SKIPE   DSFLG
+        J       CNXT13
+;                       CNXT 13B
+        M       0,[MOVEI 1,2]
+        CALL    GRI,<,LOC>
+        M       2,FORP
+        FGET    0,2,FRET
+        IOR     0,[MOVEM 1,0]
+        CALL    GRI,<,LVR>
+
+;                       CNXT 13  FREE FORSTK RECORD, POP FORSTK
+CNXT13: M       1,FORP
+        CALL    RCLN
+        CALL    TPOP,<$,FORSTK>
+        J       COPT$$
+
+;                       CNXT 14 FOR MAX,MIN,SUM,PROD  CALL ITFRI
+CNXT14: BCALL   ITFRI
+        MOVE    1,FORP
+        CALL    RDTY
+        J       COPT$$
+        SUBTTL ITFRS CSTM.3.43.7  MAX MIN SUM and PROD stuff
+        BDCL    ITFRS
+
+;                       ITFRS 1
+        CALL    TTLOG           ;if o2p is a relation, convert it to a logical value
+        M       3,r%vrlc
+        MM      3,FDLV          ;r%vrlc address of dummy variable
+        M       4,O2P
+        FGET    2,4,OT
+        MM      2,FDTP          ;type of dummy varaible
+        FGET    0,4,OC
+        MM      0,FDCL          ;class of dummy variable
+;                       ITFRS 1A
+        CAIE    0,OMX           ;is it a matrix?
+        J       TFRS1C
+;                       ITFRS 1B  yes,its a matrix
+        FGET    0,4,ONG
+        MM      0,FDND          ;number of dimensions of dummy variable
+        CALL    ALLOCA          ;allocate array
+        J       TFRS1D
+
+;                       ITFRS 1C  no its a scaler
+TFRS1C: SETZM   0,FDND
+        CALL    ALLOCS,<$,FDTP> ;allocate a scaler
+
+;                       ITFRS 1D   stack it
+TFRS1D: CALL    TVF,<$,FDCL,OUVAR,$,FDTP,$,FDLV,0,$,FDND>
+
+;                       ITFRS 2  jump into branch table
+        M       2,O2P
+        FGET    1,2,OC
+        LSH     1,2             ;class*4 +optype
+        ADD     1,OPTYP         ;where 119=max  120=min  121=sum  122=prod
+        J       @TFTBL(1)
+
+;                       ITFRS 4  GENERATE MOVEM RGX,FDLV  (or DMOVEM)
+ITFRS4: M       0,FDLV
+        M       2,RGX
+        DPB     2,ACZ
+        M       1,FDTP
+        CAIE    1,DBL
+        J       TFRS6
+;                       ITFRS 5
+        IOR     0,[DMOVEM]
+        J       TFRS7
+;                       ITFRS 6
+TFRS6:  IOR     0,[MOVEM 0,0]
+;                       ITFRS 7
+TFRS7:  CALL    GRI,<,LVR>
+        CALL    OREM,<2>
+
+;                       ITFRS 8
+TFRS8:  CALL    TVF,<$,FDCL,OTMP,$,FDTP,$,FDLV,0,$,FDND>
+        CALL    SWP
+;                       EXIT ITFRS
+        BRETURN ITFRS
+
+TFTBL=.-119
+        EXP     ITFRA,ITFRA,ITFRC,ITFRC,ITFRB,ITFRB,ITFRE,ITFR14
+        EXP     ITFR22,ITFR22,ITFRD,ITFRD
+
+ITFRA:  M       1,OPTYP         ; here for max or min of numeric scaler
+        CAIE    1,119
+        J       ITFRA3
+;                       ITFRA 2
+        MI      1,7
+        J       ITFRA4
+;                       ITFRA 3
+ITFRA3: MI      1,1
+;                       ITFRA 4
+ITFRA4: MM      1,REL
+        CALL    CKNT,<$,O2P,CMPLX>
+        CALL    NNG12
+        CALL    LD,<$,O1P>,<RGX>
+        CALL    CMP,<$,RGX,$,O2P,$,REL>
+        J       ITFRS4
+
+
+ITFRC:  CALL    LD,<$,O1P>,<RGX>    ;here for sum or prod of numeric scaler
+;                       ITFRC 2
+        M       1,OPTYP
+        CAIE    1,121
+        J       ITFRC4
+;                       ITFRC 3
+        CALL    GRG,<QADD,$,RGX,$,O2P>
+        J       ITFRC5
+;                       ITFRC 4
+ITFRC4: CALL    GRG,<QMUL,$,RGX,$,O2P>
+;                       ITFRC 5
+ITFRC5: J       ITFRS4
+
+; ITFRB does MAX and MIN of string scalars
+
+ITFRB:  MOVE    1,O2P
+        MOVEI   0,OTMP
+        FPUT    0,1,OM
+        CALL    AC2S
+        MOVSI   0,(MOVEI 4,)
+        HRR     0,FDLV
+        CALL    GRI,<,LVR>
+
+        MOVEI   0,RSMAX         ; cxrrr(if optyp=119 then rsmax else rxmin)
+        MOVE    1,OPTYP
+        CAIE    1,119
+        MOVEI   0,RSMIN
+        CALL    CXRRR
+        J       TFRS8
+
+ITFRE:  MOVE    1,O2P           ; here for sum of strings
+        MOVEI   0,OTMP
+        FPUT    0,1,OM
+        CALL    SWP
+        CALL    AC2S
+        MOVSI   0,(MOVEI 4,)
+        HRR     0,FDLV
+        CALL    GRI,<,LVR>
+        CALL    CXRRR,<RSCAT>
+        J       TFRS8
+
+ITFR14: CALL    CERR,<14>       ;prod of a string is nonsense
+
+ITFR22: CALL    CERR,<22>       ;cant do max or min of an array
+
+ITFRD:  MOVSI   0,(SKIPN)       ;here for sum or prod of arrays
+        HRR     0,FDLV
+        CALL    GRI,<,LVR>
+        M       1,r%cdlc
+        MM      1,WW
+        MOVSI   0,(JRST)
+        CALL    GRI,<,0>
+;                       ITFRD 2
+        CALL    TV,<$,O1P>
+        CALL    TV,<$,O1P>
+        MOVE    1,O2P
+        MOVEI   0,OTMP          ; MARK O2P AS A TEMP SO ITL BE FREED
+        FPUT    0,1,OM
+        CALL    GR2M
+        MOVSI   0,(MOVEI 4,)
+        HRR     0,FDLV
+        CALL    GRI,<,LVR>
+;                       ITFRD 3
+        MOVSI   0,(MOVEI 1,)
+        M       1,OPTYP
+        CAIE    1,121
+        J       ITFRD5
+;                       ITFRD 4
+        HRRI    0,22
+        J       ITFRD6
+;                       ITFRD 5
+ITFRD5: HRRI    0,27
+;                       ITFRD 6
+ITFRD6: CALL    GRI,<,0>
+        MOVEI   0,REEOPS        ; WERE GOING TO CALL REEOPS OR REECMP
+        MOVE    2,O2P
+        FGET    1,2,OT
+        CAIN    1,CMPLX         ; IF EITHER ARG IS COMPLEX
+        MOVEI   0,REECMP        ;  THEN WE CALL REECMP
+        MOVE    2,O1P
+        FGET    1,2,OT
+        CAIN    1,CMPLX
+        MOVEI   0,REECMP
+
+        CALL    CXRRR
+        M       1,FORP
+        FGET    0,1,FRET
+        HRLI    0,(JRST @)
+        CALL    GRI,<,LVR>
+        CALL    CHFXP,<$,WW>
+;                       ITFRD 7
+        CALL    GR2M
+        CALL    CXR,<RAMD>
+        J       TFRS8
+        SUBTTL ITFRI CSTM.3.43.14
+        BDCL    ITFRI
+;                       ITFRI 1   increment ffxp
+        M       1,FORP
+        FGET    0,1,FFXP
+        ADDI    0,1
+        FPUT    0,1,FFXP
+;                       ITFRI 2
+        SKIPE   FDND
+        J       ITFRI5
+        M       1,OPTYP
+        CAIN    1,121
+        J       ITFRI5
+        M       2,FDTP
+        CAIN    1,STR
+        J       ITFRI5
+;                       ITFRI 4
+        CALL    FNDR,<1>,<RGX>
+        CALL    SVR,<$,RGX>
+;                       ITFRI 5
+ITFRI5: SKIPE   FDND
+        J       ITFRI7
+;                       ITFRI 6   jump into a table for scalers
+        M       1,FDTP
+        LSH     1,2             ;type*4  +optype
+        ADD     1,OPTYP         ;where max=119  min=120  sum=121  prod=122
+        J       0,@ITTBL(1)
+;                       ITFRI 7  for arrays do this setzm thing
+ITFRI7: MOVSI   0,(SETZM)
+        HRR     0,FDLV
+        CALL    GRI,<,LVR>
+
+;                       EXIT ITFRI
+TFRI$$: BRETURN ITFRI
+ITTBL=.-119
+        EXP     TFRIA,TFRIB,TFRIC,TFRID,TFRIA,TFRIB,TFRIC,TFRID
+        EXP     TFRIE,TFRIB,TFRIC,TFRIF
+        EXP     TFRIG,TFRIH,TFRII,TFRIJ,TFRIK,TFRIK,TFRII,TFRIJ
+        EXP     TFRII,TFRII,TFRII,TFRIK
+
+TFRIA:  M       0,[HRLZI 0,^O400000]   ;max of logical or integer
+        M       1,RGX
+        DPB     1,ACZ
+        CALL    GRI,<,0>
+TFRIX:  MOVSI   0,(MOVEM)
+        M       1,RGX
+        DPB     1,ACZ
+        HRR     0,FDLV
+        CALL    GRI,<,LVR>
+        J       TFRI$$
+
+TFRIB:  M       0,[HRLOI 0,^O377777]   ;min of logical integer or real
+        M       1,RGX
+        DPB     1,ACZ
+        CALL    GRI,<,0>
+        J       TFRIX
+
+TFRIC:  MOVSI   0,(SETZM)       ;sum of logical integer or real
+        HRR     0,FDLV
+        CALL    GRI,<,LVR>
+        J       TFRI$$
+
+TFRID:  M       0,[MOVEI 0,1]   ;prod of logical or integer
+        M       1,RGX
+        DPB     1,ACZ
+        CALL    GRI,<,0>
+        J       TFRIX
+
+TFRIE:  M       0,[^O400000000001]     ;max of real
+        CALL    TVKI
+        CALL    LDR,<$,RGX,$,O2P>
+        CALL    OREM,<1>
+        J       TFRIX
+
+TFRIF:  M       0,[HRLZI 0,^O201400]   ;prod of real
+        M       1,RGX
+        DPB     1,ACZ
+        CALL    GRI,<,0>
+        J       TFRIX
+
+TFRIG:  M       0,[HRLZI 0,^O400000]   ;max of double
+        M       1,RGX
+        DPB     1,ACZ
+        CALL    GRI,<,0>
+        MOVSI   0,(MOVEM)
+        M       1,RGX
+        DPB     1,ACZ
+        HRR     0,FDLV
+        CALL    GRI,<,LVR>
+        M       0,[MOVEI 0,1]
+        M       1,RGX
+        DPB     1,ACZ
+        CALL    GRI,<,0>
+        MOVSI   0,(MOVEM)
+        M       1,RGX
+        DPB     1,ACZ
+        HRR     0,FDLV
+        ADDI    0,1
+        CALL    GRI,<,LVR>
+        J       TFRI$$
+
+TFRIH:  M       0,[HRLOI 0,^O377777]   ;min of double
+        M       1,RGX
+        DPB     1,ACZ
+        CALL    GRI,<,0>
+        MOVSI   0,(MOVEM)
+        M       1,RGX
+        DPB     1,ACZ
+        HRR     0,FDLV
+        CALL    GRI,<,LVR>
+        MOVSI   0,(SETOM)
+        HRR     0,FDLV
+        ADDI    0,1
+        CALL    GRI,<,LVR>
+        J       TFRI$$
+
+TFRII:  MOVSI   0,(SETZM)       ;sum of double,complex, or string;max or min of string
+        HRR     0,FDLV
+        CALL    GRI,<,LVR>
+TFRIY:  MOVSI   0,(SETZM)
+        HRR     0,FDLV
+        ADDI    0,1
+        CALL    GRI,<,LVR>
+        J       TFRI$$
+
+TFRIJ:  M       0,[HRLZI 0,^O201400]   ;prod of double or complex
+        M       1,RGX
+        DPB     1,ACZ
+        CALL    GRI,<,0>
+        MOVSI   0,(MOVEM)
+        M       1,RGX
+        DPB     1,ACZ
+        HRR     0,FDLV
+        CALL    GRI,<,LVR>
+        J       TFRIY
+
+TFRIK:  CALL    CERR,<14>       ;min of complex  or prod of string
+        SUBTTL CEXCH CSTM.3.42  EXCHANGE THE TOP TWO ENTRIES ON THE OPERAND STACK
+        BDCL    CEXCH
+
+
+;                               CEXCH 1
+        CALL    GETID,,<WW,WWWW>
+        CALL    GTVID
+
+;                       CEXCH 2
+        SKIPE   WW
+        J       CEXCH4
+
+;                       CEXCH 3
+        CALL    XAEL,<$,O1P,0>
+        J       CEXCH7
+
+;                       CEXCH 4
+CEXCH4: CALL    TVID,<$,WW,$,WWWW>
+
+;                               CEXCH 7
+CEXCH7: CALL    SAMC
+
+
+;                               CEXCH 8
+        M       1,O2P
+        FGET    0,1,OC
+        CAIN    0,ONSC
+        J       CXCH11
+        CAIN    0,OSSC
+        J       CXCH10
+        CAIE    0,OMX
+        J       CXCH12
+
+;                               CEXCH 9
+        CALL    GR2M
+        CALL    CXR,<RACXMX>
+        J       CXCH$$
+
+;                               CEXCH 10
+
+        ; stack copies of the top two operands for trcxr to read. trcxr has to
+        ; know whether the operands are user variables and AC2S destroys that info
+CXCH10: CALL    TV,<$,O1P>
+        CALL    TV,<$,O1P>
+        CALL    AC2S
+        M       1,O2P
+        HRLZI   2,^O14740
+        CALL    TRCXR,<RACXS>
+        CALL    OREM,<2>
+        J       CXCH$$
+
+;                               CEXCH 11
+CXCH11: M       1,O1P
+        MM      1,OP1
+        M       1,O2P
+        MM      1,OP2
+        CALL    TV,<$,OP1>
+        CALL    TV,<$,OP2>
+        M       2,OP2
+        FGET    1,2,OT
+        CALL    CNVRT,<$,O1P>
+        M       2,OP1
+        FGET    1,2,OT
+        CALL    CNVRT,<$,O2P>
+        CALL    LD,<$,O1P>
+        CALL    LD,<$,O2P>
+        CALL    STO,<$,O1P,$,OP2,1>
+        CALL    STO,<$,O2P,$,OP1,1>
+        CALL    OREM,<4>
+        J       CXCH$$
+
+;                               CEXCH 12
+CXCH12: CALL    IMPOS
+
+;                               EXIT CEXCH
+CXCH$$: J       COPT$$
+        SUBTTL CWAIT CSTM.3.43  THE WAIT STATMENT
+        BDCL    CWAIT
+
+;                               CWAIT 1
+        CALL    CNVRT,<$,O2P,INT>
+        CALL    AC1
+        CALL    CXR,<RWAIT>
+
+;                               EXIT CWAIT
+        J       COPT$$          ; CWAIT
+        SUBTTL CINTP CSTM.3.44  INTERRUPT PROGRAM
+        BDCL    CINTP
+
+;                               CINTP 1
+        CALL    TTLOG
+
+;                               CINTP 2
+        M       1,OPTYP
+        TRNN    1,1
+        J       CINTP9
+
+;                               CINTP 3
+        CALL    SAVREG
+        CALL    CXR,<RION>
+        CALL    GRI,<16,0>
+        M       2,O2P
+        FGET    1,2,OC
+        LSH     1,9
+        FGET    3,2,OT
+        ADD     1,3
+        MI      2,4
+        HRLM    1,2
+        MM      2,WW
+        CALL    LDA
+        CALL    CXR,<RPRTV>
+        CALL    GRI,<$,WW,0>
+        CALL    CXR,<RKLFMT>
+
+;                               CINTP 9
+CINTP9: M       0,OPTYP
+        SUBI    0,64
+        HRLI    0,(MOVEI 1,)
+        CALL    GRI,<,0>
+        CALL    CXR,<RINTP>
+
+;                       EXIT CINTP
+CNTP$$: J       COPT$$          ; CINTP
+        SUBTTL CBAS CSTM.3.46  THE BASE FOR ARRAY DIMENSIONING
+        BDCL    CBAS
+
+;                               CBAS 1
+        CALL    TTLOG
+        CALL    CNVRT,<$,O2P,INT>
+        CALL    LD,<$,O2P>,<RGX>
+
+;                               CBAS 2
+        CALL    GR,<O(MOVEM),$,RGX,0,0,BAS,UVAR>
+        CALL    OREM,<1>
+
+;                               EXIT CBAS
+        J       COPT$$          ; CBAS
+        SUBTTL CENDF CSTM.3.61  ENDF
+        BDCL    CENDF
+
+;                               CENDF 1
+        CALL    CEXIT
+
+
+;                               CENDF 3
+;       fixup the jrst around the def. for external procedure, subnm+1
+;       will be zero and this call will do nothing.
+        CALL    CHFXP,<$,SUBNM+1>
+        CALL    SWPPOP
+        SOS     PMCK
+        SOS     PMCK
+        IBP     0,PMCP  ; the function id was verified in DECLAR.
+        IBP     0,PMCP  ; COMPIL just ignores it.
+
+;       CALL    TLOC,<$,FORSTK,0>
+;       CAMN    2,FORDEF        ; CHECK FOR/NEXT BALANCE IN PROCEDURE
+;       JRST    CENDF$
+;       SKIPE   1       ; we will halt in rcln on record # 0
+;       CALL    RCLN
+;       CALL    CERR,<^D47>
+
+
+; CENDF$: SKIPE   1       ; we will halt in rcln on record # 0
+;       CALL    RCLN
+        SETZM   0,RTFG
+        J       COPT$$          ; CENDF
+        SUBTTL CRETN CSTM.3.62  RETURN  FROM A GOSUB
+        BDCL    CRETN
+
+;                               CRETN 1
+        MI      1,RGRET
+        SKIPE   XTBL(1)
+        J       CRETN3
+
+;                               CRETN 2
+        CALL    JMP,<0>
+        J       CRETN4
+
+;                               CRETN 3
+CRETN3: CALL    GR,<O(JRST),0,0,0,$,XTBL+RGRET,WLOC>
+
+;                               CRETN 4
+CRETN4: M       1,r%cdlc
+        SUBI    1,1
+        MI      2,RGRET
+        MM      1,XTBL(2)
+
+;                               EXIT CRETN
+        J       COPT$$          ; CRETN
+        SUBTTL CBND CSTM.3.65  SET OUTPUT BOUNDARY
+        BDCL    CBND
+
+;                               CBND 1
+        CALL    CNVRT,<$,O2P,REAL>
+        CALL    LD,<$,O2P>,<RGX>
+        MOVSI   0,(JUMPGE)
+        DPB     1,ACZ
+        HRR     0,r%cdlc
+        ADDI    0,2
+        CALL    GRI,<,LOC>
+        M       0,[^O32B8+CER2]
+        CALL    GRI,<,0>
+        CALL    MMI,<BNDRY,$,O2P,0,0>
+        CALL    OREM,<1>
+;                               EXIT CBND
+        J       COPT$$          ; CBND
+        SUBTTL CSIG CSTM.3.66   SET OUTPUT SIGNIFICANCE
+        BDCL    CSIG
+
+;                               CSIG 1
+        CALL    CNVRT,<$,O2P,INT>
+        CALL    LD,<$,O2P>,<RGX>
+        MOVSI   0,(JUMPGE)
+        DPB     1,ACZ
+        HRR     0,r%cdlc
+        ADDI    0,2
+        CALL    GRI,<,LOC>
+        M       0,[^O32B8+CER3]
+        CALL    GRI,<,0>
+        CALL    MMI,<SIGNIF,$,O2P,0,0>
+        CALL    OREM,<1>
+
+;                               EXIT CSIG
+        J       COPT$$          ; CSIG
+        SUBTTL BGTST CSTM.3.67  BEGIN TEST
+        BDCL    BGTST
+
+
+;                               BGTST 1
+        M       1,OPTYP
+        CAIN    1,97
+        JRST    BGTST8          ;BGTST PMC
+
+;                               BGTST 2 BGFTS - UNTIL or WHILE within a FOR
+        M       2,O2P
+        FGET    1,2,OC
+        CAIN    1,ONSC
+        J       BGTST4
+        CAIE    1,FOR
+        J       BGTST6
+
+;                               BGTST 3
+        CALL    TVKI,<1>
+        J       BGTST7
+
+;                               BGTST 4
+BGTST4: M       2,O1P
+        FGET    1,2,OC
+        CAIN    1,FOR
+        J       BGTST7
+
+;                               BGTST 5
+        CALL    IMPOS
+
+;                               BGTST 6
+BGTST6: CALL    CERR,<14>
+
+;                               BGTST 7
+BGTST7: CALL    TLOC,<$,FORSTK,0>,<FORP>
+        MI      1,ONSC
+        M       2,O1P
+        FPUT    1,2,OC
+        M       2,FORP
+        FGET    1,2,FTYP
+        CALL    CNVRT,<$,O2P>
+        M       2,FORP
+        FGET    1,2,FTYP
+        CALL    CNVRT,<$,O1P>
+        M       2,OPDN
+        M       1,OPDL-2(2)
+        CALL    STO,<$,O1P,,1>
+        CALL    ONULL,<$,O1P>
+        CALL    SVFR,<$,O2P>
+        M       1,FORP
+        CALL    RDTY
+
+;                               BGTST 8
+BGTST8: CALL    TNEW,<$,CSTK>,<CSTKP>
+        M       0,r%cdlc
+        FPUT    0,1,CBGL
+        MOVE    0,LRTN
+        FPUT    0,1,CLNM
+        MOVE    1,CSTKP
+        CALL    RDTY
+
+;                               EXIT BGTST
+        J       COPT$$          ; BGTST
+        SUBTTL CDEF CSTM.3.69   DEF STATEMENT
+
+; The def PMC looks like:
+;
+; [ 143 ],[[ function id ]],[ type ],[ # args ],[ mode ],[ # dimensions ]
+;
+; We have already seen this DEF in DDEF (in declar).
+
+        BDCL    CDEF
+
+;                               CDEF 1
+;       CALL    TLOC,<$,FORSTK,0>,<,FORDEF>
+;       SKIPE   1       ; we will halt in rcln on record # 0
+;       CALL    RCLN
+
+        CALL    GETID,,<SDTP,ID>
+        SETZM   0,STFSW
+;Get procedure number:
+        FGET    1,1,SN
+        CALL    TLOC,<$,PRODT>,<PROP>
+
+;                       CDEF 2
+;Get the ID of the procedure:
+        FGET    0,1,PNAM
+        CAMN    0,ID
+        J       CDEF5A
+
+;                       CDEF 3
+        MOVE    1,PROP
+        CALL    RCLN
+
+;                       CDEF 4
+        CALL    IMPOS
+
+;                       CDEF 5A
+CDEF5A: M       1,SUBPTR
+        DMOVE   2,SUBNM
+        DMOVEM  2,0(1)
+        DMOVE   2,SUBNM+2
+        DMOVEM  2,2(1)
+        ADDI    1,4
+        MM      1,SUBPTR
+
+;                       CDEF 5
+        M       1,PROP
+;Get number of parameters
+        FGET    2,1,PNP
+        MOVEM   R2,PARNM        ;set parnm so we can count down on it later
+        IBP     0,PMCP
+        IBP     0,PMCP
+        MOVNI   1,4
+        ADDM    1,PMCK
+        ILDB    1,PMCP
+        M       2,PROP
+        FPUT    1,2,PMODD
+        ILDB    3,PMCP
+        MM      3,FDIM
+
+
+;                       CDEF 5A  Put out the JRST around the def (cept for external)
+
+        CAIL    1,EXTRNP        ; external?
+        JRST    CDEF9
+
+        MOVSI   0,(JRST)
+        CALL    GRI,<,0>
+        MOVE    1,r%cdlc
+        SUBI    1,1
+        MOVEM   1,SUBNM+1       ; store fixup adr. we do the fixup in CENDF
+
+        MOVE    2,PROP
+        FGET    1,2,PMODD       ; restore the mode
+
+;                       CDEF 5B
+        JUMPE   1,CDEF6
+        ; its not external, or normal tba so it must be a tba entry
+        MOVE    1,SDTP
+        FGET    0,1,SLOC
+        ADDI    0,2
+        CALL    GRI,<,LVR>
+
+;                       CDEF 6 Normal TBA procedure
+CDEF6:  M       1,PROP
+        FGET    0,1,PFXP
+        CALL    CHFXP
+        M       1,r%cdlc
+        M       2,PROP
+        FPUT    1,2,PFXP
+        MI      1,1
+;Say "I've seen the DEF":
+        FPUT    1,2,PUSD
+
+;                       CDEF 6B
+        M       1,SDTP
+        FGET    0,1,SLOC
+        HRLI    R0,(MOVEM RXJ,) ;save the return address
+        CALL    GRI,<,LVR>
+        M       1,SDTP
+        FGET    0,1,SLOC
+        ADDI    0,1
+        HRLI    R0,(MOVEM RXO,) ;save register R16
+        CALL    GRI,<,LVR>
+        MOVE    1,LRTP
+        FGET    0,1,LNUMB
+        CALL    STHED
+        BCALL   DFTRC
+
+;                       CDEF 7
+        M       1,SDTP
+        FGET    2,1,SN
+        MOVEM   R2,SUBNM        ;set procedure #
+;Swap all of its locals and parameters into the SDT
+        CALL    SWPSCT
+        SETZM   0,RTAD
+        SETZM   0,RTFG
+        J       CDEF10
+
+;                       CDEF 9 EXTERNAL procedure
+CDEF9:  MI      1,1
+        MOVEM   R1,STFSW        ;like a statement function
+        SETZM   SUBNM+1 ; we didnt do a jrst around the def so we are going to
+			; to zero the fixup adr
+
+;                       CDEF 10
+CDEF10: MOVE    1,PROP
+        CALL    RDTY
+
+;                       EXIT CDEF
+        J       COPT$$          ; CDEF
+        SUBTTL DFTRC CSTM.3.69.7B
+        BDCL    DFTRC
+
+;                       DFTRC 1
+        SKIPN   DEBGSW
+        J       DFTR$$
+
+;                       DFTRC 2
+        M       1,PARNM
+        JE      1,DFTR$$
+        MM      1,WW
+        M       2,PROP
+        FGET    1,2,PPARS
+        MOVEM   R1,WWWW         ;pointer into PARDT
+
+;                       DFTRC 4
+DFTRC4: CALL    TLOC,<$,PARDT,$,WWWW>,<PDTP>
+        FGET    R2,R1,PARLNK
+        MOVEM   R2,WWWW
+
+;                       DFTRC 5
+        FGET    2,1,PAKND
+        CAIE    2,SSCAL
+        J       DFTRC7
+
+;                       DFTRC 6
+        FGET    0,1,PALOC
+        HRLI    0,^O16000
+        CALL    GRI,<,UVAR>
+        M       1,PDTP
+        FGET    2,1,PATYP
+        FGET    0,1,PANAM
+        HRL     0,2
+        CALL    GRI,<,0>
+
+;                       DFTRC 7
+DFTRC7: MOVE    1,PDTP
+        CALL    RCLN
+        SOSLE   WW
+        J       DFTRC4
+
+;                       EXIT DFTRC
+DFTR$$: BRETURN DFTRC
+        SUBTTL DEFDN CSTM.3.71  END OF DEF  (NOTE  NOT AN ENDF!)
+        BDCL    DEFDN
+
+;                               DEFDN 1
+        SKIPN   PARNM
+        J       DEFDN3
+
+;                               DEFDN 2
+        CALL    IMPOS
+
+;                               DEFDN 3
+DEFDN3: SKIPN   STFSW           ;statement function or EXTERNAL?
+        J       DFDN$$
+
+;                       DEFDN 3C Yes
+        SKIPL   STFSW
+        J       DFDN5
+
+;                               DEFDN 4 A real statement function
+        CALL    EXTV
+        CALL    SWPSCT
+
+;                       DEFDN 5
+DFDN5:  CALL    CHFXP,<$,SUBNM+1>
+        MOVNI   1,SUBSIZ
+        ADDB    1,SUBPTR
+        DMOVE   2,(1)
+        DMOVEM  2,SUBNM
+        DMOVE   2,2(1)
+        DMOVEM  2,SUBNM+2
+        SETZM   STFSW
+
+;                               EXIT DEFDN
+DFDN$$: JRST    COPT$$          ;DEFDN
+        SUBTTL C8I CSTM.3.72  EIGHTI STATEMENT
+        BDCL    C8I
+
+;                               C8I 1
+        CALL    CKLVA
+        CALL    CKC,<$,O2P,ONSC>
+        CALL    CKT,<$,O2P,INT>
+        HRLZI   2,^O12740
+        CALL    TRCXR,<R8IN,$,O2P>
+        CALL    OREM,<1>
+;                               EXIT C8I
+        J       COPT$$
+        SUBTTL C8O CSTM.3.73 EIGHTO STATEMENT
+        BDCL    C8O
+
+;                               C8O 1
+        CALL    CKC,<$,O2P,ONSC>
+        CALL    CKT,<$,O2P,INT>
+        CALL    AC1
+        CALL    CXR,<R8OUT>
+
+;                               EXIT C8O
+        J       COPT$$          ; C8O
+        SUBTTL CNAM     THE NAME STATEMENT  ( NAME A=B(1:2,*) )
+        BDCL    CNAM
+;.1
+        CALL    GETID,,<SDTP>
+        CALL    GETID,,<SDTP2,ID>
+        ILDB    0,PMCP
+        MOVEM   0,NDIM
+        SOS     PMCK
+        SKIPE   NDIM
+        J       CNAM6
+
+;                       CNAM 3
+        FGET    0,1,SN
+        MM      0,NDIM
+        MM      0,WW
+;                       JUMPLE 0,CNAM6
+
+;                       CNAM 5
+CNAM5:  CALL    TVF,<$,OSST,0,0,0,0,0>
+        SOSLE   WW
+        J       CNAM5
+
+;                       CNAM 6
+CNAM6:  CALL    TVMATE,<$,SDTP2,$,NDIM,$,ID>
+        CALL    XAEL,<$,O2P,$,SDTP>
+        CALL    OREM,<1>
+;                       EXIT CNAM
+        J       COPT$$
+        SUBTTL CUOP CSTM.3.101  COMPIL CODE FOR A UNARY OPERATION
+        BDCL    CUOP
+
+;                               CUOP 1
+        CALL    TTLOG
+        SOS     PMCK
+
+;                               CUOP 2
+        M       2,O2P
+        FGET    1,2,OC
+        CAIN    1,OMX
+        J       CUOP6
+        CAIE    1,ONSC
+        J       CUOP8
+
+;                               CUOP 3
+        ILDB    1,PMCP
+        CAIE    1,4
+        J       CUOP5
+
+;                       CUOP 3A
+        M       2,O2P
+        FGET    1,2,OT
+        CAIE    1,LOG
+        J       CUOP4
+
+;                       CUOP 3B
+        CALL    CNVRT,<$,O2P,INT>
+
+;                               CUOP 4
+CUOP4:  M       2,O2P
+        FGET    1,2,OM
+        CAIN    1,OKON
+        J       CUOP4C
+;                       CUOP 4B
+        FGET    1,2,ONG
+        XORI    1,-1
+        FPUT    1,2,ONG
+        J       CUOP$$
+;                       CUOP 4C
+CUOP4C: FGET    3,2,OV
+        FGET    1,2,OT
+        CAIG    1,REAL
+        J       CUOP4E
+;                       CUOP 4D
+        FGET    4,2,OL
+        DMOVN   3,3
+        FPUT    3,2,OV
+        FPUT    4,2,OL
+        J       CUOP$$
+;                       CUOP 4E
+CUOP4E: MOVN    3,3
+        FPUT    3,2,OV
+        J       CUOP$$
+
+;                       CUOP 5
+CUOP5:  CALL    CNVRT,<$,O2P,LOG>
+        CALL    LD,<$,O2P>
+        M       0,[XORI 0,1]
+        DPB     1,ACZ
+        SETZ    1,0
+        CALL    GRI
+        J       CUOP$$
+
+;                               CUOP 6
+CUOP6:  ILDB    1,PMCP
+        CAIE    1,4
+        J       CUOP8
+
+;                               CUOP 7
+        CALL    CXR,<RNEGA>
+        J       CUOP$$
+
+;                               CUOP 8
+CUOP8:  CALL    CERR,<24>
+
+;                               CUOP 9
+CUOP9:  CALL    CERR,<24>
+
+;                               EXIT CUOP
+CUOP$$: J       COPT$$
+        SUBTTL CBOPR CSTM.3.102  COMPIL CODE FOR A BINARY OPERATION
+        BDCL    CBOPR
+
+;                               CBOPR 1
+        CALL    TTLOG
+        ILDB    1,PMCP
+        MM      1,OPID
+        SOS     PMCK
+
+;                               CBOPR 2
+        CAIL    1,22
+        J       CBOPR6
+        CAIL    1,19
+        J       CBOPR5
+        CAILE   1,8
+        J       CBOPR4
+
+;                               CBOP4 3
+        BCALL   CLOP
+        J       CBPR$$
+
+;                               CBOPR 4
+CBOPR4: BCALL   CROP
+        J       CBPR$$
+
+;                               CBOPR 5
+CBOPR5: BCALL   CBOP
+        J       CBPR$$
+
+;                               CBOPR 6
+CBOPR6: CALL    CAOP,<$,OPID>
+        J       CBPR$$
+
+;                               EXIT CBOPR
+CBPR$$: J       COPT$$          ; CBOPR
+        SUBTTL CLOP CSTM.3.102.3 A LOGICAL OPERATION
+        BDCL    CLOP
+
+;                               CLOP 1
+        CALL    CNVRT,<$,O1P,LOG>
+        CALL    CNVRT,<$,O2P,LOG>
+
+;                               CLOP 2
+        CALL    EZLD,,<OXP,OYP,RGX>
+
+;                               CLOP 3
+        M       1,OPID
+        CAIGE   1,5
+        J       CLOP8
+        CAIN    1,5
+        J       CLOP5
+
+;                               CLOP 4
+        CALL    GROF,<$,LGTB(1),$,RGX,$,OYP> ; OPID IN R1, BOX 3
+        J       CLOP9
+
+;                               CLOP 5
+CLOP5:  M       1,OXP
+        CAMN    1,O2P
+        J       CLOP7
+
+;                               CLOP 6
+        CALL    GROF,<O(ANDCM),$,RGX,$,OYP>
+        CALL    GRSH,<O(TRC),$,RGX,1>
+        J       CLOP9
+
+;                               CLOP 7
+CLOP7:  CALL    CMP,<$,RGX,$,OYP,OGE>
+        CALL    GRSH,<O(MOVEI),$,RGX,1>
+        J       CLOP9
+
+;                               CLOP 8
+CLOP8:  CALL    GRNT,<O(TDC),$,RGX,$,OYP>
+        CALL    GRSH,<O(TRC),$,RGX,1>
+
+;                               CLOP 9
+CLOP9:  CALL    ONULL,<$,OYP>
+
+;                               EXIT CLOP
+        BRETURN CLOP
+        SUBTTL CROP CSTM.3.102.4  EVALUATE A RELATION, OR STACK IT TEMPORARILY
+        BDCL    CROP
+
+;                               CROP 1
+        CALL    SAMC
+
+;                               CROP 2
+        M       2,O2P
+        FGET    1,2,OC
+        CAIN    1,OSSC
+        J       CROP15
+        CAIE    1,ONSC
+        J       CROP18
+
+;                               CROP 3
+        CALL    SAMTYP
+        M       2,O2P
+        FGET    1,2,OT
+        MM      1,TYP
+
+;                               CROP 4
+        CAIE    1,CMPLX
+        J       CROP7
+        M       1,OPID
+        CAIN    1,10
+        J       CROP7
+        CAIN    1,11
+        J       CROP7
+        CAIN    1,18
+        J       CROP7
+
+;                               CROP 6
+        CALL    CERR,<24>
+
+;                       CROP 7
+CROP7:  M       1,TYP
+        CAILE   1,INT
+        J       CROP9
+
+;                       CROP 8
+        M       1,OPID
+        CAIN    1,17
+        J       CROP8B
+        CAIE    1,16
+        J       CROP9
+
+;                       CROP 8A
+        CALL    ONULL,<$,O1P>
+        J       CROP8C
+
+;                       CROP 8B
+CROP8B: CALL    OREM,<1>
+
+;                       CROP 8C
+CROP8C: CALL    TVKI,<0>
+        MI      1,10
+        MM      1,OPID
+
+;                               CROP 9
+CROP9:  M       1,OPID
+        CAILE   1,15
+        J       CROP13
+
+;                               CROP 10
+        HLRZ    1,RELTB(1)
+        CALL    TVF,<OTST,,0,0,0,0>        ; tvf(otst,reltb[opid].lh,0,0,0,0)
+        J       CROP$$
+
+;                               CROP 13
+CROP13: CALL    AC13
+        M       0,OPID
+        HRL     0,TYP
+        CALL    TVKI
+        CALL    GRNT,<O(MOVE),5,$,O2P>
+        CALL    OREM,<1>
+        CALL    CXR,<RSROP>
+        J       CROP$$
+
+;                               CROP 15
+CROP15: M       1,OPID
+        CAIG    1,15
+        J       CROP17
+
+;                               CROP 16
+        CALL    CERR,<24>
+
+;                               CROP 17
+CROP17: CALL    AC2S
+        MOVE    1,OPID
+        HRRZ    0,RELTB(1)
+        CALL    CXR,<>          ; cxr(reltb[opid].rh)
+        J       CROP$$
+
+;                               CROP 18
+CROP18: CALL    CERR,<22>
+
+;                               EXIT CROP
+CROP$$: BRETURN CROP
+
+
+; RELTB contains, for each "easy" relational operator (all but >> << #=),
+; the hardware relation code in the left half and the string compare routine
+; in the right half.
+
+RELTB==.-10
+
+        2,,RSTRE                ; 10 =
+        6,,RSTRNE               ; 11 #
+        1,,RSTRL                ; 12 <
+        3,,RSTRLE               ; 13 <=
+        7,,RSTRG                ; 14 >
+        5,,RSTRGE               ; 15 >=
+        SUBTTL CBOP CSTM.3.102.5 A BINARY BITWISE OPERATION
+        BDCL    CBOP
+
+;                               CBOP 1
+        CALL    CKC,<$,O2P,ONSC>
+        CALL    CKC,<$,O1P,ONSC>
+        CALL    CNVRT,<$,O2P,INT>
+        CALL    CNVRT,<$,O1P,INT>
+        CALL    NNG12
+        CALL    EZLD,,<OXP,OYP,RGX>
+
+;                               CBOP 2
+        M       1,OPID
+        CALL    GROF,<$,BINOP(1),$,RGX,$,OYP>
+
+;                               CBOP 3
+        CALL    ONULL,<$,OYP>
+
+;                               EXIT CBOP
+        BRETURN CBOP
+        SUBTTL CFCON CSTM.3.107   STACK A FLOATING POINT CONSTANT
+        BDCL    CFCON
+
+;                               CFCON 1
+        CALL    NXT4P,,<WW>
+        CALL    TVF,<ONSC,OKON,REAL,0,$,WW,0>
+
+;                               EXIT CFCON
+        J       COPT$$          ; CFCON
+        SUBTTL CDCON CSTM.3.108  STACK A DOUBLE PRECISION CONSTANT
+        BDCL    CDCON
+
+;                               CDCON 1
+        CALL    NXT4P,,<WW>
+        CALL    NXT4P,,<WWWW>
+        CALL    TVF,<ONSC,OKON,DBL,$,WWWW,$,WW,0>
+
+;                               EXIT CDCON
+        J       COPT$$          ; CDCON
+        SUBTTL SCON CSTM.3.109  STACK A STRING CONSTANT
+        BDCL    SCON
+
+        CALL    DATA
+        CALL    CLIT,<STR>,<N>
+        CALL    TVF,<OSSC,OKON,STR,$,N,0,0>
+
+SCON$$: J       COPT$$          ; SCON
+        SUBTTL SYCON CSTM.3.110  STACK A SYSTEM CONSTANT
+        BDCL    SYCON
+
+; SYSTEM CONSTANTS
+;  0 - PI
+;  1 - DPI
+;  2 - TRUE
+;  3 - FALSE
+
+;                               SYCON 1
+        ILDB    1,PMCP
+        SOS     PMCK
+        SETZ    4,0
+
+;                               SYCON 2
+        CAILE   1,1
+        J       SYCON6
+;                       SYCON 3
+        MI      2,REAL
+        SKIPE   1
+        MI      2,DBL
+;                       SYCON 5
+
+        MI      1,OUVAR
+        MOVEI   3,ADRPI
+        J       SYCON8
+;                       SYCON 6
+SYCON6: CAIN    1,2
+        MI      4,1
+;                       SYCON 7
+        MI      2,LOG
+        MI      1,OKON
+        MOVEI   3,0
+;                       SYCON 8
+SYCON8: CALL    TVF,<ONSC,,,,,0>
+;                               EXIT SYCON
+        J       COPT$$          ; SYCON
+        SUBTTL CNAFN CSTM.3.111  CALL A NO ARGUEMENT FUNCTION
+        BDCL    CNAFN
+
+;                               CNAFN 1
+        ILDB    1,PMCP
+        MM      1,OPID
+        SOS     PMCK
+
+;                               CNAFN 2
+        CAILE   1,15
+        J       CNAFN5
+        CAIN    1,15
+        J       CNAFN4
+
+;                       CNAFN 3
+        CALL    SAVREG
+        MOVE    1,OPID
+        MOVE    0,CNAFNR(1)
+        CALL    CXR
+        JRST    CNAFN$
+
+;                       CNAFN 4
+CNAFN4: CALL    SAVREG
+        MOVSI   0,(MOVEI 1,0)
+        CALL    GRI,<,0>
+        CALL    CXR,<.RNDA>
+        JRST    CNAFN$
+;                       CNAFN 5
+; FOR ZER,CON, AND IDN  PUT OPID IN OP.OM  LATTER STOMX TAKES CARE OF IT.
+CNAFN5: CALL    TVF,<OMX,,0,0,0,0>
+
+;                               EXIT CNAFN
+CNAFN$: JRST    COPT$$
+
+
+
+CNAFNR: RXDAT                   ;  0 DATE
+        RXTIM                   ;  1 TIME
+        RXTRM                   ;  2 TERM
+        RIASC                   ;  3 IXASC
+        RICHR                   ;  4 IXCHAR
+        RXASC                   ;  5 XASC
+        RXCHR                   ;  6 XCHAR
+        RTCP                    ;  7 TCP
+        RDET                    ;  8 DET
+        RXYR                    ;  9 YEAR
+        RRCD                    ; 10 ERRCD
+        RRLN                    ; 11 ERRLN
+        RRFL                    ; 12 ERRFL
+        RTRV                    ; 13 TRU
+        RPOST                   ; 14 POS
+        SUBTTL CNFN CSTM.3.113  CALL A NUMERIC FUNCTION
+        BDCL    CNFN
+
+;                               CNFN 1
+        ILDB    1,PMCP
+        MM      1,OPID
+        SOS     PMCK
+
+;                               CNFN 1B
+        M       2,O2P
+        FGET    1,2,OC
+        CAIE    1,OSSC
+        J       CNFN1D
+        M       1,OPID
+        CAIE    1,7
+        J       CNFN1D
+
+;                               CNFN 1C
+        CALL    AC2S
+        CALL    CXR,<RSCMP>
+        J       CNFN$$
+
+;                               CNFN 1D
+CNFN1D: CALL    CKC,<$,O2P,ONSC>
+
+;                               CNFN 2
+        M       1,OPID
+        CAIN    1,7
+        J       CNFN10
+        CAIN    1,6
+        J       CNFN9
+        CAIN    1,2
+        J       CNFN5
+        CAIN    1,1
+        J       CNFN4
+        JUMPN   1,CNFN11
+
+
+;                               CNFN 3
+        CALL    CNVRT,<$,O2P,DBL>
+        J       CNFN$$
+
+;                               CNFN 4
+CNFN4:  CALL    C1NFN
+        J       CNFN$$
+
+;                               CNFN 5
+CNFN5:  CALL    C2NFN
+        JRST    CNFN$$
+
+;                               CNFN 9
+CNFN9:  BCALL   C6NFN
+        J       CNFN$$
+
+;                               CNFN 10
+CNFN10: BCALL   C7NFN
+        JRST    CNFN$$
+
+
+;                               CNFN 11
+;       opid is in ac 1
+CNFN11: CALL    CNRSR           ; CALL A RUNSIDE ROUTINE FOR THESE
+
+;                               EXIT CNFN
+CNFN$$: J       COPT$$          ; CNFN
+        SUBTTL C6NFN CSTM.3.113.9  THE PDIF FUNCTION
+        BDCL    C6NFN
+
+;                               C6NFN 1
+        CALL    CKC,<$,O1P,ONSC>
+        CALL    SAMTYP
+        CALL    CKNT,<$,O2P,CMPLX>
+        CALL    CAOP,<23>
+        CALL    NNG1,<$,O2P>
+        M       2,O2P
+        FGET    1,2,OL
+        MM      1,RGX
+        CALL    GRSH,<O(SKIPGE),0,$,RGX>
+
+;                               C6NFN 2
+        M       2,O2P
+        FGET    1,2,OT
+        CAIE    1,DBL
+        J       C6NFN4
+
+;                               C6NFN 3
+        MOVE    2,RGX
+        ADDI    2,1     ; WE GENERATE SETZB RGX,RGX+1 FOR DOUBLES
+        CALL    GRSH,<O(SETZB),$,RGX>
+        J       C6FN$$
+
+;                               C6NFN 4
+C6NFN4: CALL    GRSH,<O(SETZ),$,RGX,0>
+
+;                               EXIT C6NFN
+C6FN$$: BRETURN C6NFN
+        SUBTTL C7NFN CSTM.3.113.10  THE COMP FUNCTION
+        BDCL    C7NFN
+
+;                               C7NFN 1
+        CALL    CKC,<$,O1P,ONSC>
+        CALL    SAMTYP
+        CALL    CKNT,<$,O2P,CMPLX>
+        CALL    NNG12
+
+;                               C7NFN 2
+        M       2,O2P
+        FGET    1,2,OT
+        CAIN    1,DBL
+        J       C7NFN4
+
+;                               C7NFN 3
+        CALL    LD,<$,O2P>,<RGX>
+        CALL    FNDR,<1>,<RGY>
+        CALL    GRSH,<O(SETO),$,RGY,0>
+        CALL    GRNT,<O(CAMG),$,RGX,$,O1P>
+        CALL    GRSH,<O(SETZ),$,RGY,0>
+        CALL    GRNT,<O(CAMGE),$,RGX,$,O1P>
+        CALL    GRSH,<O(MOVEI),$,RGY,1>
+        CALL    OREM,<2>
+        CALL    TVR,<$,RGY,INT>
+        J       C7FN$$
+
+;                       C7NFN 4
+C7NFN4: CALL    CAOP,<23>
+        CALL    C1NFN
+
+;                               EXIT C7NFN
+C7FN$$: BRETURN C7NFN
+        SUBTTL CAFN CSTM.3.115   AN ARRAY FUNCTION
+        DCL     CAFN,,<NDIMAF,LOAF,VLAF>
+
+; OPIDs as follows:
+;  0-INV  1-TRN  2-IDN  3-ZER(1 arg)  4-CON(1 arg)  5-ZER(2 args)  6-CON(2 args)
+
+;                               CAFN 1
+        SOS     PMCK
+        ILDB    1,PMCP
+        MM      1,OPID
+
+;                               CAFN 2
+        CAIL    1,2
+        J       CAFN6
+;                       CAFN 3
+        JUMPN   1,CAFN5
+        M       2,O2P
+        FGET    1,2,OT
+        CAIN    1,REAL
+        J       CAFN5
+        CAIN    1,DBL
+        J       CAFN5
+;                       CAFN 4
+        CALL    CERR,<43>
+;                       CAFN 6
+; This is where we do CON,ZER and IDN with args. We create a temp cell for an
+; array descriptor, set up the type and bounds, and call RDXMX. We now have an
+; array of the proper size. We then make a dummy ZER,CON or IDN operand
+; stack entry as is done with the no argument ZER,CON and IDN and call STO
+; who knows about these special operands.
+
+CAFN6:  MOVEI   0,1
+        CAIL    1,5
+        MOVEI   0,2             ; SET NDIM=2 FOR OPIDs 5 AND 6
+        CAIE    1,2             ; IS IT IDN?
+        JRST    CAFN6B
+        CALL    TV,<$,O2P>
+        MOVEI   0,2             ; FOR IDN, NDIM=2
+CAFN6B: MOVEM   0,NDIMAF
+
+        CALL    SAVREG
+
+        MOVE    1,NDIMAF        ; WE ALLOCATE SPACE FOR AN ARRAY DESCRPTR
+        EXTERN  .szdsc
+        CALL    TQAFND,<$,.szdsc(1)>,<LOAF,VLAF>
+
+        MOVE    0,NDIMAF        ; TYPE,,NDIMAF INTO ARRAY DESCRIPTOR
+        HRLI    0,REAL
+        CALL    TVKI
+        CALL    LDR,<1,$,O2P>
+        MOVE    0,LOAF
+        ADDI    0,.andim
+        CALL    MMI,<,$,O2P,LVR,0>
+        CALL    OREM,<1>
+
+;               We put in the first bounds pair
+        CALL    CNVRT,<$,O2P,INT>
+        CALL    LDR,<1,$,O2P>
+        CALL    GR,<O(HRL),1,0,0,BAS,UVAR>
+        MOVE    4,LOAF
+        ADDI    4,.bnd1
+        CALL    GR,<O(MOVEM),1,0,0,,LVR>
+        CALL    OREM,<1>
+
+        MOVE    0,NDIMAF        ; Are ther two dimensions?
+        CAIG    0,1
+        JRST    CAFN6A
+
+;               We put in the second bounds pair
+        CALL    CNVRT,<$,O2P,INT>
+        CALL    LDR,<1,$,O2P>
+        CALL    GR,<O(HRL),1,0,0,BAS,UVAR>
+        MOVE    4,LOAF
+        ADDI    4,.bnd2
+        CALL    GR,<O(MOVEM),1,0,0,,LVR>
+        CALL    OREM,<1>
+
+CAFN6A: MOVSI   0,(MOVEI 1,)    ; call RDXMX
+        HRR     0,LOAF
+        CALL    GRI,<,LVR>
+        CALL    CXR,<RDXMX>
+
+;               Make an operand stack entry for our new array
+        CALL    TVF,<OMX,OTMP,REAL,$,LOAF,$,VLAF,$,NDIMAF>
+        MOVE    1,OPID
+;               Make a dummy ZER, CON or IDN operand
+        CALL    TVF,<OMX,$,ZCITAB(1),0,0,0,0>
+        CALL    STO,<$,O2P,$,O1P,1>
+        CALL    OREM,<1>
+        JRST    CAFN$$
+
+;                       CAFN 5
+CAFN5:  MOVEI   0,RMINV         ; cxr(if opid=0 then rminv else rmtrn)
+        SKIPE   OPID
+        MOVEI   0,RMTRN
+        CALL    CXR
+;                               EXIT CAFN
+CAFN$$: RETURN  CAFN
+
+ZCITAB=.-2
+        EXP     ^D18,^D16,^D17,^D16,^D17
+        SUBTTL CBFN CSTM.3.116  SHIFT OR ROTATE AN INTEGER
+        BDCL    CBFN
+
+;                               CBFN 1
+        SOS     PMCK
+        ILDB    1,PMCP
+        MM      1,OPID
+        CALL    CKC,<$,O2P,ONSC>
+        CALL    CKC,<$,O1P,ONSC>
+        CALL    CKT,<$,O2P,INT>
+        CALL    CKT,<$,O1P,INT>
+
+;                               CBFN 2
+        SKIPN   OPID
+        J       CBFN4
+
+;                               CBFN 3
+        M       2,O2P
+        FGET    1,2,ONG
+        XORI    1,-1
+        FPUT    1,2,ONG
+
+;                               CBFN 4
+CBFN4:  M       2,O2P
+        FGET    1,2,OM
+        CAIE    1,OREG
+        J       CBFN6
+        FGET    1,2,OL
+        JN      1,CBFN6
+
+;                               CBFN 5
+        CALL    SVR,<0>
+
+;                               CBFN 6
+CBFN6:  M       1,RGSV
+        MM      1,WW
+        MI      1,ORSVD
+        MM      1,RGSV
+        CALL    LD,<$,O2P>,<RGY>
+        M       1,WW
+        MM      1,RGSV
+        CALL    LD,<$,O1P>,<RGX>
+
+;                               CBFN 6A
+        M       1,OPID
+        CAIN    1,3
+        J       CBFN9
+        CAIN    1,2
+        J       CBFN8
+
+;                               CBFN 7
+        CALL    GR,<O(LSH),$,RGX,0,$,RGY,0,0>
+        J       CBFN10
+
+;                               CBFN 8
+CBFN8:  CALL    GR,<O(ASH),$,RGX,0,$,RGY,0,0>
+        J       CBFN10
+
+;                               CBFN 9
+CBFN9:  CALL    GR,<O(ROT),$,RGX,0,$,RGY,0,0>
+
+;                               CBFN 10
+CBFN10: CALL    OREM,<1>
+
+;                               EXIT CBFN
+        J       COPT$$          ; CBFN
+        SUBTTL CVAFN CSTM.3.117  THE MAX OR MIN FUNCTION
+        BDCL    CVAFN
+
+;                               CVAFN 1
+        CALL    TTLOG
+        MOVNI   1,2
+        ADDM    1,PMCK
+        ILDB    1,PMCP
+        MM      1,OPID
+        ILDB    1,PMCP
+        SUBI    1,1
+        MM      1,PAR
+
+;                               CVAFN 2
+        JG      1,CVAFN4        ; PAR IN R1, BOX 1
+
+;                               CVAFN 3
+        CALL    CERR,<25>
+
+;                               CVAFN 4
+CVAFN4: M       2,O2P
+        FGET    1,2,OC
+        CAIN    1,OSSC
+        J       CVAFN6
+        CAIE    1,ONSC
+        J       CVAFN7
+
+;                               CVAFN 5
+        BCALL   MXMNN
+        J       CVFN$$
+
+;                               CVAFN 6
+
+CVAFN6: BCALL   MXMNS
+        J       CVFN$$
+
+;                               CVAFN 7
+CVAFN7: CALL    CERR,<22>
+
+;                               EXIT CVAFN
+CVFN$$: J       COPT$$          ; CVAFN
+        SUBTTL MXMNN CSTM.3.117.5  MAX OR MIN FOR NUMERIC SCALERS
+        BDCL    MXMNN
+
+;                               MXMNN 1
+        SKIPE   OPID
+        J       MXMNN3
+
+;                               MXMNN 2
+        MI      1,1
+        MM      1,REL
+        J       MXMNN4
+
+;                               MXMNN 3
+MXMNN3: MI      1,7
+        MM      1,REL
+
+;                               MXMNN 4
+MXMNN4: CALL    CKC,<$,O1P,ONSC>
+        CALL    SAMTYP
+        CALL    CKNT,<$,O2P,CMPLX>
+        CALL    NNG12
+
+;                               MXMNN 5
+        CALL    EZLD,,<OXP,OYP,RGX>
+
+;                               MXMNN 6
+        M       2,OXP
+        CAMN    1,O2P
+        J       MXMNN8
+
+;                               MXMNN 7
+        CALL    SWP
+
+;                               MXMNN 8
+MXMNN8: CALL    CMP,<$,RGX,$,O1P,$,REL>
+
+;                               MXMNN 9
+        M       2,O2P
+        FGET    1,2,OT
+        CAIE    1,DBL
+        J       MXMN11
+
+;                               MXMNN 10
+        CALL    GRNT,<O(DMOVE),$,RGX,$,O1P>
+        J       MXMN12
+
+;                               MXMNN 11
+MXMN11: CALL    GROF,<O(MOVE),$,RGX,$,O1P>
+
+;                               MXMNN 12
+MXMN12: CALL    ONULL,<$,O1P>
+        SOS     PAR
+
+;                               MXMNN 13
+        SKIPLE  PAR
+        J       MXMNN4
+
+;                               EXIT MXMNN
+        BRETURN MXMNN
+        SUBTTL MXMNS CSTM.3.117.6  MAX OR MIN FOR STRING SCALERS
+        BDCL    MXMNS
+
+;                               MXMNS 3
+MXMNS3: CALL    CKC,<$,O1P,OSSC>
+        CALL    AC2S
+
+;                               MXMNS 4
+        SKIPE   OPID
+        J       MXMNS6
+
+;                               MXMNS 5
+        CALL    CXR,<RSMAX>
+        J       MXMNS7
+
+;                               MXMNS 6
+MXMNS6: CALL    CXR,<RSMIN>
+
+;                               MXMNS 7
+MXMNS7: SOS     PAR
+
+;                               MXMNS 8
+        SKIPLE  PAR
+        J       MXMNS3
+
+;                               EXIT MXMNS
+        BRETURN MXMNS
+        SUBTTL CSFN CSTM.3.118  CALL A STRING FUNCTION
+
+;  block csfn (local to cstm)
+
+;  ! Compiles a call to a string function
+
+;  ttlog()
+;  dec pmck;  opid := ildb(pmcp)  ! Function number
+
+;  do csfnc1(opid) of 0:8
+;  1:  ! 1 space
+;    cnvrt(o2p,int);  ac1()
+;  2:  ! 2 val(1), 3 str(1)
+;    if o2p.oc=omx then opid + := -2-4  ! Matrix, change 2 to -4, 3 to -3
+;  3:  ! 4 left, 5 right, 6 substr(2), 8 cpad, 11 lpad, 12 rpad, 13 rpt, 21 asc(2)
+;    cnvrt(o2p,int);  ldr(1,o2p);  orem(1)
+;  4:  ! 10 char(1)
+;    cnvrt(o2p,int);  ac1();  gri([movei 2,5],0)
+;  5:  ! 17 val(2), 18 str(2)
+;    if o1p.oc=omx then opid + := -17-2  ! Matrix, change 17 to -2, 18 to -1
+;  6:  ! 19 substr(3)
+;    cnvrt(o2p,int);  ldr(3,o2p);  cnvrt(o1p,int);  ldr(1,o1p);  orem(2)
+;  7:  ! 20 index(3)
+;    cnvrt(o2p,int);  ldr(3,o2p);  orem(1)
+;  8:  ! 22 char(2)
+;    cnvrt(o2p,int);  ldr(2,o2p);  cnvrt(o1p,int);  ldr(1,o1p);  orem(2)
+;  end case
+
+;  do csfnc2(opid) of 0:4
+;  1:  ! 0 length, 2 val(1), 4 left, 5 right, 6 substr(2), 8 cpad, 9 asc(1), 11 lpad,
+;      ! 12 rpad, 13 rpt, 14 rjust, 15 ljust, 19 substr(3), 21 asc(2)
+;    ac1s()
+;  2:  ! 3 str(1)
+;    typ := o2p.ot; if typ=string then ac1s else ac1;  gri([movei 3,typ],0)
+;  3:  ! 7 index(2), 16 count, 17 val(2), 20 index(3)
+;    ac2s()
+;  4:  ! 18 str(2)
+;    typ := o1p.ot;  gri([movei 3,typ],0)
+;   if typ#string then (ldr(0,o1p); onull(o1p); ac1s) else ac2s
+;  5:  ! -2 matrix val(2)
+;    ac1s();  ckt(o2p,str)
+;  6:  ! -1 matrix str(2)
+;	cerr(^d50)
+;    ! ac1s();  cknt(o2p,str) is how you would implement it
+;  end case
+
+;  cxr(csfnrr(opid))
+
+;  end csfn
+
+; This table gives information used in generating code for the string
+; functions.  Each function has a line of the form
+; $SF case1,case2,name
+; where case1 is an index for the first case statement in csfn, case2 is
+; an index for the second case statement, and name is the name of the
+; actual runtime routine.  Zero for case1 or case2 means no action done
+; in that case statement.  This table is indexed into by the FNID byte
+; of the SFN PMC operator (negative numbers are generated within csfn.)
+
+        define  $sf(case1,case2,name) <byte (12) case1, case2, name>
+
+        define  csfnc1(id) <[point 12,csfntb(id),11]>
+        define  csfnc2(id) <[point 12,csfntb(id),23]>
+        define  csfnrr(id) <[point 12,csfntb(id),35]>
+
+
+        $sf     0,0,ravl1       ; -4 matrix val(1)
+        $sf     0,0,rast1       ; -3 matrix str(1)
+        $sf     0,5,ravl2       ; -2 matrix val(2)
+        $sf     0,6,rast2       ; -1 matrix str(2)
+csfntb:
+        $sf     0,1,rslen       ;  0 length
+        $sf     1,0,rsblk       ;  1 space
+        $sf     2,1,rsvl1       ;  2 val(1)
+        $sf     2,2,rsst1       ;  3 str(1)
+        $sf     3,1,rslft       ;  4 left
+        $sf     3,1,rsrgt       ;  5 right
+        $sf     3,1,rsbn2       ;  6 substr(2)
+        $sf     0,3,rndx2       ;  7 index(2)
+        $sf     3,1,.cpad      ;  8 cpad
+        $sf     0,1,rsas1       ;  9 asc(1)
+        $sf     4,0,rchar       ; 10 char(1)
+        $sf     3,1,rslpd       ; 11 lpad
+        $sf     3,1,rsrpd       ; 12 rpad
+        $sf     3,1,rsrpt       ; 13 rpt
+        $sf     0,1,rsrjt       ; 14 rjust
+        $sf     0,1,rsljt       ; 15 ljust
+        $sf     0,3,rscnt       ; 16 count
+        $sf     5,3,rsvl2       ; 17 val(2)
+        $sf     5,4,rsst2       ; 18 str(2)
+        $sf     6,1,rsbnl       ; 19 substr(3)
+        $sf     7,3,rndx3       ; 20 index(3)
+        $sf     3,1,rsasc       ; 21 asc(2)
+        $sf     8,0,rchar       ; 22 char(2)
+
+        SALL
+        bdcl    csfn
+
+        call    ttlog
+
+        sos     pmck
+        ildb    1,pmcp
+        movem   1,opid          ; opid := ildb(pmcp)
+
+        ldb     1,csfnc1(1)
+        jrst    .+1(1)          ; do csfnc1(opid) of 0:8
+
+        jrst    csfn1           ; 0
+
+        jrst    [  call cnvrt,<$,o2p,int>          ; 1
+        call    ac1
+        jrst    csfn1  ]
+
+        jrst    [  move 1,o2p   ; 2
+        fget    2,1,oc
+        movni   3,2+4
+        cain    2,omx
+        addm    3,opid
+        jrst    csfn1  ]
+
+        jrst    [  call cnvrt,<$,o2p,int>          ; 3
+        call    ldr,<1,$,o2p>
+        call    orem,<1>
+        jrst    csfn1  ]
+
+        jrst    [  call cnvrt,<$,o2p,int>          ; 4
+        call    ac1
+        call    gri,<$,<[movei 2,5]>,0>
+        jrst    csfn1  ]
+
+        jrst    [  move 1,o1p   ; 5
+        fget    2,1,oc
+        movni   3,17+2
+        cain    2,omx
+        addm    3,opid
+        jrst    csfn1  ]
+
+        jrst    [  call cnvrt,<$,o2p,int>          ; 6
+        call    ldr,<3,$,o2p>
+        call    cnvrt,<$,o1p,int>
+        call    ldr,<1,$,o1p>
+        call    orem,<2>
+        jrst    csfn1  ]
+
+        jrst    [  call cnvrt,<$,o2p,int>          ; 7
+        call    ldr,<3,$,o2p>
+        call    orem,<1>
+        jrst    csfn1  ]
+
+        jrst    [  call cnvrt,<$,o2p,int>          ; 8
+        call    ldr,<2,$,o2p>
+        call    cnvrt,<$,o1p,int>
+        call    ldr,<1,$,o1p>
+        call    orem,<2>
+        jrst    csfn1  ]
+
+csfn1:
+
+        move    1,opid
+        ldb     1,csfnc2(1)
+        jrst    .+1(1)          ; do csfnc2(opid) of 0:4
+
+        jrst    csfn2           ; 0
+
+        jrst    [  call ac1s    ; 1
+        jrst    csfn2  ]
+
+        JRST    CSTR1           ; 2  macro 10 really cant handle literals
+
+        jrst    [  call ac2s    ; 3
+        jrst    csfn2  ]
+
+        jrst    CSTR2           ; macro cant handle literals
+
+        jrst    [  call ac1s    ; 5
+        call    ckt,<$,o2p,str>
+        jrst    csfn2  ]
+
+        jrst    [  call cerr,<^d50>     ;6
+        ; call    cknt,<$,o2p,str>
+        ; jrst    csfn2
+        ]
+
+csfn2:
+
+        move    1,opid
+        ldb     0,csfnrr(1)
+        call    cxr
+
+        jrst    copt$$
+
+CSTR1:  move 1,o2p   ; STR(1)
+        fget    2,1,ot
+        movem   2,typ
+        cail    2,5     ; do we have a string
+        jrst    cstr1a  ;  yes
+        call    ac1
+        skipa
+cstr1a: call    ac1s
+        move    0,typ
+        hrli    0,(movei 3,)
+        call    gri,<,0>
+        jrst    csfn2
+CSTR2:  move    1,o1p
+        fget    0,1,ot
+        movem   0,typ
+        hrli    0,(movei 3,)    ; put type in r3
+        call    gri,<,0>
+        move    2,typ
+        cail    2,5     ; do we have a string?
+        jrst    cstr2a  ;  yep
+        call    ldr,<0,$,o1p>
+        call    onull,<$,o1p>
+        call    ac1s
+        jrst    csfn2
+
+cstr2a: call    ac2s
+        jrst    csfn2
+
+        XALL
+        SUBTTL CUFN CSTM.3.119  CALL A UTILITY FUNCTION
+        BDCL    CUFN
+
+;                               CUFN 1
+        ILDB    1,PMCP
+        MM      1,OPID
+        SOS     PMCK
+
+;                       CUFN 4
+        M       1,OPID
+        CAIN    1,6
+        J       CUFN6
+        CAIE    1,4
+        J       CUFN7
+
+;                               CUFN 5
+        CALL    CNVRT,<$,O2P,INT>
+        CALL    CNVRT,<$,O1P,INT>
+        CALL    AC13
+        J       CUFN8
+
+;                               CUFN 6
+CUFN6:  CALL    CNVRT,<$,O2P,REAL>
+        CALL    AC1
+        J       CUFN8
+
+;                               CUFN 7
+CUFN7:  CALL    CNVRT,<$,O2P,INT>
+        CALL    AC1
+
+;                               CUFN 8
+CUFN8:  MOVE    1,OPID          ; cxr(cufnrr[opid])
+        MOVE    0,CUFNRR(1)
+        CALL    CXR
+
+;                               EXIT CUFN
+        J       COPT$$
+
+
+CUFNRR: RTAB1                   ; 0
+        RLOC                    ; 1
+        RSIZ                    ; 2
+        RRMSG                   ; 3
+        RTAB2                   ; 4
+        RPOS                    ; 5
+        .RNDA                   ; 6
+        SUBTTL CKL FIND OPERAND, MAKE SURE ITS AN INTEGRE, LOAD INTO SPECIFIED REG.
+        DCL     CKL,<R,WW>,<WWWW>
+
+;                               CKL 1
+        CALL    SVR,<$,R>
+        M       1,OPDN
+        SUB     1,WW
+        M       2,OPDL(1)
+        MM      2,WWWW
+        CALL    CNVRT,<$,WWWW,INT>
+        CALL    LDR,<$,R,$,WWWW>
+        CALL    ONULL,<$,WWWW>
+        MI      1,ORSVD
+        M       2,R
+        MM      1,RGSV(2)
+
+;                               EXIT CKL
+        RETURN  CKL
+        SUBTTL CIFPF  SET UP FORMAT FOR INPUT OR PRINT
+        DCL     CIFPF,<N>,<SCD,OPIDD>
+
+;                               CIFPF 1
+        CALL    TTLOG
+        ILDB    1,PMCP
+        MM      1,OPIDD
+        SOS     PMCK
+
+;                               CIFPF 2
+        TRNN    1,3             ; OPIDD IN R1, BOX 1
+        J       CIFPF4
+
+;                               CIFPF 3
+        CALL    CKC,<$,O2P,OSSC>
+        CALL    LDS,<2,$,O2P>,<SCD>
+        CALL    OREM,<1>
+        MI      1,ORSVD
+        MM      1,RGSV+2
+
+;                               CIFPF 4
+CIFPF4: M       1,OPIDD
+        TRNN    1,4
+        J       CIFPF6
+
+;                               CIFPF 5
+        CALL    CNVRT,<$,O2P,INT>
+        CALL    LDR,<1,$,O2P>
+        CALL    OREM,<1>
+        MI      1,ORSVD
+        MM      1,RGSV+1
+
+;                               CIFPF 6
+CIFPF6: M       1,OPIDD
+        TRNN    1,8
+        J       CFPF7A
+
+;                               CIFPF 7
+        CALL    CNVRT,<$,O2P,INT>
+        CALL    LDR,<3,$,O2P>
+        CALL    OREM,<1>
+
+;                               CIFPF 7A
+CFPF7A: CALL    SAVREG
+
+;                               CIFPF 7B
+        M       1,OPIDD
+        TRNN    1,3
+        J       CIFPF8
+
+;                               CIFPF 7C
+        CALL    GRSH,<O(MOVEI),5,$,SCD>
+
+;                               CIFPF 8
+CIFPF8: MOVE    1,OPIDD
+        ANDI    1,3
+        MOVE    0,CIFPFR(1)
+        CALL    CXR
+CFPF11: M       0,OPIDD
+        ADD     0,N
+        CALL    GRI,<,0>
+
+;                               EXIT CIFPF
+        RETURN  CIFPF
+
+CIFPFR: EXP     RION, RIOF, RIOI
+        SUBTTL CNTO  SET CONDITION OFF
+        DCL     CNTO,<N>
+
+;                       CNTO 1
+        M       1,N
+        CAIN    1,FILNUM
+        J       CNTO2
+        CAIE    1,ENDNUM
+        J       CNTO3           ;
+;                       CNTO 2
+CNTO2:  CALL    CNVRT,<$,O2P,INT>
+        CALL    LDR,<3,$,O2P>
+        CALL    OREM,<1>
+
+;                       CNTO 3
+CNTO3:  CALL    GRSH,<O(MOVEI),5,$,N>
+
+        CALL    CXR,<RNOCN>
+
+;                       EXIT CNTO
+        RETURN  CNTO
+        SUBTTL CGOTO  TRANSFER CONTROL TO SPECIFIED LINE NUMBER  (GOTO)
+
+;  procedure cgoto(ins)
+
+;  ! Takes the next 2 PMC bytes as a line number.  Generates the instruction
+;  ! ins with the right halfword containing the address of the code for the
+;  ! line number.
+
+;  pmck - := 3
+
+;  ibp(pmcp)
+
+;  glref(ins,(ildb(pmcp) lsh 9)+ildb(pmcp))
+
+;  end cgoto
+
+
+        dcl     cgoto,<INS>
+
+        movni   0,3
+        addm    0,pmck          ; pmck - := 3
+
+        ibp     pmcp
+
+        move    0,ins
+        ildb    1,pmcp
+        lsh     1,9
+        ildb    2,pmcp
+        add     1,2
+        call    glref           ; glref(ins,(ildb(pmcp) lsh 9)+ildb(pmcp))
+
+        return  cgoto
+        SUBTTL GLREF  GENERATE LINE NUMBER REFERENCE
+
+;  procedure glref(ins,lnum)
+
+;  ! Generates the instruction ins, putting in the right half the
+;  ! address of the code for the line number lnum.  Checks to make sure
+;  ! lnum is a valid line number; generates its actual address if 
+;  ! known or else an entry on a fixup chain.
+
+;  local lrtpp  ! Pointer to the LRT entry for lnum
+;  register t=1 ! Just a temp
+
+;  lrtpp := glnum(lnum)
+;  if lrtpp.lnumb#lnum then [rcln lrtpp;  cerr(5)]  ! Check validity of lnum
+
+;  eif lrtpp.lefg#0 then
+;    do  ! Backward reference, we know its actual address
+;    gri(ins+lrtpp.lcod,wloc)
+;    rcln lrtpp  ! Release LRT entry
+;    end
+;  else
+;    do  ! Forward reference, put it on the fixup chain
+;    t := lrtpp.lcod  ! Previous fixup loc
+;    lrtpp.lcod := rf.code.loc  ! New fixup loc (current loc)
+;    grj(ins,t)
+;    write lrtpp  ! Update LRT entry
+;    end
+
+;  end glref
+
+        SALL
+        dcl     glref,<INS,LNUM>,<LRTPP>
+
+        call    glnum,<$,lnum>,<lrtpp>     ; lrtpp := glnum(lnum)
+
+        move    3,lrtpp
+        fget    0,3,lnumb
+        came    0,lnum          ; if lrtpp.lnumb#lnum then
+        jrst    [  move    1,lrtpp
+        call    rcln
+        call(cerr,<5>)]
+
+        fget    0,3,lefg
+        jumpn   0,[fget 0,3,lcod          ; eif lrtpp.lefg#0 then
+        hll     0,ins
+        movei   1,wloc
+        call    gri             ; gri(ins+lrtpp.lcod,wloc)
+        move    1,lrtpp
+        call    rcln
+        jrst    glref1  ]
+
+        fget    1,3,lcod        ; else r1 := lrtpp.lcod
+        move    2,r%cdlc
+        fput    2,3,lcod        ; lrtpp.lcod := rf.code.loc
+
+        move    0,ins
+        call    grj             ; grj(ins,r1)
+        move    1,lrtpp
+        call    rdty
+
+glref1:
+        return  glref
+        XALL
+        SUBTTL CNTS     SET CONDITION ON
+        DCL     CNTS,<N>
+;                       CNTS 1
+        MOVSI   0,(MOVEI 1,)
+        CALL    CGOTO
+;                               CNTS 10
+CNTS10: M       1,N
+        CAIN    1,FILNUM
+        J       CNTS11
+        CAIE    1,ENDNUM
+        J       CNTS12
+
+;                               CNTS 11
+CNTS11: CALL    CNVRT,<$,O2P,INT>
+        CALL    LDR,<3,$,O2P>
+        CALL    OREM,<1>
+
+;                               CNTS 12
+CNTS12: MOVSI   0,(MOVEI 5,)
+        HRR     0,N
+        CALL    GRI,<,0>
+        CALL    CXR,<RONCN>
+
+;                               EXIT CNTS
+        RETURN  CNTS
+        SUBTTL EXTV  EXIT FROM A SUBROUTINE AND RETURN A VALUE
+        DCL     EXTV,,<SDTP,PROP,WW>
+
+;                               EXTV 1
+        CALL    EXCK,,<SDTP,PROP>
+
+;                       EXTV 1B
+        FGET    1,2,PFDIM
+        MM      1,WW
+        JUMPN   1,XTV3AA
+;                               EXTV 2
+        M       2,SDTP
+        FGET    1,2,STYP
+        CAIE    1,STR
+        J       EXTV4
+
+;                               EXTV 3
+        CALL    AC1S
+;                       EXTV 3A
+EXTV3A: MOVE    3,SDTP
+        FGET    0,3,SLOC
+        HRLI    0,(MOVE 3,@)
+        CALL    GRI,<,UVAR>
+        M       1,SDTP
+        FGET    0,1,SLOC
+        HRLI    0,(AOS)
+        CALL    GRI,<,UVAR>
+;                       EXTV 3CC
+XTV3CC: SKIPE   WW
+        J       EXTV3E
+;                       EXTV 3D
+        CALL    CXR,<RXRS>
+        J       EXTV6
+
+;                       EXTV 3E
+EXTV3E: CALL    CXR,<RAMD>
+        J       EXTV6
+;                       EXTV 3AA
+XTV3AA: CALL    SAVREG
+        CALL    GRM,<2,$,O2P>
+        LSH     1,2
+        M       0,1
+        HRLI    0,(MOVEI)
+        CALL    GRI,<,0>
+        CALL    OREM,<1>
+        J       EXTV3A
+;                               EXTV 4
+EXTV4:  M       2,SDTP
+        FGET    1,2,STYP
+        CALL    CNVRT,<$,O2P>
+        CALL    LDR,<0,$,O2P>
+        CALL    OREM,<1>
+
+;                               EXTV 6
+EXTV6:  CALL    EXDR,<$,SDTP,$,PROP>
+
+;                               EXIT EXTV
+        RETURN  EXTV
+        SUBTTL CAOP  AN ARITHMETIC OPERATION
+        DCL     CAOP,<OPID>,<OXP,OYP,RGX,OPL,TYP,PTYPE,BTYPE,NAME,MAXTYP>
+
+;                               CAOP 0
+
+; Change MUL to * unless both operands are arrays.
+; Change PWR to ^ unless the first operand is an array.
+
+        MOVE    3,O1P
+        FGET    1,3,OC          ; R1 := O1P.OC
+        MOVE    3,O2P
+        FGET    2,3,OC          ; R2 := O2P.OC
+
+        CAIN    0,29
+        JRST    [  CAIN 1,OMX
+        CAIE    2,OMX
+        MOVEI   0,27            ; CHANGE MUL TO *
+        MOVEM   0,OPID
+        JRST    .+1  ]
+
+        CAIN    0,30
+        JRST    [  CAIE 1,OMX
+        MOVEI   0,31            ; CHANGE PWR TO *
+        MOVEM   0,OPID
+        JRST    .+1  ]
+
+;                               CAOP 1
+        CAIN    0,25
+        J       CAOP12
+        CAIE    0,22
+        J       CAOP4
+;                       CAOP 2
+        M       2,O2P
+        FGET    1,2,OT
+        CAIE    1,STR
+        J       CAOP4
+;                       CAOP 2B
+        FGET    4,2,OC
+        M       1,O1P
+        FGET    3,1,OC
+        ADD     3,4
+        J       @CATBL(3)
+CATBL=.-1
+        EXP     CAOP2C,CAOP3,CAOP3B,CAOP3F
+;                       CAOP 2C
+CAOP2C: CALL    CERR,<39>
+;                       CAOP 3
+CAOP3:  CALL    AC2S
+        CALL    CXR,<RSCAT>
+        J       CAOP$$
+
+;                       CAOP 3B
+CAOP3B: CAIE    4,OSSC
+        J       CAOP3D
+;                       CAOP 3C
+        SETZM   0,RGX
+        J       CAOP3E
+;                       CAOP 3D
+CAOP3D: CALL    SWP
+        MI      0,4
+        MM      0,RGX
+;                       CAOP 3E
+CAOP3E: CALL    LDS,<2,$,O2P>
+        ADDM    1,RGX
+        CALL    SVR,<5>
+        CALL    OREM,<1>
+        MOVSI   0,(MOVEI 5,)
+        HRR     0,RGX
+        CALL    GRI,<,0>
+        CALL    CXR,<RSACT>
+        J       CAOP$$
+;                       CAOP 3F
+CAOP3F: CALL    CXR,<RAACT>
+        J       CAOP$$
+;                       CAOP 4
+CAOP4:  CALL    CKNT,<$,O2P,STR>
+        CALL    CKNT,<$,O1P,STR>
+;                       CAOP 5
+        M       1,OPID
+        CAIN    1,29
+        J       CAOP12
+        CAIN    1,30
+        J       CAOP10
+;                       CAOP 6
+        M       1,O2P
+        FGET    0,1,OC
+        M       2,O1P
+        FGET    3,2,OC
+        ADD     0,3
+        CAIN    0,2*OMX
+        J       CAOP9
+        JUMPN   0,CAOP8
+;                       CAOP 7
+        BCALL   CAPNS
+        J       CAOP$$
+;                       CAOP 8
+CAOP8:  BCALL   CAOPM
+        J       CAOP$$
+;                       CAOP 9
+CAOP9:  MOVEI   0,REEOPS        ; WERE GOING TO CALL REEOPS OR REEPWR OR REECMP
+        MOVE    2,O2P
+        FGET    1,2,OT
+        CAIN    1,CMPLX         ; IF EITHER ARG IS COMPLEX
+        MOVEI   0,REECMP        ;  THEN CALL REECMP
+        MOVE    2,O1P
+        FGET    1,2,OT
+        CAIN    1,CMPLX
+        MOVEI   0,REECMP
+
+        MOVE    1,OPID
+        CAIN    1,^D31          ; IF OPID = 31  ^ OR **
+        MOVEI   0,REEPWR        ; THEN CALL REEPWR
+        HRLI    1,(MOVEI 1,)
+        CALL    CXR
+        J       CAOP$$
+;                       CAOP 10
+CAOP10: CALL    CNVRT,<$,O2P,INT>
+        CALL    AC1
+        CALL    CXR,<RMPWR>
+        J       CAOP$$
+;                       CAOP 12
+CAOP12: MI      0,RAINT
+        M       1,OPID
+        CAIE    1,25
+        MI      0,RAMUL
+        CALL    CXR
+;                       EXIT CAOP
+CAOP$$: RETURN  CAOP
+        SUBTTL CAPNS CAOP.7  ARITHMETIC OPERATION BETWEEN NUMERIC SCALERS
+        BDCL    CAPNS
+;                       CAPNS 1   DO WE HAVE A LOGICAL
+        M       1,O2P
+        FGET    0,1,OT
+        JUMPN   0,CAPNS3
+;                       CAPNS 2  YES, CONVERT LOGICAL TO REAL
+        CALL    CNVRT,<$,O2P,INT>
+;                       CAPNS 3  WE HANDLE EXPONENTIATION SEPERATLY
+CAPNS3: M       1,OPID
+        CAIN    1,^D31
+        J       CAPNS8
+
+;                       CAPNS 3 1/2   IF WERE DOING DIV OR MOD, CONVERT COMPLEX TO REAL
+        CAIN    1,24            ;DIV
+        JRST    .+3
+        CAIE    1,28            ;MOD
+        JRST    CAPNS4
+
+        CALL    CNCR,<$,O1P>
+        CALL    CNCR,<$,O2P>
+
+;                       CAPNS 4  MAKE OPERANDS SAME TYPE BY PROMOTING LOWER
+CAPNS4: CALL    SAMTYP
+;                       CAPNS 5
+        M       2,O2P
+        FGET    1,2,OT
+        CAIE    1,CMPLX
+        J       CAPNS7
+        M       3,OPID
+        CAIG    3,23
+        J       CAPNS7
+;                       CAPNS 6
+        BCALL   CAOPC
+        J       CPNS$$
+;                       CAPNS 7
+CAPNS7: BCALL   CAOPN
+        J       CPNS$$
+;                       CAPNS 8
+CAPNS8: MOVE    2,O1P   
+        FGET    1,2,OT          ; TYPE OF BASE IN 1
+        MOVE    4,O2P
+        FGET    3,4,OT          ;TYPE OF POWER IN 3
+        MOVEM   3,PTYPE         ; SAVE POWER TYPE
+
+        CAIGE   R3,REAL         ; base type must be >= real
+        MOVEI   R3,REAL
+        CAML    R1,R3           ; and base type must also be >= power type
+        JRST    CPNS10
+        CALL    CNVRT,<$,O1P,$,3>
+
+CPNS10: MOVE    2,O1P
+        FGET    1,2,OT          ; GET TYPE OF BASE AGAIN
+        MOVEM   1,BTYPE
+        SUBI    1,2
+        ASH     1,2
+        ADD     1,PTYPE
+        MOVE    0,PTABLE-1(1)
+        HLRZM   0,NAME
+        HRRZ    1,0
+        JRST    (1)
+
+
+CPD:    CALL    CNVRT,<$,O2P,DBL>
+        JRST    PWR
+CPC:    CALL    CNVRT,<$,O2P,CMPLX>
+PWR:    CALL    AC13
+        CALL    CXR,<$,NAME>
+        CALL    TVR,<1,$,BTYPE>
+
+
+CPNS$$: BRETURN CAPNS
+
+
+        DEFINE  POWERS<
+        PW(RIPWR,PWR) PW(RRPWR,PWR) PW() PW()
+        PW(DIPWR,PWR) PW(DDPWR,CPD) PW(DDPWR,PWR) PW()
+        PW(CIPWR,PWR) PW(CCPWR,CPC) PW(CCPWR,CPC) PW(CCPWR,PWR)
+>
+
+        DEFINE  PW(N,W)
+        <BYTE   (18) .'N , W
+        >
+
+PTABLE: POWERS
+
+        SUBTTL CAOPM  AN ARITHMETIC OPERATION BETWEEN A SCALER AND AN ARRAY
+        BDCL    CAOPM
+
+;                       CAOPM 1    MAKE O1P THE ARRAY, O2P THE SCALAR
+        M       1,O1P
+        FGET    3,1,OC
+        CAIN    3,OMX
+        J       CAOPM5
+;                       CAOPM 2
+        CALL    SWP
+;                       CAOPM 3
+        M       1,OPID
+        CAIN    1,22
+        J       CAOPM5
+        CAIN    1,27
+        J       CAOPM5
+;                       CAOPM 4  IF NOT COMMUTATIVE, OPID := OPID + 9
+        MI      1,9
+        ADDM    1,OPID
+
+;                       CAOPM 5
+CAOPM5: M       2,O2P
+        FGET    4,2,OT
+        MOVEM   4,TYP   ;O2P/OT -> TYP  FOR A REPWR CALL
+        M       1,OPID
+        CAIN    1,31
+        J       CAOPM8
+        CAIN    1,40
+        J       CAOPM7
+
+;                       CAOPM6  PROMOTE OPERAND OF LOWER TYPE
+        MOVEM   1,TYP   ;OPID -> TYP  FOR A RMSOP CALL
+        M       3,O1P
+        FGET    1,3,OT
+        MOVEM   4,MAXTYP
+        CAMGE   1,4     ; COMPARE TYPES
+        JRST    CAOPM8
+        MOVEM   1,MAXTYP
+        CALL CNVRT,<$,O2P>
+        JRST    CAOPM8
+
+;                       CAOPM 7   we are raising a scalar to an array
+CAOPM7: MOVE    2,O1P
+        FGET    1,2,OT
+        CAMGE   1,TYP
+        JRST    CAPM7A
+        MOVEM   1,TYP
+        CALL    CNVRT,<$,O2P>
+
+CAPM7A: MI      1,10    ; add 10d to type to indicate scalar is on left
+        ADDM    1,TYP
+;                       CAOPM 8
+CAOPM8: CALL    AC1
+        MOVE    1,OPID
+        CAIE    1,31
+        CAIN    1,40
+        JRST    CAOPM9
+        MOVE    0,MAXTYP        ; RMSOP needs max type in r6
+        HRLI    0,(MOVEI 6,)
+        CALL    GRI,<,0>
+        MOVEI   0,RMSOP
+        SKIPA
+CAOPM9: MOVEI   0,REPWR
+        MOVE    1,TYP   ; OPID FOR RMSOP, TYPE FOR REPWR
+        HRLI    1,(MOVEI 5,)
+        CALL    CXR,<,>         ; cxr(if opid=31 or opid=40 then repwr else rmsop,[movei 5,typ])
+;                       EXIT CAOPM
+CAPM$$: BRETURN CAOPM
+        SUBTTL CAOPC CAOP.6  A COMPLEX ARITHMETIC OPERATION
+        BDCL    CAOPC
+
+;                               CAOPC 1
+        M       1,OPID
+        CAIN    1,26
+        J       CAOPC2
+        CAIE    1,27
+        J       CAOPC3
+
+;                               CAOPC 2
+CAOPC2: CALL    AC13
+
+        MOVEI   0,.CDIV         ; cxr(if opid=26 then .cdiv else .cmul)
+        MOVE    1,OPID
+        CAIE    1,26
+        MOVEI   0,.CMUL
+        CALL    CXR
+        J       COPC$$
+
+;                               CAOPC 3
+CAOPC3: CALL    CERR,<24>
+
+;                               EXIT CAOPC
+COPC$$: BRETURN CAOPC
+        SUBTTL CAOPN CAOP.7   ARITHMETIC OPERATION ON AN NUMERIC SCALER
+        BDCL    CAOPN
+
+;                               CAOPN 1
+        M       1,OPID
+        J       @.-21(1)
+        CAOPN2                  ;OPID=22
+        CAOPN3                  ;OPID=23
+        CAOPN5                  ;OPID=24
+        CAOPN8                  ;OPID=25
+        CAOPN5                  ;OPID=26
+        CAOPN4                  ;OPID=27
+        CAOPN5                  ;OPID=28
+
+;                               CAOPN 2
+CAOPN2: BCALL   CANAD
+        J       COPN$$
+
+;                               CAOPN 3
+CAOPN3: BCALL   CANSB
+        J       COPN$$
+
+;                               CAOPN 4
+CAOPN4: BCALL   CANML
+        J       COPN$$
+
+;                               CAOPN 5
+CAOPN5: BCALL   CANDV
+        J       COPN$$
+
+;                       CAOPN 8
+CAOPN8: CALL    CERR,<24>
+;                               EXIT CAOPN
+COPN$$: BRETURN CAOPN
+        SUBTTL CANAD CAOP.7.2   ADD
+        BDCL    CANAD
+
+;                               CANAD 1
+        CALL    EZLD,,<OXP,OYP,RGX>
+
+;                               CANAD 2
+        M       2,O1P
+        FGET    1,2,ONG
+        M       2,O2P
+        FGET    3,2,ONG
+        CAMN    3,1
+        J       CANAD4
+
+;                               CANAD 3
+        CALL    GRG,<QSUB,$,RGX,$,OYP>
+        J       CANAD5
+
+;                               CANAD 4
+CANAD4: CALL    GRG,<QADD,$,RGX,$,OYP>
+
+;                               CANAD 5
+CANAD5: CALL    ONULL,<$,OYP>
+
+;                               EXIT CANAD
+        BRETURN CANAD
+        SUBTTL CANSB CAOP.7.3   SUB
+        BDCL    CANSB
+
+;                               CANSB 1
+        CALL    EZLD,,<OXP,OYP,RGX>
+
+;                               CANSB 2
+        M       2,O1P
+        FGET    1,2,ONG
+        M       2,O2P
+        FGET    3,2,ONG
+        CAMN    1,3
+        J       CANSB4
+
+;                               CANSB 3
+        CALL    GRG,<QADD,$,RGX,$,OYP>
+        J       CANSB5
+
+;                               CANSB 4
+CANSB4: CALL    GRG,<QSUB,$,RGX,$,OYP>
+
+;                               CANSB 5
+CANSB5: M       1,OXP
+        CAMN    1,O1P
+        J       CANSB7
+
+;                               CANSB 6
+        FGET    2,1,ONG         ; OXP IN R1, ABOVE
+        XORI    2,-1
+        FPUT    2,1,ONG
+
+;                               CANSB 7
+CANSB7: CALL    ONULL,<$,OYP>
+
+;                               EXIT CANSB
+        BRETURN CANSB
+        SUBTTL CANML CAOP.7.3   MUL
+        BDCL    CANML
+
+;                               CANML 1
+        CALL    EZLD,,<OXP,OYP,RGX>
+
+;                               CANML 2
+        CALL    GRG,<QMUL,$,RGX,$,OYP>
+
+;                               CANML 3
+        CALL    MULNG,<$,OXP,$,OYP>
+        CALL    ONULL,<$,OYP>
+
+;                               EXIT CANML
+        BRETURN CANML
+        SUBTTL CANDV CAOP.7.6    / , DIV , or MOD
+        BDCL    CANDV
+
+;                       CANDV 1
+        M       1,OPID
+        CAIE    1,26
+        J       CANDV3
+        M       1,O2P
+        FGET    0,1,OT
+        CAILE   0,INT
+        J       CANDV3
+
+;                       CANDV 2
+        CALL    CNVRT,<$,O1P,REAL>
+        CALL    CNVRT,<$,O2P,REAL>
+;                       CANDV 3
+CANDV3: M       1,O1P
+        FGET    0,1,OT
+        CAILE   0,INT
+        J       CANDV5
+
+;                       CANDV 4
+        CALL    FND2R,<$,O1P>,<RGX>
+        CALL    LDR,<$,RGX,$,O1P>
+;                       CANDV 4A
+        M       1,OPID
+        CAIE    1,28
+        J       CNDV5B
+;                       CANDV 4B
+        CALL    NNG12
+        J       CANDV6
+;                       CANDV 5
+CANDV5: CALL    LD,<$,O1P>,<RGX>
+
+;                       CANDV 5B
+CNDV5B: CALL    MULNG,<$,O1P,$,O2P>
+;                       CANDV 6
+CANDV6: M       1,OPID
+        CAIE    1,28
+        J       CANDV8
+        M       1,O2P
+        FGET    0,1,OT
+        CAIG    0,INT
+        J       CANDV8
+
+;                       CANDV 7
+        BCALL   CANMD
+        J       CNDV$$
+
+;                       CANDV 8
+CANDV8: CALL    GRG,<QDIV,$,RGX,$,O2P>
+        CALL    OREM,<1>
+;                       CANDV 9
+        M       1,OPID
+        CAIN    1,28
+        J       CNDV11
+        CAIE    1,24
+        J       CNDV$$
+;                       CANDV 10
+        CALL    CNRSR,<,4>      ;CALL CNRSR WITH OPID=4 ,THE FIX FN
+        J       CNDV$$
+
+;                       CANDV 11
+CNDV11: M       1,RGX
+        M       2,RGSV(1)
+        MM      2,RGSV+1(1)
+        SETZM   0,RGSV(1)
+        ADDI    1,1
+        M       2,O2P
+        FPUT    1,2,OL
+;                       EXIT CANDV
+CNDV$$: BRETURN CANDV
+        SUBTTL CANMD CAOP.7.6.7  FLOATING POINT MOD
+        BDCL    CANMD
+
+;                       CANMD 1
+        CALL    SWP
+        CALL    FNDR,<2>,<RGY>
+        CALL    LDR,<$,RGY,$,O2P>
+
+;                       CANMD 2
+        CALL    GRG,<QDIV,$,RGX,$,O1P>
+
+        MOVE    1,O2P
+        FGET    0,1,OT
+        CAIN    0,DBL
+        JRST    CANMD3
+
+        MOVSI   0,(FIX)
+        M       1,RGX
+        DPB     1,ACZ
+        HRR     0,RGX
+        CALL    GRI,<,0>
+        MOVSI   0,(FLTR)
+        M       1,RGX
+        DPB     1,ACZ
+        HRR     0,RGX
+        CALL    GRI,<,0>
+        JRST    CANMD5
+
+CANMD3: CALL    GRSH,<O(DMOVE),1,$,RGX>
+        CALL    CXR,<.DFIX>
+        CALL    GRSH,<O(DMOVE),$,RGX,1>
+
+;                       CANMD 5
+CANMD5: CALL    GRG,<QMUL,$,RGX,$,O1P>
+        CALL    ONULL,<$,O1P>
+
+;                       CANMD 6
+        M       1,RGX
+        M       2,O2P
+        FPUT    1,2,OL
+        CALL    GRG,<QSUB,$,RGY,$,O2P>
+        M       1,RGY
+        M       2,O2P
+        FPUT    1,2,OL
+
+;                       EXIT CANMD
+        BRETURN CANMD
+               SUBTTL CMFN   A MATH FUNCTION  (LIKE SIN OR COS)
+
+;   This is the new routine to generate code for the math functions
+;       OPID is the number of the function
+;       O2P  at this point points to the arg. If there are 2 arguments then
+;              O1P points to the second arg.
+
+;   This routine uses OPID and O2P.TYP ,the type of the arg, to find in a
+;       table the name of the runside routine,the type of argument it returns,
+;       and where in this routine to go to generate the call
+;       When no runside routine name is given,this routine will generate
+;       inline code
+
+
+        DCL     CMFN,<OPID>,<RGX,TYP,RNAME,RTYPE>
+
+;                       cmfn 1
+        CALL    TTLOG           ; handle a relation as an arg
+        CALL    CKC,<$,O2P,ONSC>   ; make sure arg is a numeric scaler
+        MOVE    2,O2P
+        FGET    1,2,OT          ; get type of O2P
+        MOVEM   1,TYP           ; put in TYP
+        CAIE    1,LOG           ; if type is logical, give error
+        CAILE   1,CMPLX         ; if type is greater than complex, give err
+        SKIPA
+        JRST    CMFN2
+BADTYP: CALL    CERR,<14>       ; operand of wrong type
+
+;                       cmfn 2
+CMFN2:  MOVEI   1,3
+        MOVEM   1,RGX           ; ac3 to be used for type arg
+        MOVE    1,OPID
+        ASH     1,2             ; OPID*4 +TYP
+        ADD     1,TYP
+        MOVE    0,RTABLE-1(1)   ; get table entry for this OPID,TYP
+        LDB     1,NPTR          ; get name of the runside routine
+        MOVEM   1,RNAME
+        LDB     1,TPTR          ; get the type it returns
+        MOVEM   1,RTYPE
+        HRRZ    1,0
+        JRST    (1)             ; branch to location we got from the table
+
+
+IRABS:  FGET    1,2,OM          ; ac2 still contains O2P from above
+        CAIE    1,OREG          ; dont get a register if not needed
+        JRST    IRABS1
+        FGET    1,2,OL
+        MOVEM   1,RGX
+        JRST    IRABS2
+IRABS1: CALL    FNDR,<1>,<RGX>  ; get a register, if needed
+        CALL    SVR,<$,1>
+IRABS2: CALL    GRO,<O(MOVM),$,RGX,$,O2P>    ; heres the movm
+        MOVE    1,RGX
+        MOVE    2,OPDN
+        MOVEM   2,RGSV(1)
+        JRST    DABS1
+
+DABS:   CALL    LD,<$,O2P>,<RGX>   ; double abs, inline code for
+        CALL    GRSH,<O(SKIPGE),0,$,RGX>
+        CALL    GRSH,<O(DMOVN),$,RGX,$,RGX>
+
+DABS1:  MOVE    2,O2P           ; set up an operand stack entry for the result
+        MOVE    1,RGX
+        FPUT    1,2,OL
+        MOVEI   1,OREG
+        FPUT    1,2,OM
+        MOVEI   1,0
+        FPUT    1,2,ONG
+        JRST    cmfn$$
+
+;                       generates calls to runside routines
+
+RN1I:   CALL    CNVRT,<$,O2P,REAL> ; routine with one arg,an integer
+RN1:    CALL    AC1             ; routine with one arg
+        JRST    GENPSH
+
+RT1:    CALL    AC1             ; routine with one arg,needs type
+GETYPE: MOVSI   0,(MOVEI)       ; generate code to get type
+        HRR     0,TYP
+        MOVE    1,RGX
+        DPB     1,ACZ
+        CALL    GRI,<,0>
+GENPSH: CALL    CXR,<$,RNAME>   ; generate call to runside routine[
+        CALL    TVR,<1,$,RTYPE>
+        JRST    CMFN$$
+
+
+;        routine with a complex operand that needs to be converted to a real
+RTCR:   CALL    CNCR,<$,O2P>    ; here we convert a complex to a real and goto RN1
+        MOVEI   0,REAL
+        MOVEM   0,TYP
+        JRST    RN1
+
+;        routine with a complex operand that needs to be converted to a real
+RTCRT:  CALL    CNCR,<$,O2P>    ; convert complex to real and call routine that needs type
+        MOVEI   0,REAL
+        MOVEM   0,TYP
+        JRST    RT1
+
+RT2:    CALL    CKC,<$,O1P,ONSC>   ; routine with 2 args, needs type (like ATAN2)
+        CALL    SAMTYP
+        CALL    CKNT,<$,O2P,CMPLX>
+        MOVE    2,O2P
+        FGET    1,2,OT
+        MOVEM   1,TYP
+        CALL    AC13
+        MOVEI   1,5
+        MOVEM   1,RGX
+        JRST    GETYPE
+
+; below is the table thats used to generate calls to the math routines
+; each line has 4 entries, one each for integer,real,double, and complex
+; each entry contains:
+;       the name of the runside routine,if there is one
+;       the type code for the result of that routine
+;       the location in cmfn to generate the call,or generate the inline 
+;        code, or give the error message
+
+
+CMFN$$: return  CMFN
+
+        define  MTHFUN <
+
+        MF(,,IRABS)  MF(,,IRABS)  MF(,,DABS)  MF(CABS,REAL,RN1)
+        MF(SQRT,DBL,RT1)  MF(SQRT,DBL,RT1)  MF(SQRT,DBL,RT1)  MF(CSQRT,CPLX,RN1)
+        MF(SSIN,REAL,RN1I)  MF(SSIN,REAL,RN1)  MF(DSIN,DBL,RN1)  MF(CSIN,CPLX,RN1)
+        MF(SCOS,REAL,RN1I)  MF(SCOS,REAL,RN1)  MF(DCOS,DBL,RN1)  MF(CCOS,CPLX,RN1)
+        MF(STAN,REAL,RN1I)  MF(STAN,REAL,RN1)  MF(DTAN,DBL,RN1)  MF(CTAN,CPLX,RN1)
+        MF()    MF()  MF()  MF()
+        MF()    MF()  MF()  MF()
+        MF()    MF()  MF()  MF()
+        MF()    MF()  MF()  MF()
+        MF()    MF()  MF()  MF()
+        MF(ASIN,REAL,RT1)  MF(ASIN,REAL,RT1)  MF(ASIN,REAL,RT1)  MF(ASIN,REAL,RTCRT)
+        MF(ACOS,REAL,RT1)  MF(ACOS,REAL,RT1)  MF(ACOS,REAL,RT1)  MF(ACOS,REAL,RTCRT)
+        MF(ATAN,REAL,RT1)  MF(ATAN,DBL,RT1)  MF(ATAN,DBL,RT1)  MF(ATAN,DBL,RTCRT)
+        MF(SINH,REAL,RT1)  MF(SINH,REAL,RT1)  MF(SINH,REAL,RT1)  MF(SINH,REAL,RTCRT)
+        MF(COSH,REAL,RT1)  MF(COSH,REAL,RT1)  MF(COSH,REAL,RT1)  MF(COSH,REAL,RTCRT)
+        MF(TANH,REAL,RT1)  MF(TANH,REAL,RT1)  MF(TANH,REAL,RT1)  MF(TANH,REAL,RTCRT)
+        MF(SLOG,REAL,RN1I)  MF(SLOG,REAL,RN1)  MF(DLOG,DBL,RN1)  MF(CLOG,CPLX,RN1)
+        MF()    MF()  MF()  MF()
+        MF(SLGT,REAL,RN1I)  MF(SLGT,REAL,RN1)  MF(DLGT,DBL,RN1)  MF(DLGT,REAL,RTCR)
+        MF(SEXP,REAL,RN1I)  MF(SEXP,REAL,RN1)  MF(DEXP,DBL,RN1)  MF(CEXP,CPLX,RN1)
+
+        MF()    MF()  MF()  MF()
+        MF(ATAN2,REAL,RT2)  MF(ATAN2,DBL,RT2)  MF(ATAN2,DBL,RT2)  MF(ATAN2,DBL,RT2)
+
+>
+
+
+
+NPTR:   point   9,0,8
+TPTR:   point   9,0,17
+
+        define  MF(N,T,W)
+        <BYTE   (9) .'N  (9)T  (18)W
+        >
+
+        SALL
+RTABLE: MTHFUN
+        XALL
+
+        SUBTTL C1NFN   THE SGN FUNCTION
+        DCL     C1NFN,,<RGX>
+
+
+;                               C1NFN 1
+        CALL    LD,<$,O2P>,<RGX>
+        M       4,r%cdlc
+        ADDI    4,3
+        CALL    GR,<O(JUMPGE),$,RGX,0,0,,LOC>
+        CALL    GRSH,<O(SETO),$,RGX,0>
+        M       0,r%cdlc
+        ADDI    0,5
+        CALL    JMP
+        M       4,r%cdlc
+        ADDI    4,3
+        CALL    GR,<O(JUMPN),$,RGX,0,0,,LOC>
+        CALL    GRSH,<O(SETZ),$,RGX,0>
+        CALL    GRSH,<O(SKIPA),0,0>
+        CALL    GRSH,<O(MOVEI),$,RGX,1>
+        CALL    OREM,<1>
+        CALL    TVR,<$,RGX,INT>
+
+;                               EXIT C1NFN
+
+
+        RETURN  C1NFN
+               SUBTTL  C2NFN    THE INT FUNCTION
+        DCL     C2NFN
+        MOVE    1,O2P
+        FGET    0,1,OT          ;GET TYPE OF ARG
+
+        CAIN    0,DBL
+        JRST    C2DBL           ; DOUBLE PRECISION ARG
+        CAIE    0,CMPLX
+        CAIN    0,REAL
+        JRST    C2REAL          ;REAL ARG
+
+        CALL    CNVRT,<$,O2P,INT>       ;INTEGER OR LOGICAL ARG
+        CALL    AC1
+        JRST    C2N$$
+
+C2DBL:  CALL    AC1
+        CALL    CXR,<.DINT>
+        JRST    C2N$$
+
+C2REAL: CALL    AC1
+        CALL    CXR,<.SINT>
+
+C2N$$:  CALL    TVR,<1,INT>
+        RETURN  C2NFN
+               SUBTTL  CNRSR   ; CALL RUNSIDE ROUTINE FOR IP,FP,ROUN, AND FIX
+                                ;       OPID IS IN AC1 WHEN CNRSR IS CALLED
+
+        DCL     CNRSR,,<TOPID>
+                                ;       HANDLE NUMERIC FUNCTION THAT CALLS A
+                                ;       RUNSIDE ROUTINE
+        MOVEM   1,TOPID         ; OPID TO TEMP
+        MOVE    1,O2P
+        FGET    0,1,OT          ;GET TYPE OF ARG
+
+        CAIN    0,DBL
+        JRST    CNDBL           ;DOUBLE PRECISION ARG
+        CAIE    0,CMPLX
+        CAIN    0,REAL
+        JRST    CNREAL          ;REAL ARG
+
+        CALL    CNVRT,<$,O2P,INT>       ;LOGICAL OR INTEGER ARG
+        MOVE    2,TOPID
+        CAIE    2,3             ;OPID=3? FP OF INTEGER
+        JRST    CNNOP           ;NO, GO PUT ARG IN AC 1
+        CALL    OREM,<1>
+        CALL    GRI,<$,<[SETZ 1,0]>,0>    ;FP OF INTEGER =0
+        SKIPA
+CNNOP:  CALL    AC1
+        CALL    TVR,<1,INT>
+        JRST    CNEND
+
+CNDBL:  CALL    AC1
+        MOVE    2,TOPID
+        CALL    CXR,<$,DRNAME(2)>
+        CALL    TVR,<1,DBL>
+        JRST    CNEND
+
+CNREAL: CALL    AC1
+        MOVE    2,TOPID
+        CALL    CXR,<$,SRNAME(2)>
+        CALL    TVR,<1,REAL>
+
+CNEND:  RETURN  CNRSR
+
+SRNAME: EXP     0,0,.SINT,.SFP,.SFIX,.SROUN,0,0,.SIP
+DRNAME: EXP     0,0,.DINT,.DFP,.DFIX,.DROUN,0,0,.DIP
+
+
+        SUBTTL CNCR   CHANGE A COMPLEX OPERAND TO A REAL
+        DCL     CNCR,<OP>
+
+;                               CNCR 1
+        M       2,OP
+        FGET    1,2,OT
+        CAIE    1,CMPLX
+        J       CNCR$$
+
+;                               CNCR 2
+        CALL    CNVRT,<$,OP,REAL>
+
+;                               EXIT CNCR
+CNCR$$: RETURN  CNCR
+        SUBTTL CCFN     DO A COMPLEX FUNCTION
+        DCL     CCFN,<OPID>,<RGX,RGY>
+
+;                               CCFN 1
+        M       1,OPID
+        J       @CCFT(1)
+;               CMPLX, REAL ,IMAG ,PHASE,POLAR, CONJ
+CCFT:   EXP     CCFN2,CCFN5A,CCFN6,CCFN6,CCFN2,CCFN6
+
+;                               CCFN 2
+CCFN2:  CALL    CKC,<$,O2P,ONSC>
+        CALL    CKC,<$,O1P,ONSC>
+        CALL    CKNT,<$,O2P,CMPLX>
+        CALL    CKNT,<$,O1P,CMPLX>
+
+;                               CCFN 3
+        SKIPE   OPID
+        J       CCFN5
+
+;                               CCFN 4
+        BCALL   CFNO
+        J       CCFN$$
+
+;                               CCFN 5
+CCFN5:  CALL    CNVRT,<$,O2P,DBL>
+        CALL    CNVRT,<$,O1P,DBL>
+        CALL    AC13
+        CALL    CXR,<.POLR>
+        J       CCFN$$
+
+;                       CCFN 5A
+CCFN5A: CALL    CNVRT,<$,O2P,REAL>
+        J       CCFN$$
+;                               CCFN 6
+CCFN6:  CALL    CKC,<$,O2P,ONSC>
+        CALL    CKT,<$,O2P,CMPLX>
+
+;                               CCFN 7
+        M       1,OPID
+        CAIN    1,5
+        J       CCFN11
+        CAIN    1,3
+        J       CCFN10
+
+CCFN9:  CALL    LD,<$,O2P>,<RGX>
+        SETZM   RGSV(1)
+        MI      1,REAL
+        M       2,O2P
+        FPUT    1,2,OT
+        M       1,RGX
+        ADDI    1,1
+        FPUT    1,2,OL
+        J       CCFN$$
+
+;                               CCFN 10
+CCFN10: CALL    LDR,<0,$,O2P>
+        CALL    OREM,<1>
+        CALL    SAVREG
+        MOVSI   0,(MOVE 3,)
+        CALL    GRI,<,0>
+        M       0,[MOVEI 5,REAL]
+        CALL    GRI,<,0>
+        CALL    CXR,<.ATAN2>
+        CALL    TVR,<1,DBL>
+        J       CCFN$$
+
+;                               CCFN 11
+CCFN11: CALL    LD,<$,O2P>,<RGX>
+        M       1,RGX
+        ADDI    1,1
+        MOVE    2,1
+        CALL    GRSH,<O(MOVN)>
+
+;                               EXIT CCFN
+CCFN$$: RETURN  CCFN
+        SUBTTL CFNO CSTM.3.114.4  LOAD TWO OPS INTO ADJACENT REGS AND CALL IT COMPLEX
+        BDCL    CFNO
+
+
+; We do a bit of optimizing here. If they are already in adjacent regs
+; we just call it complex, if one is in a reg already we just move the other
+; into the right place.
+;                               CFNO 1  MAKE EM BOTH REAL AND SAVE THEIR LOCATIONS
+        ; must resolve pending negation here because we may do an optimizing
+        ; trip that would result in losing the pend neg flag
+        CALL    NNG12
+        CALL    CNVRT,<$,O2P,REAL>
+        CALL    CNVRT,<$,O1P,REAL>
+        M       2,O1P
+        FGET    1,2,OL
+        MM      1,RGX
+        M       2,O2P
+        FGET    1,2,OL
+        MM      1,RGY
+
+;                               CFNO 2   IS THE IMAG PART IN A REG, BUT NOT R0 ?
+;                                        (IF NOT WE GO TO CFNO 5 )
+        FGET    1,2,OM          ; O2P IN R2, BOX 1
+        CAIE    1,OREG
+        J       CFNO5
+        M       1,RGY
+        JE      1,CFNO5
+
+;                               CFNO 3 IS THE REAL PART IN THE PRECEEDING REG ALREADY ?
+;                                       (IF SO  GO TO CFNO 8 )
+        M       2,O1P
+        FGET    1,2,OM
+        CAIE    1,OREG
+        J       CFNO4
+        M       1,RGX
+        ADDI    1,1
+        CAMN    1,RGY
+        J       CFNO8
+
+;                               CFNO 4  HERE THE IMAG PART IS IN A REG SO WE 
+;                                       WILL MOVE THE REAL PART INTO THE
+;                                         PRECEEDING REGISTER.
+CFNO4:  M       1,RGY
+        SUBI    1,1
+        MM      1,RGX
+        CALL    SVR,<$,1>
+        CALL    LDR,<$,RGX,$,O1P>
+        J       CFNO8
+
+;                               CFNO 5  THE IMAG PART WAS NOT IN A REG SO HERE
+;                                       WE CHECK TO SEE IF THE IMAG PART IS IN
+;                                       A REG. (BUT WE DISALLOW R5 ????)
+CFNO5:  M       2,O1P
+        FGET    1,2,OM
+        CAIE    1,OREG
+        J       CFNO7
+        M       1,RGX
+        CAIN    1,5
+        J       CFNO7
+
+;                               CFNO 6  HERE THE REAL PART IS IN A REG SO WE
+;                                       PUT THE IMAG PART IN THE PROCEEDING REG.
+        M       0,RGX
+        ADDI    0,1
+        CALL    SVR
+        M       0,RGX
+        ADDI    0,1
+        CALL    LDR,<,$,O2P>
+        J       CFNO8
+
+;                               CFNO 7  NO LUCK, WE HAVE TO MOVE THEM BOTH.
+CFNO7:  CALL    FNDR,<2>,<RGX>
+        CALL    LDR,<$,RGX,$,O1P>
+        M       0,RGX
+        ADDI    0,1
+        CALL    LDR,<,$,O2P>
+
+;                               CFNO 8   AND WE CALL IT COMPLEX
+CFNO8:  CALL    OREM,<2>
+        CALL    TVR,<$,RGX,CMPLX>
+
+;                               EXIT CFNO
+        BRETURN CFNO
+
+END
+\ }‡
