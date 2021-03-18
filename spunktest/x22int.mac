@@ -1,0 +1,16 @@
+        title   x22int
+;
+;
+; This routine is basically a dummy routine for the X22 user
+; to reference and thereby cleanly force the loading of DBTBA. To
+; do this the user places a "DEF EXTERNAL X22INT" statement in his
+; program and a "CALL X22INT" statement somewhere in his code. For 
+; sanitary reasons, it is suggested that the CALL be near  the start
+; of his code but in fact it doesn't matter where it is or if it is
+; ever executed.
+;
+;
+        intern  x22int
+        extern  dbtba
+x22int: popj    17,
+        end
