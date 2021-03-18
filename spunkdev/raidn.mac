@@ -1,0 +1,96 @@
+        TITLE   RAIDN
+        TWOSEG
+        RELOC   ^O400000
+;
+;  MAKE IDENTITY MATRIX
+;
+        ENTRY   RAIDN
+        EXTERN  RSSA
+        RADIX   10
+;
+        OPDEF   ERROR   [^O32B8]
+;
+R0==0
+R1==1
+R2==2
+R3==3
+R4==4
+R5==5
+R6==6
+R7==7
+R8==8
+R9==9
+R10==10
+R11==11
+RXP==15
+;
+RAIDN:
+;  .1
+        MOVEM   R3,ASAV
+;  .2
+        SETZ    R1,
+        SETZ    R2,
+        CALL    RSSA
+;  .3
+        MOVE    R3,ASAV
+        MOVE    R1,.bnd1(R3)
+        HLREM   R1,A
+        HRRE    R1,R1
+        SUB     R1,A
+        MOVEM   R1,BND
+        MOVE    R1,.bnd2(R3)
+        HLREM   R1,B
+        HRRE    R1,R1
+        SUB     R1,B            ;R1=BSZ
+        MOVEI   R4,aryhdr(2)(r3)
+        MOVEM   R4,ACODE
+        SETZM   NDX
+;  .4
+        HRRZ    R2,.andim(R3)
+        CAIN    R2,2            ; /ANDIM=2 AND
+        CAME    R1,BND          ;BND = BSZ ?
+;  .5
+        JRST    ERROUT
+;  .6.1,2,3
+        MOVEI   R2,1
+        HLRZ    R1,.atyp(R3)    ; /ATYP
+        CAIL    R1,2
+        HRLZI   R2,^O201400
+        MOVEM   R2,ONE
+;  .6.4
+RAID64: MOVE    R1,A
+        MOVE    R2,B
+        PUSHJ   RXP,@ACODE
+        MOVE    R1,ONE
+        MOVEM   R1,(R2)
+;  .6.5
+        AOS     A
+        AOS     B
+        AOS     R1,NDX
+;  .6.6
+        CAMG    R1,BND
+        JRST    RAID64
+;
+        POPJ    RXP,
+;
+;
+;  ERROR EXIT
+ERROUT: ERROR   ME11
+;
+;
+        LIT
+;
+;  VARIABLES
+;
+        RELOC   0
+;
+A:      BLOCK   1
+B:      BLOCK   1
+ACODE:  BLOCK   1
+ONE:    BLOCK   1
+NDX:    BLOCK   1
+BND:    BLOCK   1
+ASAV:   BLOCK   1
+;
+;
+        END
