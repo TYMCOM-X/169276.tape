@@ -1,0 +1,1562 @@
+        TWOSEG
+        RELOC   ^O400000
+        TITLE PARSE7
+
+        extern  getsw
+        EXTERN  ADDFLG,BINCDE,BINPOS,BUFPCL,BUFPMC,BUFTCL,BUFTXT,CCHR,CERCNT
+        EXTERN  CHPACK,CKR0,CLRFLG,CRETPT,CUREDR,DATPT
+        EXTERN  DEBGSW,DECLSW,DIRP,DIRPC,DTAV,DTAVC,ECHRS,EDDONE
+        EXTERN  EDMOD,EDRGCT,EDTRGS,ENTR,ERRTBL,ESCFLG,GCOMSW,GETADR
+        EXTERN  GETPTR,GOODPT,HADRAD,HB,HIGHLN,HSHCON,HVX,INEDR,INPBUF,LDFLG
+        EXTERN  LIBFG,LIBT,LIBTC,LINCT,LINMAC,LINMAP,LINPTR,LOC,LOWLN,LPOINT
+        EXTERN  LPONT1,LRT,LRTC,LSTREC,MAXNDX,MDUFG,MDUT,MDUTC,NAMIDX
+        EXTERN  NAMPGS,NAMPTR,NEWPT,NMSLFT,NN,NRSW,NT,OLDBUF,OUTCT,OUTPTR
+        EXTERN  PARDT,PARDTC,PMC,PMCC,PRODT,PRODTC,PSW,PWBUF
+        EXTERN  RENREC,RTXT,RTXTC,S.MOD,SNMBR,STRTNM,SVDEBG,SXWORK
+        EXTERN  SYMPOS,TOFFLG,TPOS,TWBUF,TXT,TXTC,UNBCB,UOBCB,WDPRPG
+        EXTERN  WINOCL,WINOLN,WINPCL,WINPMC,WINTCL,WINTXT
+
+        EXTERN  G0,G1,G2
+        EXTERN  VMEMAD,TBLVEC,NUMTBL,SEGNO,RUNPPN,READDT,STARTP,GETVM,PGQTMD
+        EXTERN  NAMDIC,PGBASE,LOWEND
+        EXTERN  MARK,RESET,RESUME,LININ,LRTNMB,PTRINC, UPBUF,CMBCB,CMBUF
+        EXTERN  GETLIN,CXMO,CXTDO,CXER1,CXER2,STOPT,GETREP
+        EXTERN  TOPN,VOPN,TNEW,TLOC,TPOP,TRLS,VRLS
+        EXTERN  VPUT,VPOP,VGET,VRPL,TSTART,TNEXT
+        EXTERN  VSTART,VNEXT,LALOC,LFREE,RFRE,CLOSEF
+        EXTERN  MOVEC
+
+
+                                        SUBTTL  INITP
+        DCL     INITP,,<<SIXBag,sxsiz>>
+
+        CALL    STARTP
+
+                ; set paging area parameters - pgbase, pglim, etc.
+        call    pparam
+
+                ; open the vmf, establish VMEMAD
+        CALL    GETVM,sixbag
+        open    sixbag,,SUPER,,<RZ,SET.TEMP,IM>
+        MOVEM   R2,VMEMAD
+
+        ADDI    R2,VMBASE
+        LSH     R2,-PEX
+        ADDI    R2,1
+        LSH     R2,PEX
+        MOVEM   R2,G0
+        MOVEM   R2,G2           ; G0 IN R2
+        MOVE    R1,R2
+        READ    R1;              ; G1 IN R1
+        HRRZ    R1,R1
+        HRREI   R3,-4
+        MOVEM   R3,1(R1)
+        MOVEM   R3,4(R1)
+        ADDI    R2,4
+        MOVEM   R2,2(R1)
+        MOVEM   R2,3(R1)
+        MOVEI   R4,PSIZE-^O10
+        MOVEM   R4,5(R1)
+        MOVEM   R4,PSIZE-4(R1)
+        SUBI    R2,4
+        MOVEM   R2,6(R1)
+        MOVEM   R2,7(R1)
+        MOVEM   R3,PSIZE-3(R1)
+        SETZM   TBLVEC
+        MOVE    R2,[XWD TBLVEC,TBLVEC+1]
+        BLT     R2,TBLVEC+NUMTBL-1
+
+        SETZM   NAMDIC
+        MOVE    R2,[XWD NAMDIC,NAMDIC+1]
+        BLT     R2,NAMDIC+NAMPMX-1
+
+        MOVEM   R1,G1
+        HRROI   R1,^O-25
+        GETTAB  R1,
+        SKIP
+        MOVEM   R1,RUNPPN
+
+        RETURN  INITP
+        subttl  pparem - set paging area parameters
+
+        ; Round up .JBFF to a page boundary. (Notice that we're
+        ; screwed if the parse phase, where this code lives, ever
+        ; comes up with a smaller .JBFF than the compile phase,
+        ; such that the first page of paging area overlays some
+        ; compiler locals.
+
+        ; Set PGBASE, PGLIM, PGMIN, PGMAX, PGWRK, PGFLAG
+
+        ; Do the first CORE uuo.
+
+        extern  .JBFF, .JBREL, CTSIZE
+        extern  PGBASE, PGLIM, PGMIN, PGMAX, PGWRK, PGFLAG
+
+        ; These constants are set as separate cells for patching
+        ; convenience.
+inipmn: 5
+inipwk: ^d70
+
+dclne   pparam
+
+                ; Round up .jbff and establish PGBASE
+        hrrz    .jbff
+        addi    psize-1
+        andcmi  psize-1
+   ifn debmod, <
+        extern  pgarea  ; this trip for the benefit of
+        movem   pgarea  ; VALPCA in pager
+   >
+        lsh     -pex    ; to produce page number
+        movem   pgbase
+
+                ; set pgmin
+        add     inipmn
+        movem   pgmin
+
+                ; set pgwrk = max( pgbase+inipwk, pgmin)
+        move    pgbase
+        add     inipwk
+        camge   pgmin
+        move    pgmin
+        movem   pgwrk
+
+                ; set pgmax = ctsize. Verify pgwrk, pgmin are in range.
+        movei   ctsize
+        movem   pgmax
+        camge   pgwrk
+        movem   pgwrk
+        camge   pgmin
+        movem   pgmin
+
+                ; Do the core uuo.
+        move    pgmin
+        lsh     pex
+        subi    1
+        core    r0,
+        jfcl            ; We have to do something better for failure.
+
+                ; Set pglim from .jbrel
+        hrrz    .jbrel
+        addi    1
+        lsh     -pex
+        movem   pglim
+
+                ; Set pgflag = pgwrk-pglim
+        sub     pgwrk
+        movnm   pgflag
+
+        return  pparam
+                                        SUBTTL  RUNCOM
+        DCL     RUNCOM
+
+        CALL    STARTP
+
+                ;zero parser locals (above saved area - includes PARSE8)
+                ;to avoid problems with garbage returning from runside
+        MOVE    R1,PGBASE
+        LSH     R1,PEX
+        SUBI    R1,1
+        SETZM   LOWEND
+        MOVE    R2,[XWD LOWEND,LOWEND+1]
+        BLT     R2,(R1)
+
+        CALL    READDT
+
+        MOVEI   R2,NUMTBL-1
+
+RUNC2:  MOVE    R1,TBLVEC(R2)   ;lock in all appropriate table package pages
+
+        jumpe   r1,skpdes
+        read    r1
+
+SKPDES: HRRZM   R1,TBLVEC(R2)
+
+        SOJGE   R2,RUNC2
+
+        MOVE    R2,NAMPGS       ;lock in all currently allocated NAMDIC pages
+        JUMPE   R2,RUNC4        ;no name dictionary pages to lock in
+RUNC3:  MOVE    R1,NAMDIC-1(R2) ;get virtual addr from ptr vector
+        IFN     DEBMOD,<
+        TLNN    R1,^O777777     ;channel # better not be 0
+        HALT
+                       >
+        READ    R1
+        HRRZM   R1,NAMDIC-1(R2) ;store core addr with zero left half
+        SOJG    R2,RUNC3
+
+
+RUNC4:  CALL    PGQTMD        ;Set up quit module name for direct stmt context
+        MOVEI   R1,2
+        MOVEM   R1,SEGNO
+
+        RETURN  RUNCOM
+                                SUBTTL   IZCORE CHART U2
+        DCL      IZCORE
+
+;                         IZCORE 1
+        SETZM    0,LDFLG
+
+;                         IZCORE 2
+        MOVEI   1,INPBUF
+        MOVEM   1,BUFTXT
+        MOVEI   1,TWBUF
+        MOVEM   1,WINTXT
+        MOVEI   1,BINCDE
+        MOVEM   1,BUFPMC
+        MOVEI   1,PWBUF
+        MOVEM   1,WINPMC
+        MOVEI   1,OLDBUF
+        MOVEM   1,WINOLN
+        MOVEI    1,LINMAX+1
+        HRRM     1,BUFTCL
+        HRRM     1,WINTCL
+        HRRM    1,WINOCL
+        MOVEI    1,PMCSZ
+        HRRM     1,BUFPCL
+        HRRM     1,WINPCL
+
+
+;                       IZCORE 3
+        CLRFN   STRTNM
+        CLRFN   SXWORK
+        SETZM   0,MDUFG
+        SETZM   0,LIBFG
+        SETZM   0,S.MOD
+        SETZM   0,CLRFLG
+        SETZM   0,DEBGSW
+        SETZM   0,DECLSW
+        SETZM   0,NAMPGS
+        MI      1,INPBUF
+        MM      1,UNBCB
+        MI      1,OLDBUF
+        MM      1,UOBCB
+        MI      1,LINMAX
+        MM      1,UNBCB+1
+        MM      1,UOBCB+1
+
+
+;                         EXIT IZCORE
+        RETURN   IZCORE
+                                SUBTTL   PCLEAR CHART U3
+        DCL      PCLEAR
+
+;                         PCLEAR 1
+        CALL     TRLS,<$,LRT>
+
+;                         PCLEAR 2
+        CALL     VRLS,<$,TXT>
+
+;                         PCLEAR 3
+        CALL     VRLS,<$,PMC>
+
+;                       PCLEAR 4
+        SETZM   0,HVX
+        HRRI    1,HVX+1
+        HRLI    1,HVX
+        BLT     1,HVX+127
+
+;                         EXIT PCLEAR
+        RETURN   PCLEAR
+                                SUBTTL   FSTLN CHART U5
+        DCL      FSTLN
+
+;                         FSTLN 1
+        CALL     TLOC,<$,LRT,FSTH>
+
+;                         FSTLN 2
+        MOVEM    1,LPOINT
+
+;                         EXIT FSTLN
+        RETURN   FSTLN
+                                SUBTTL   NXTLN CHART U6
+        DCL      NXTLN
+
+;                         NXTLN 1
+        MOVE     1,LPOINT
+        FGET     2,1,LNXT
+        MOVEM    2,LOC
+
+;                       NXTLN 2
+        CALL    RFRE,<$,LPOINT>
+
+;                         NXTLN 3
+        CALL     TLOC,<$,LRT,$,LOC>
+
+;                         NXTLN 4
+        MOVEM    1,LPOINT
+
+;                         EXIT NXTLN
+        RETURN NXTLN
+                                SUBTTL   WINSYM CHART U9
+        DCL      WINSYM
+
+;                         WINSYM 1
+        MOVE     1,0
+        FGET     2,1,LTXT
+        MOVEM    2,LOC
+
+;                         WINSYM 2
+        CALL     VGET,<WINTXT,$,TXT,$,LOC>
+
+;                         WINSYM 3
+        MOVE    1,[POINT 7,TWBUF]
+
+;                         WINSYM 4
+        HLRZ     2,WINTCL
+
+;                         EXIT WINSYM
+        RETURN   WINSYM
+                                SUBTTL   INPMSG CHART U10
+        DCL      INPMSG
+
+;                       INPMSG 0
+        SETZM   0,TOFFLG
+
+;                         INPMSG 1
+        MOVE    1,LDFLG
+        CAIN    1,2
+        JRST    INPM4
+        CAIN    1,1
+        JRST    INPM3
+
+;                         INPMSG 2
+        BCALL    INPLIN
+        JRST     INPM5
+
+;                         INPMSG 3
+INPM3:  CALL     LININ
+        JRST    INPM5
+
+;                         INPMSG 4
+INPM4:  BCALL   LDREN
+
+;                       INPMSG 5
+INPM5:  MOVE     1,[POINT 7,INPBUF]
+        MOVEM    1,LINPTR
+        MOVEM   1,GOODPT
+        MOVEM   1,NEWPT
+
+;                       INPMSG 6
+        CALL    ESCCHK
+
+;                         EXIT INPMSG
+        RETURN   INPMSG
+                                SUBTTL   INPLIN CHART U10.2
+;EDIT, MODIFY, ENTER, and Command Input
+
+        BDCL     INPLIN
+
+;                         INPLIN 1
+        SKIPN   0,EDMOD
+        J       INPL3
+
+;                               INPLIN 2
+        BCALL   GTEDLN
+
+;                               INPLIN 3
+INPL3: SKIPLE   0,EDMOD
+        J       INPL9
+
+;                               INPLIN 4
+        SKIPE   0,ENTR
+        J       INPL6
+
+;                               INPLIN 5
+        BCALL   GETREG
+        J       INPL6A
+
+;                               INPLIN 6
+INPL6: BCALL    GETENT
+
+;                       INPLIN 6A
+INPL6A: CALL    LINCON
+
+;                               INPLIN 7-8
+       M        1,EDMOD
+        CAMN    1,[-1]
+        SETZM   0,EDMOD
+
+;                               INPLIN 9
+INPL9: BCALL    PUTOLD
+
+;                               EXIT INPLIN
+        BRETURN         INPLIN
+                                SUBTTL  GTEDLN  CHART U10.2.2
+        BDCL    GTEDLN
+        extern  nxtlin
+
+        call    nxtlin
+        jumpn   r1,gtlp4
+        setom   edmod
+        jrst    gtlp$$
+
+;                               GTLPNT 1
+gtlp4:  CALL    WINOLD,<$,LPOINT>
+
+;                               GTLPNT 2
+        SETZM   0,UOBCB+2
+        MM      2,UOBCB+3
+        SOS     0,UOBCB+3
+
+;                               GTLPNT 3
+        M       3,EDMOD
+        CAIE    3,1
+        J       GTLP5
+
+;                               GTLPNT 4
+        M       0,1
+        M       1,2
+        SUBI    1,1
+        CALL    MSGOUT
+
+;                               GTLPNT 5
+GTLP5: MOVEI    1,UOBCB
+        MOVEI   2,UNBCB
+        SETZ    3,              ; NULL PROMPT
+        SETZ    4,              ; CONTROL CHARS ARE NOT ALLOWED
+        CALL    GETLIN
+        CALL    LINCON
+
+; Since EDIT/MODIFY enter lines, they become the last COMMAND LINE
+        SETZM   UNBCB+2         ;put entire new line into CMBUF incl continuations
+        CALL    SETCBF,<,UNBCB>
+gtlp$$: breturn gtedln
+                                SUBTTL  GETREG U10.2.5
+        BDCL    GETREG
+
+;                               GETREG 1
+        SETZM   0,UNBCB+2
+        SETZM   0,UNBCB+3
+        SETZM   0,UNBCB+4
+
+;                               GETREG 1A-1C
+        CALL    HDLUCR          ;HANDLE CR BEFORE PROMPT
+
+
+;                               GETREG 2
+; LAST COMMAND LINE FROM THIS ROUTINE STORED IN CMBCB/CMBUF
+; PUT IN UOBCB
+        MOVE    1,[CMBCB+2,,UOBCB+2]
+        BLT     1,UOBCB+4       ;BLT THE COUNTS
+        HRLI    1,CMBUF         ;(LH)=CMBUF
+        HRR     1,UOBCB         ;(RH)=OLD LINE BUFFER
+        MOVE    2,UOBCB+1       ;LENGTH OF BCB IN CHARS
+        IDIVI   2,^D5           ;DIV BY 5 -- TO WORDS
+        ADD     2,UOBCB         ;PLUS ADDR = TOP ADDR
+        BLT     1,(2)           ;BLT THE BUFFER
+
+
+;                       GETREG 3
+        MOVEI   1,UOBCB         ;UOBCB IN ARGUMENT REG 1, OLD LINE BUFFER
+        MOVEI   2,UNBCB         ;UNBCB IN ARGUMENT REG 2, NEW LINE BUFFER
+        MOVEI   3,[ASCIZ />/]   ;PROMPT
+        SETZ    4,              ;CONTROL CHARS ARE NOT ALLOWED
+        CALL    GETLIN          ; INPUT TEXT
+
+;                               EXIT GETREG
+        BRETURN GETREG
+                                SUBTTL  GETENT  CHART   U10.2.6
+        BDCL    GETENT
+
+;+
+;.nofill .p 0 .nj
+; GETENT
+;  No arguments
+;  with a line number prompt built in UPBUF and the number of
+;  characters in the prompt in ECHRS (set by GTLINE) input a user line,
+;  copy the new line image onto the end of the prompt buffer and then blt
+;  the resultant "line" (with sticky line number sticking) to INPBUF
+
+;                               GETENT 0A-0C
+;-
+        CALL    HDLUCR          ;Check for cr-lf output
+
+;+
+;                               GETENT 1
+; Set up argument 3 (R3) to GETLIN with address of prompt buffer
+;-
+        MOVEI   3,UPBUF         ;ARG REG 3 IS ADR OF PROMPT, UPBUF (GTLINE)
+
+;+
+;                               GETENT 2
+; Reset new line buffer control block to null (new line is empty)
+;-
+        SETZM   UNBCB+2
+        SETZM   UNBCB+3
+        SETZM   UNBCB+4
+
+;+
+;                               GETENT 3
+; Set up call to GETLIN
+;  R1 Old line buffer control block
+;  R2 New line buffer control block
+;  R3 (set) Prompt buffer address
+;  R4 Control char valid flag set to =0 (0 if ctrl chars not valid =1 if valid)
+;-
+        MOVEI   1,UOBCB         ;Old line BCB
+        MOVEI   2,UNBCB         ;Old line BCB
+        SETZ    4,              ;CONTROL CHARS ARE NOT ALLOWED
+        CALL    GETLIN
+
+;+
+; HERE WE HAVE A USER LINE IMAGE IN INPBUF AND THE LINE NUMBER IMAGE
+; IN UPBUF - COPY DOWN THE USER LINE IMAGE ON TOP
+; OF UPBUF AND BLT TO INPBUF
+        MOVE    1,ECHRS         ;# CHARACTERS IN PROMPT
+        ADDM    1,UNBCB+2       ;INC # CHARS TO LEFT (IGNORE?I HOPE)
+        ADDM    1,UNBCB+3       ;INC # CHARS IN BUFFER (TO RIGHT OF START)
+        MOVE    1,[POINT 7,UPBUF+0
+                POINT 7,UPBUF+0,6
+                POINT 7,UPBUF+0,13
+                POINT 7,UPBUF+0,20
+                POINT 7,UPBUF+0,27
+                POINT 7,UPBUF+0,34
+                POINT 7,UPBUF+1,6
+                POINT 7,UPBUF+1,13
+                POINT 7,UPBUF+1,20
+                POINT 7,UPBUF+1,27
+                POINT 7,UPBUF+1,34
+                POINT 7,UPBUF+2,6
+                POINT 7,UPBUF+2,13
+                POINT 7,UPBUF+2,20
+                POINT 7,UPBUF+2,27
+                POINT 7,UPBUF+2,34
+                POINT 7,UPBUF+3,6
+                POINT 7,UPBUF+3,13
+                POINT 7,UPBUF+3,20](1)  ;GET ADJUSTED BYTE POINTER
+        HRLI    2,(POINT 7,0)   ;VIRGIN 7-BIT BYTE POINTER
+        HRR     2,UNBCB         ;PUT IN BASE OF INPBUF
+
+;+
+;  Copy line without number down onto end of line number
+;-
+        ILDB    3,2             ;GET A CHAR FROM NEW LINE
+        IDPB    3,1             ;PUT AFTER PROMPT
+        JUMPN   3,.-2           ;LOOP UNTIL E.O.LIT STORED
+
+;+
+;  BLT the line and number to INPBUF
+;-
+        HRLI    1,UPBUF         ;ADR OF UPBUF IN LH
+        HRR     1,UNBCB         ;ADR OF INPBUF IN RH
+        MOVE    2,UNBCB+1       ;COUNT OF CHAR LENGTH OF BUFFER
+        IDIVI   2,^D5           ;/CHARS.PER.WORD = WORD LENGTH OF BUFFER
+        ADD     2,UNBCB         ;PLUS BASE = END
+        BLT     1,(2)           ;COPY BUFFER DOWN
+
+;                               EXIT GETENT
+        BRETURN GETENT
+                                SUBTTL  LINCON CHART U10.2.6A
+        DCL     LINCON
+
+;                       LINCON 1
+LNCO1:  M       1,[POINT 7,INPBUF]
+        MM      1,CRETPT
+
+;                       LINCON 1A
+        SKIPG   1,UNBCB+3
+        J       LNCO3
+;                       LINCON 2
+        SUBI    1,1
+        CALL    PTRINC,<CRETPT>
+
+;                       LINCON 3
+LNCO3:  ILDB     1,CRETPT
+        CAIE    1,"&"
+        J       LNCO$$
+        M       1,UNBCB+3
+        SUB     1,ECHRS
+        CAIG    1,1
+        J       LNCO$$
+
+;                       LINCON 4
+        MI      1,^O12
+        DPB     1,CRETPT
+        M       1,UNBCB+3
+        MM      1,UNBCB+2
+        MM      1,UNBCB+4
+
+;                       LINCON 5
+        MI      1,UOBCB
+        MI      2,UNBCB
+        SETZ    3,      ;NULL PROMPT
+        SETZ    4,      ;CONTROL CHARS ARE NOT ALLOWED
+        CALL    GETLIN
+        J       LNCO1
+
+;                       EXIT LINCON
+LNCO$$: RETURN  LINCON
+        SUBTTL  HDLUCR output CRLF if necessary
+
+;+
+;.SKIP
+; HDLUCR - Make sure that print head is returned.
+;-
+
+        dclne   hdlucr
+
+        TYPE    MESSAGE,<//>,G.CR.B
+        return  hdlucr
+                                SUBTTL  PUTOLD  CHART U10.2.9
+        BDCL    PUTOLD
+
+;                               PUTOLD 1
+        M       1,[POINT 7,INPBUF]
+        MM      1,CRETPT
+
+;                               PUTOLD 2
+        MI      0,CRETPT
+        M       1,UNBCB+3
+        CALL    PTRINC
+
+;                               PUTOLD 3
+        MI      1,13
+        IDPB    1,CRETPT
+
+;                               PUTOLD 4
+;Put entire new line into old line (even though new line beginning pointer
+;does not point to very beginning of new line, because of continuations).
+
+        MOVE    R1,ECHRS        ;number of characters in Enter-prompt (if any)
+        MOVEM   R1,UOBCB+2      ;shouldn't really be part of old line...
+        MOVEM   R1,UOBCB+4
+
+        MOVE    R1,[POINT 7,INPBUF]
+        MOVE    R2,[POINT 7,OLDBUF]
+        SETZ    R3,             ;count
+
+PUTLP:  ILDB    R4,R1
+        CAIN    R4,^O12         ;Line Feedtinuation character) ?
+        JRST    PUTLP1
+        CAIE    R4,^O15
+        CAIL    R4,^O40         ;don't allow control characters
+        CAIN    R4,^O177        ;or DEL into old line image
+        JRST    PUTLP
+PUTLP1: IDPB    R4,R2
+        CAIE    R4,^O15
+        AOJA    R3,PUTLP
+        SETZ    R4,
+        IDPB    R4,R2
+        MOVEM   R3,UOBCB+3
+
+;                               PUTOLD 6
+        M       1,UNBCB+3
+        ADDI    1,1
+        HRLM    1,BUFTCL
+
+        SKIPN   EDMOD
+        SKIPE   ENTR
+        JRST    PUTOL$
+;Command entry: copy old line into command old line buffer CMBUF:
+        MOVE    1,[UOBCB+2,,CMBCB+2]
+        BLT     1,CMBCB+4
+        HRLI    1,OLDBUF
+        HRRI    1,CMBUF
+        BLT     1,CMBUF+BFWRDS-1
+;                               EXIT PUTOLD
+PUTOL$: BRETURN PUTOLD
+
+
+                                SUBTTL  LDREN CHART U10.4
+        BDCL    LDREN
+
+;                       LDREN 1
+        MOVE    1,RENREC
+        CAMG    1,LSTREC
+        JRST    LDRN4
+
+;                       LDREN 2
+        CALL    VRLS,<$,RTXT>
+
+;                       LDREN 3
+        SETZM   0,LDFLG
+        MOVEI   1,1
+        HRLM    1,BUFTCL
+        MOVE    1,[POINT 7,INPBUF]
+        MOVEI   2,13
+        IDPB    2,1
+        JRST    LDRN$$
+
+;                       LDREN 4
+LDRN4:  CALL    VNEXT,<BUFTXT,$,RTXT>
+
+;                       LDREN 4 AND A HALF
+        MOVE    1,INPBUF
+        TRZE    1,1             ;BIT 35 IS SET IN RENUMBERING IF FORM FEED SEEN
+        SETOM   TOFFLG          ;SET FORM FEED FLAG, IF BIT 35 WAS SET
+        MOVEM   1,INPBUF
+;                       LDREN 5
+        AOS     0,RENREC
+
+;                       EXIT LDREN
+LDRN$$: BRETURN LDREN
+
+;+
+; SETCBF(FROM.BCB)
+;  Arguments (1), FROM.BCB buffer control block of line to become 'COMMAND LINE'
+; will take a BCB and make it the 'COMMAND LINE',
+; ie- for the next command-input
+;-
+        DCL     SETCBF,<V0>,,3
+;+
+; Argument/locals
+;  FROM.BCB -} V0, R1
+;  regs.saved: R10-R12
+;-
+        HRRI    R10,CMBUF       ;(Rh)=Address of command buffer
+        HRL     R10,0(R1)       ;(Lh)=Address of buffer to copy from
+        MOVE    R11,1(R1)       ;Length of comming-from BCB
+        IDIVI   R11,^D5         ;from chars.per.word to words
+        BLT     R10,CMBUF(R11)  ; [@FROM.BCB+0,,CMBUF] to CMBUF+(@FROM.BCB+1/5)
+        HRRI    R10,CMBCB+2     ;(Rh)=Address of going-to BCB counts
+        HRLI    R10,2(R1)       ;(Lh)=Address of comming-from BCB counts
+        BLT     R10,CMBCB+4     ;BLT the couts over
+        RETURN  SETCBF          ;and return....
+
+                                SUBTTL  ESCCHK CHART U10.6
+        DCL     ESCCHK
+
+;                       1
+        SKIPN   0,ESCFLG
+        J       ESCC$$
+
+;                       2
+        SETZM   ESCFLG          ;No longer in escape mode
+        SETZM   ENTR            ;NO LONGER IN ENTER MODE
+
+; TYPE ESC MSG                  2A
+        CLRBFO                  ;FIRST CLEAR THE OUTPUT BUFFER
+        MOVEI   0,[ASCIZ /
+(ESC)
+/]
+        CALL    CXER2
+
+
+;                       3
+        M       1,LDFLG
+        JUMPE   1,ESCC12        ;COMMAND MODE, RESET SCANNER
+        CAIE    1,1
+        J       ESCC8
+
+;                       4
+        PUSHJ   P,X.PAR##
+        exch    r1,getptr
+        FREECR  R1
+        exch    r1,getptr
+
+;                       5
+        CALL    CLOSEF,<$,GETADR>
+
+;                       6
+        SKIPN   0,GCOMSW
+        J       ESCC9
+
+;                       7-7A
+        M       1,SVDEBG
+        MM      1,DEBGSW
+        SETZM   0,GCOMSW
+        CALL    VRLS,<$,DIRP>
+        J       ESCC9
+
+;                       8
+ESCC8:  CALL    VRLS,<$,RTXT>
+
+;                       9
+ESCC9:  MI      1,1
+        HRLM    1,BUFTCL
+        M       1,[POINT 7,INPBUF]
+        MI      0,^O15
+        IDPB    0,1
+        MI      1,10
+        MM      1,PSW
+        SETZM   0,LDFLG
+
+;                       10
+        MI      0,[BYTE(7) 13,10]
+        CALL    CXER1
+
+;                       11
+        skipe   getsw
+        jrst    escc11
+        mi      0,[asciz /COMMAND ABORTED/]
+        call    cxer2
+        jrst    resume
+ESCC11: MI      0,[ASCIZ /COMMAND ABORTED; WORKSPACE CLEARED/]
+        CALL    CXER2
+        jrst    escc$$
+
+; ON COMMAND MODE, RESET SCANNER BUFFER
+ESCC12: SETZM   UOBCB+2
+        SETZM   UOBCB+3
+        SETZM   UOBCB+4
+        SETZM   UNBCB+2
+        SETZM   UNBCB+3
+        SETZM   UNBCB+4
+        HRLZI   1,^O64240       ;<CR><LF><0>
+        MOVEM   1,INPBUF        ;THE USER SAID NOTHING
+
+;+
+;  If ESCFLG is set go to RESUME to handle the escape
+        JRST    RESUME          ;And away we go...
+
+;-
+;                       EXIT
+ESCC$$: RETURN ESCCHK
+
+
+                                SUBTTL  UEXIT CHART U13
+        DCL     UEXIT
+
+
+;                               1
+        CALL    STOPT
+
+;                       2
+        M       1,PSW
+        CAIE    1,11
+        J       UEXT4
+
+;                       3
+        EXIT    0
+
+;                       4
+UEXT4:  MI      0,LOGFIL
+        RUN     0,0
+        HALT
+
+LOGFIL: SIXBIT  /SYS/
+        SIXBIT  /LOGOUT/
+        EXP     0,0,0,0
+
+;                         EXIT EXIT
+        RETURN   UEXIT    ;NOTE. NEVER REACHED
+
+
+                                SUBTTL   MSGOUT CHART U15
+        DCL      MSGOUT
+
+;                       1
+        MOVEM    0,OUTPTR
+        MOVEM    1,OUTCT
+
+;                       2
+MSGO2:  ILDB    0,OUTPTR
+
+;                       3
+        CAIE    0,10
+        J       MSGO7
+
+;                       4-6
+        CALL    CXTDO,<"&">
+        CALL    CXTDO,<13>
+        CALL    CXTDO,<10>
+        J       MSGO8
+
+;                       7
+MSGO7:  CALL    CXTDO
+
+;                       8
+MSGO8:  SOSG    0,OUTCT
+        J       MSGO9
+        SKIPN   0,ESCFLG
+        J       MSGO2
+
+;                       9-10
+MSGO9:  CALL    CXTDO,<13>
+        CALL    CXTDO,<10>
+        SKIPE   ESCFLG
+        CALL    ESCCHK
+
+;                         EXIT MSGOUT
+        RETURN   MSGOUT
+        SUBTTL   HADR CHART U17
+        DCL      HADR
+
+;                         HADR 1
+        MOVEM    0,HADRAD
+
+;                         HADR 2
+HADR2:  MOVE     1,CCHR
+        CAIE     1," "
+        JRST     HADR4
+;                         HADR 3
+
+        GET
+        JRST     HADR2
+
+;                         HADR 4
+HADR4:  MOVE    R2,CHPACK(R1)
+        CAIL    R2,'A'
+        CAILE   R2,'Z'
+        JRST     [SETZM NT
+                  JRST  HADR$$]
+
+;                         HADR 5
+        BCALL    SRCHAD
+
+;                         EXIT HADR
+HADR$$: RETURN   HADR
+
+
+                                SUBTTL   SRCHAD CHART U17.5
+        BDCL     SRCHAD
+
+;                         SRCHAD 1
+        BCALL    PACKU
+
+;                         SRCHAD 2
+
+;;                        SRCHAD 3
+        CALL     NAMSRC,<$,HADRAD>
+
+;                         SRCHAD 4
+        MOVEM    1,NN
+        MOVEM    2,NT
+
+SRCH$$: BRETURN  SRCHAD
+        SUBTTL   PACKU CHART U17.5.1
+
+        BDCL    PACKU
+
+;Routine to read characters from the input line (using the pointer
+;LINPTR) to the end of the current identifier, into HB[0-2].
+;The characters are translated into SIXBIT on the way in.
+;Any non-legal character terminates the identifier.
+;On entry, CCHR contains first character of the identifier (guaranteed
+;legal) and LINPTR points to this character (so an ILDB will pick up next
+;character). On exit, CCHR will contain the first character that follows
+;the identifier for use by others later. We check that the length of the id
+;is <=15; $ is counted as a character but when encountered,
+;forces the identifier to terminate. Thus, " a$AND f " will parse.
+
+        SETZM   HB
+        SETZM   HB+1
+        SETZM   HB+2
+        MOVE    R2,[POINT 6,HB]
+        MOVEI   R3,^D15         ;max char count
+
+        MOVE    R1,CCHR         ;first char of id
+        MOVE    R4,CHPACK(R1)   ;get translation
+
+NEXCHR: IDPB    R4,R2           ;deposit char (translated)
+
+GETNXT: ILDB    R1,LINPTR       ;next input character
+
+        SKIPN   R4,CHPACK(R1)   ;get translated char code
+        JRST    NOTLEG          ;zero means not legal for id or $
+
+        SOJG    R3,NEXCHR       ;check count and continue
+
+TOOBIG: CALL    ERROR,<^D56>;Name too long
+                                ;does not return
+
+NOTLEG: CAIN    R1,^O12         ;line feed?
+        JRST    GETNXT          ;yes, ignore, get next char
+        CAIE    R1,"$"
+        JRST    PCKU$
+        MOVEI   R1,'$'
+        IDPB    R1,R2
+        ILDB    R1,LINPTR
+        CAIN    R1,^O12
+        JRST    .-2
+        SOJG    R3,PCKU$
+        JRST    TOOBIG
+
+PCKU$:  MOVEM   R1,CCHR
+        BRETURN PACKU
+        SUBTTL   NAMSRC CHART US1
+        DCL     NAMSRC
+
+;look for an identifier in the name dictionary (ptrs to its VMF pages are kept
+;in the NAMDIC vector) & possibly add the name if it's not already there
+;input:
+;       ADDFLG = 0 iff the name should be added if not found
+;       HB = 2.5 words of wierd sixbit coded name (.=01,0-9=02-13,A-Z=14-45,a-z=46-77)
+;output:
+;       R1 = N, where the name at HB is the Nth name added to the dictionary
+;            the next number to be given out is kept in NAMIDX
+;       R2 = 1 iff this was a new name
+;            2 iff the name was already in the dictionary
+
+;                       NAMSRC 1
+        MOVEM   R0,ADDFLG
+        MOVE    R1,HB           ;R1:=hash(name at HB)
+        XOR     R1,HB+1
+        XOR     R1,HB+2
+        JUMPN   R1,NAMS1A
+        MOVE    R1,HB
+NAMS1A: AND     R1,[^O377777777777]   ;TURN OFF SIGN BIT
+        MUL     R1,HSHCON    ;PRODUCT IN R1-R2
+        SETZ    R1,
+        LSHC    R1,8    ;GET DESIRED 7 BITS INTO R1
+        HRRZ    R3,HVX(R1)      ;R3:=NAMIDX of 1st name to hash to R1
+
+;                       NAMSRC 2
+        JUMPN   R3,NAMS5
+
+;                       NAMSRC 3
+        CALL    ADDCHN,<HVX(R1)> ;this new name is the 1st name to hash to R1
+        JRST    NAMS$$       ;..so it can't possibly be there already - add it
+
+;                       NAMSRC 5
+NAMS5:  MOVEI   R6,-1(R3)       ;R6:=NAMDIC[R3 div WDPRPG] + (R3 rem WDPRPG)*3
+        IDIVI   R6,WDPRPG
+        MOVE    R6,NAMDIC(R6)
+        IMULI   R7,3
+        ADD     R6,R7
+
+;                       NAMSRC 6
+        MOVE    R5,0(R6)        ;goto NAMS8 if name at R6 # name at HB
+        CAME    R5,HB
+        JRST    NAMS8
+        MOVE    R5,1(R6)
+        CAME    R5,HB+1
+        JRST    NAMS8
+        HLRZ    R5,2(R6)
+        HLRZ    R2,HB+2
+        CAME    R2,R5
+        JRST    NAMS8
+
+;                       NAMSRC 7
+        MOVE    R1,R3           ;name at HB already in dictionary
+        MOVEI   R2,2            ;name already present indicator
+        JRST    NAMS$$
+
+;                       NAMSRC 8
+NAMS8:  HRRZ    R5,2(R6)        ;get link to next name hashing to R1
+        JUMPE   R5,NAMS10       ;is this the end of the chain?
+
+        MOVE    R3,R5           ;NO - try next chain entry
+        JRST    NAMS5
+
+NAMS10: CALL    ADDCHN,<2(R6)>  ;YES - didn't find name, so add it
+
+NAMS$$: RETURN  NAMSRC
+
+
+                                SUBTTL   ADDCHN CHART US1.3
+        DCLNE   ADDCHN,<LNKLOC>
+
+;                       ADDCHN 1
+        SKIPE   ADDFLG
+        JRST    ADDC10
+
+;                       ADDCHN 2
+        MOVE    R3,NAMIDX
+        CAMGE   R3,MAXNDX
+        JRST    ADDC4
+
+;                       ADDCHN 3
+        CALL    XERROR,<98>     ;too many names!
+
+;                       ADDCHN 4
+ADDC4:  SKIPLE  NMSLFT          ;is there room on the current page for this id?
+        JRST    ADDC8           ;YES
+
+;                       ADDCHN 5-7
+        MOVEI   R5,WDPRPG       ;NO - need new page for names
+        MOVEM   R5,NMSLFT
+        AOS     R5,NAMPGS
+        MOVE    R4,NAMDIC-1(R5) ;get virtual addr (or 0) from ptr vector
+        JUMPN   R4,ADDC6        ;is this a previously used VMF page?
+        MOVEI   R4,PSIZE        ;NO - get a new page. pager will zero it.
+        ADDB    R4,G2           ;update VMF endptr & place in R4
+        READ      R4            ;get & lock new page
+        HRRZM   R4,NAMDIC-1(R5) ;store core addr in NAMDIC table
+        JRST    ADDC8
+
+ADDC6:
+        IFN     DEBMOD,<
+        TLNN    R4,^O777777     ;the channel # better not be zero!
+        HALT
+                       >
+        READ    R4              ;get & lock old page
+        HRRZM   R4,NAMDIC-1(R5) ;store core addr in NAMDIC table
+        HRRZM   R4,R5           ;set up endpt for bltting zeroes into page
+        ADDI    R5,PSIZE-1      ;..(R5:=NAMDIC[NAMPGS]+PSIZE-1)
+        SETZM   0(R4)           ;zero 1st word of page
+        HRLS    R4              ;set up BLT reg
+        ADDI    R4,1
+        BLT     R4,0(R5)        
+
+;                       ADDCHN 8
+ADDC8:  MOVEI   R6,-1(R3) ;R3 SET IN .2
+        IDIVI   R6,WDPRPG
+        MOVE    R6,NAMDIC(R6)   ;R6:=NAMDIC[NAMPGS] + WDPRPG - NMSLFT
+        IMULI   R7,3
+        ADD     R6,R7
+
+;                       ADDCHN 9
+        HRLI    R5,HB           ;store HB at R6
+        HRR     R5,R6
+        BLT     R5,2(R6)
+        HRRM    R3,@LNKLOC      ;fix up link field from previous name
+        MOVE    R1,R3
+        AOS     NAMIDX
+        SOS     NMSLFT
+
+;                       ADDCHN 10
+ADDC10: MOVEI   R2,1            ;new name indicator
+
+        RETURN  ADDCHN
+
+
+                                SUBTTL   BUFSYM CHART U22
+        DCL      BUFSYM
+
+;                         BUFSYM 1
+        CALL     VPUT,<BUFTXT,$,TXT>
+
+;                         BUFSYM 2
+        MOVEM    1,SYMPOS
+
+;                         EXIT BUFSYM
+        RETURN   BUFSYM
+
+
+                                SUBTTL   WINBIN CHART U23
+        DCL      WINBIN
+
+;                         WINBIN 1 
+        MOVE     1,0
+        FGET     2,1,LPMC
+        MOVEM    2,LOC
+
+;                         WINBIN 2
+        CALL     VGET,<WINPMC,$,PMC,$,LOC>
+
+;                         WINBIN 3
+        MOVE     1,WINPMC
+
+;                         WINBIN 4
+        HLRZ     2,WINPCL
+
+;                         EXIT WINBIN
+        RETURN   WINBIN
+
+
+                                SUBTTL   BUFBIN CHART U27
+        DCL      BUFBIN
+
+;                         BUFBIN 1
+        CALL     VPUT,<BUFPMC,$,PMC>
+
+;                         BUFBIN 2
+        MOVEM   1,BINPOS
+
+
+;                       EXIT BUFBIN
+        RETURN  BUFBIN
+
+
+;       LINIT CHART U40
+
+                                SUBTTL   LINIT CHART U40
+        DCL      LINIT
+
+;  LINIT 1-24
+        CALL     TOPN,<LRTC>
+        MM      1,LRT
+        CALL    TOPN,<LINMAC>
+        MM      1,LINMAP
+        CALL     VOPN,<TXTC>
+        MM      1,TXT
+        CALL     VOPN,<PMCC>
+        MM      1,PMC
+        CALL    VOPN,<RTXTC>
+        MM      1,RTXT
+        CALL    TOPN,<MDUTC>
+        MM      1,MDUT
+        CALL    TOPN,<LIBTC>
+        MM      1,LIBT
+        CALL    TOPN,<PRODTC>
+        MM      1,PRODT
+        CALL    TOPN,<PARDTC>
+        MM      1,PARDT
+        CALL    VOPN,<DTAVC>
+        MM      1,DTAV
+        CALL    VOPN,<DIRPC>
+        MM      1,DIRP
+
+;                EXIT LINIT
+        RETURN   LINIT
+
+
+        SUBTTL  MSTATE
+        EXTERN  QDSTRY
+        DCL     MSTATE
+
+        CALL    QDSTRY
+        JUMPN   1,MST$$
+
+        CALL    XERROR,<^D109>
+
+MST$$:  RETURN  MSTATE
+
+
+                                SUBTTL   PTRIZE CHART U43
+        DCL      PTRIZE
+
+;                         PTRIZE 1
+        JUMPN    2,PTRZ3
+
+;                         PTRIZE 2
+        MOVEI    3,36
+        SUB      3,1
+        JRST     PTRZ4
+
+;                         PTRIZE 3
+PTRZ3:  MOVEI    3,36
+
+;                         PTRIZE 4
+PTRZ4:  LSH      3,6
+
+;                         PTRIZE 5
+         IOR     3,1
+
+;                         PTRIZE 6
+        LSH      3,24
+
+;                         PTRIZE 7
+        IOR      3,0
+
+;                         PTRIZE 8
+        MOVE     1,3
+
+;                         EXIT PTRIZE
+        RETURN   PTRIZE
+
+
+                                SUBTTL SVNXLN CHART U44
+        DCL     SVNXLN
+
+;                       SVNXLN 1
+        MOVE    1,LPOINT
+        FGET    2,1,LNXT
+        MOVEM   2,LOC
+        MOVEM   1,LPONT1
+
+;                       SVNXLN 2
+        CALL    TLOC,<$,LRT,$,LOC>
+
+;                       SVNXLN 3
+        MOVEM   1,LPOINT
+
+;                       EXIT SVNXLN
+        RETURN  SVNXLN
+
+
+                                SUBTTL  WINOLD CHART U45
+        DCL     WINOLD
+
+;                       WINOLD 1
+        M       1,0
+        FGET    2,1,LTXT
+        MM      2,LOC
+
+;                       WINOLD 2
+        CALL    VGET,<WINOLN,$,TXT,$,LOC>
+
+;                       WINOLD 3
+        M       1,[POINT 7,OLDBUF]
+
+;                       WINOLD 4
+        HLRZ    2,WINOCL
+
+
+        RETURN  WINOLD
+
+
+                                SUBTTL   DCLEAR CHART UX
+        DCL     DCLEAR
+
+;                       DCLEAR 1
+        SETZM   0,CLRFLG
+
+;                       DCLEAR 2
+
+;                       DCLEAR 3
+        CALL    TRLS,<$,PRODT>
+
+;                       DCLEAR 4
+        CALL    TRLS,<$,PARDT>
+
+;                       EXIT DCLEAR
+        RETURN  DCLEAR
+
+
+                                SUBTTL   ERROR CHART T1
+        DCL      ERROR
+
+;                       ERROR 0
+        CALL    CKGET
+
+;                         ERROR 1
+        MOVE     1,0
+
+;                         ERROR 2
+        MOVE     2,ERRTBL(1)
+
+;                         ERROR 3
+        CALL    CXER1,<$,2>
+
+;                       ERROR 3A
+        BCALL   ERRNR
+
+;                         ERROR    4
+        MI      0,[BYTE(7) 13,10]
+        CALL    CXER2
+        MOVEI    1,1
+        MOVEM    1,TPOS
+;                         ERROR 5
+        MOVEI    1,2
+        MOVEM    1,SEGNO
+        JRST     RESUME
+
+;                         EXIT ERROR
+        RETURN   ERROR    ;NOTE. NEVER REACHED
+
+                                SUBTTL  ERRNR CHART T1.3A
+        BDCL    ERRNR
+
+;                       ERRNR 1
+        MI      0,[ASCIZ / ...NEAR '/]
+        CALL    CXER1
+
+;                       ERRNR 2
+        MOVE    1,[POINT 7,INPBUF]
+        MOVE    2,GOODPT
+        SUBI    2,1
+        HRRZ    3,1
+        HRRZ    4,2
+        CAMGE   4,3
+        JRST    ERNR2A
+        MOVEM   2,LINPTR
+        JRST    ERNR3
+ERNR2A: MOVEM   1,LINPTR
+
+;                       ERRNR 3
+ERNR3:  BCALL   ERNRA
+
+;                       ERRNR 4
+        MI      0,[ASCIZ /?/]
+        CALL    CXER1
+
+;                       ERRNR 5
+        BCALL  ERNRB
+
+;                       ERRNR 6
+        MI      0,[ASCIZ /'/]
+        CALL    CXER1
+
+;                       EXIT ERRNR
+        BRETURN ERRNR
+
+                                SUBTTL  ERNRA CHART T1.3A.3
+        BDCL    ERNRA
+
+;                       ERNRA 1
+        SETZM   NRSW
+
+ERNA1:  MOVE    1,LINPTR
+        CAMN    1,GOODPT
+        JRST    ERNA$$
+
+;                       ERNRA 2
+        MOVE    1,NRSW
+        JUMPN   1,ERNA4
+        MOVE    1,LINPTR
+        CAMN    1,[POINT 7,INPBUF]
+        JRST    ERNA4
+
+;                       ERNRA 3
+        SETOM   0,NRSW
+        LDB     2,LINPTR
+        JRST    ERNA4A
+
+;                       ERNRA 4
+ERNA4:  ILDB    2,LINPTR
+        SETOM   0,NRSW
+
+;                       ERNRA 4A
+ERNA4A: LSH     2,29
+
+;                       ERNRA 5
+        MOVE    1,LINPTR
+        CAMN    1,GOODPT
+        JRST    ERNA1
+
+;                       ERNRA 6
+        CALL    CXER1,<$,2>
+        JRST    ERNA1
+
+;                       EXIT ERNRA
+ERNA$$: BRETURN ERNRA
+
+
+                                SUBTTL ERNRB CHART T1.3A.5
+        BDCL    ERNRB
+
+;                       ERNRB 1
+        MOVEI   1,5
+        MOVEM   1,OUTCT
+
+;                       ERNRB 2
+        MOVE    1,LINPTR
+        CAME    1,[POINT 7,INPBUF]
+        JRST    ERNB4
+
+;                       ERNRB 3
+        ILDB    2,LINPTR
+        JRST    ERNB5
+
+;                       ERNRB 4
+ERNB4:  LDB     2,LINPTR
+
+;                       ERNRB 5
+ERNB5:  SKIPG   0,OUTCT
+        JRST    ERNB$$
+        CAIN    2,13
+        JRST    ERNB$$
+
+;                       ERNRB 5A
+        LSH     2,29
+
+;                       ERNRB 6
+        CALL    CXER1,<$,2>
+
+;                       ERNRB 7
+        SOS     0,OUTCT
+        ILDB    2,LINPTR
+        JRST    ERNB5
+
+;                       EXIT ERNRB
+ERNB$$: BRETURN ERNRB
+
+
+                                SUBTTL  XERROR CHART T2
+        DCL     XERROR
+
+;                       XERROR 0
+        CALL    CKGET
+
+;                       XERROR 1
+        MOVE    1,0
+        MOVE    2,ERRTBL(1)
+
+;                       XERROR 2-2A
+        CALL    CXER1,<$,2>
+        MI      0,[BYTE(7) 13,10]
+        CALL    CXER2
+
+;                       XERROR 3
+        MOVEI   1,1
+        MOVEM   1,TPOS
+        MOVEI   1,2
+        MOVEM   1,SEGNO
+        JRST    RESUME
+
+;                       EXIT XERROR (NEVER REACHED)
+        RETURN  XERROR
+
+                                SUBTTL  CKGET CHART T3
+        DCL     CKGET
+
+;                       CKGET 1
+        MOVE    1,LDFLG
+        CAIE    1,1
+        JRST    CKGE$$
+
+;                       CKGET 2
+        MOVEM   0,CKR0
+
+;                       CKGET 3
+        MOVE    0,[POINT 7,INPBUF]
+        MOVE    1,LINCT
+        SUBI    1,1
+        CALL    MSGOUT
+
+;                       CKGET 4
+        MOVE    0,CKR0
+
+;                       CKGET 5-6
+        SKIPE   0,GCOMSW
+        AOS     0,CERCNT
+
+;                       EXIT CKGET
+CKGE$$: RETURN  CKGET
+
+
+                                SUBTTL TXPDAT CHART UX
+        DCL     TXPDAT
+
+;                       TXPDAT 1
+        MOVEM   0,DATPT
+
+;                       TXPDAT 2
+        DATE    1,0
+
+;                       TXPDAT 3
+        IDIVI   1,^D12*^D31
+        IDIVI   2,31
+        ADDI    R1,^D64
+        ADDI    2,1
+        ADDI    3,1
+
+        MOVE    R4,R1
+        CALL    ADNUM
+        MOVEI   R4,"/"
+        IDPB    R4,DATPT
+
+;                       TXPDAT 4
+        MOVE    4,2
+        CALL    ADNUM
+
+;                       TXPDAT 5
+        MOVEI   4,"/"
+        IDPB    4,DATPT
+
+
+;                       TXPDAT 6
+        MOVE    R4,R3
+        CALL    ADNUM
+
+;                       TXPDAT 7
+        MOVEI   1," "
+        IDPB    1,DATPT
+        IDPB    1,DATPT
+
+;                       TXPDAT 8
+        MSTIME   1,0
+
+;                       TXPDAT 9
+        IDIV    1,[3600000]
+        IDIVI   2,60000
+
+;                       TXPDAT 10
+        MOVE    R4,R1
+        CALL    ADNUM
+        MOVEI   4,":"
+        IDPB    4,DATPT
+
+;                       TXPDAT 11
+        MOVE    R4,R2
+        CALL    ADNUM
+        MOVE    0,DATPT
+
+;                       EXIT TXPDAT
+        RETURN  TXPDAT
+
+        SUBTTL  ADNUM
+
+        DCLNE   ADNUM
+        IDIVI   R4,^D10
+        ADDI    R4,"0"
+        IDPB    R4,DATPT
+        ADDI    R5,"0"
+        IDPB    R5,DATPT
+        RETURN  ADNUM
+
+        END
+ }6-,
