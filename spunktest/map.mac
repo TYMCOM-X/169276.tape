@@ -1,0 +1,117 @@
+        TITLE   MAP
+        TWOSEG
+        RELOC   ^O400000
+;
+;  MAP -- PROGRAM LOAD MAP
+;
+        ENTRY   MAP
+        EXTERN  CXTDO,TDO,VMEMAD,CXER1
+        RADIX   10
+;
+R0==0
+R1==1
+R2==2
+R3==3
+R4==4
+R5==5
+R6==6
+R7==7
+R8==8
+R9==9
+R10==10
+R11==11
+R12==12
+RXP==15
+;
+;
+        DCL     MAP,,<LIM,NDX>
+;  .1
+        MOVE    R8,VMEMAD
+        ADDI    R8,PGMP
+        READ    R8
+        IN      R1,R8           ;MAPSIZ
+        FILERR
+;  .2
+        JUMPN   R1,MAP5
+;  .3
+        CALL    CXER1,<[ASCIZ /RUNTIME LAYOUT NOT YET INITIALIZED/]>
+;  .4
+        JRST    MAP6
+;  .5
+MAP5:   LSH     R1,-1           ;MAPSIZ/2 = LIM
+        MOVEM   R1,LIM
+        SETZM   NDX
+
+        CALL    TDO,<[ASCIZ /
+    LOAD        LOSEG    HISEG
+MODULE NAME    ADDRESS  ADDRESS
+
+/],2>
+;  .5.2
+MAP52:  IN      R10,R8
+        FILERR
+;  .5.3
+        CAME    R10,[SIXBIT /ENDP%$/]
+        JRST    MAP561
+;  .5.4
+        CALL    TDO,<[ASCIZ /END PROGRAM: /],1>
+;  .5.5
+        MOVE    R1,LIM
+        MOVEM   R1,NDX
+        JRST    MAP571
+;  .5.6.1
+MAP561: MOVEI   R11,6
+;  .5.6.2
+MAP562: SETZ    R9,
+        LSHC    R9,6
+        ADDI    R9,^O40
+;  .5.6.3
+        CALL    CXTDO,<$,R9>
+;  .5.6.4
+        SOJN    R11,MAP562
+;  .5.6.5
+        CALL    TDO,<[ASCIZ /       /],2>
+;  .5.7.1
+MAP571: IN      R9,R8
+        FILERR
+        MOVEI   R10,2
+;  .5.7.2
+MAP572: MOVEI   R11,6
+        MOVEI   R12," "
+;  .5.7.3
+        CALL    TDO,<[ASCIZ /   /],2>
+;  .5.7.4
+MAP574: MOVE    R1,R9
+        SETZ    R0,
+        LSHC    R0,3
+        MOVE    R9,R1
+;  .5.7.5
+        JUMPE   R0,MAP578
+;  .5.7.6
+        ADDI    R0,^O60
+        MOVEI   R12,"0"
+;  .5.7.7
+        CALL    CXTDO
+        JRST    MAP579
+;  .5.7.8
+MAP578: CALL    CXTDO,<$,R12>
+;  .5.7.9
+MAP579: SOJN    R11,MAP574
+;  .5.7.10
+        SOJN    R10,MAP572
+;  .5.7.11
+        CALL    TDO,<[0],1>
+;  .5.8
+        AOS     R1,NDX
+;  .5.9
+        CAMGE   R1,LIM
+        CAIL    R1,PGMSIZ/2
+        JRST    MAP6
+        JRST    MAP52
+;  .6
+MAP6:   FREE    R8
+;
+        RETURN  MAP
+;
+;
+        END
