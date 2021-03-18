@@ -1,0 +1,423 @@
+        TITLE   RUNERR
+
+SUBTTL	TYMBASIC RUN TIME ERROR ROUTINES
+
+
+        RADIX   8
+
+        TWOSEG
+        RELOC   400000
+
+; Macros to enable and disable interrupt system
+DEFINE DIR.INT<        PUSH P,R0
+        HRLZI 200000
+        INTENB
+        JFCL
+        POP     P,R0>
+DEFINE EIR.INT<        PUSH P,R0
+        HRLZI 600000
+        INTENB
+        JFCL
+        POP     P,R0>
+
+; CONTENTS:
+;
+ENTRY   RRMSG
+ENTRY   RRCD
+ENTRY   RRLN
+ENTRY   RRFL
+ENTRY   RERR
+ENTRY   RNOCN
+ENTRY   RONCN
+ENTRY   NAMTYP
+ENTRY   ESCERR
+
+; External subroutines we might not ever need 
+        SEXTERNAL RVTRC
+
+; EXTERNAL SUBROUTINES AND SYMBOLS
+
+        EXTERN  CXER1, CXER2, CXER3, CXER4
+        EXTERN  FREEW,READW
+        EXTERN  ESCLVL, ESCARM, RSMLV1, RSMLV2, RSMSTK, RSMSND
+        EXTERN  ALLSP, CLOSEF, RELSP, .OPEN
+        EXTERN  RUNCOM, TFR, VALTYP, RGQTMD, AFILE
+        SEXTERN RKLFMT
+        EXTERN  .JBUUO, RUNPPN, QTMDNO
+        EXTERN  CONTAB, ERRCOD, ERRFIL, ERRLIN
+;RRMSG
+
+RRMSG:  PUSHJ   P,PUSREG
+        HRRZ    R10,R1                  ;error number
+        MOVE    R11,R4                  ;descriptor address
+	ADD	P,[ XWD 4,4]	; WE need a 4-word block}
+	JUMPG	P,RMSG30		; JUMP IF STACK OVERFLEW.
+	MOVE	[ SIXBIT /TBAMSG/]
+	MOVEM	SXNAM-3(p)
+	HRLZI	( SIXBIT /SHR/)
+	MOVEM	SXEXT-3(p)
+	SETZM	SXUN-3(p)
+	SKIPN	R1,RUNPPN
+	JRST	RMSG30		; We don't know where we ran from.
+	MOVEM	R1,SXPPN-3(p)
+	OPEN( -3(P),,READ,SYSFIL,RZ)
+	SUB	P,[ XWD 4,4]
+	JUMPN	R1,RMSG30
+RRMSG5: ADDI    R2,10
+        READ    R2
+        JUMPG   R10,RRMSG9
+        ERROR   RGSMSG+^D16
+RRMSG9: CAMLE   R10,0(R2)
+        ERROR   RGSMSG+^D16
+	MOVE	R1,R2	; FILE CURSOR MANIPULATIONS WILL BE DONE IN R1
+			;	FROM HERE TO THE NEXT LABEL.
+	CALL	FREEW;	  GETTING THE VIRTUAL ADDRESS BACK
+	ADD	R1,R10	; ADD IN THE MESSAGE NUMBER
+	CALL	READW;	  TRANSFORM TO CORE ADDRESS
+	MOVE	R12,0(R1)	; FETCH DISPLACEMENT
+	CALL	FREEW;	  BACK TO VIRTUAL ADDRESS
+	SUB	R1,R10	; KNOCK OFF THE MESSAGE NUMBER
+	ADDI	R1,0(R12); ADD WORD DISPLACEMENT FROM RIGHT HALF
+	CALL	READW;	  GET CORE ADDRESS OF MESSAGE
+        MOVE    R13,R1
+        HLRS    R12,R12
+        MOVEM   R12,1(R11)
+        MOVEI   R0,0(R12)
+        IDIVI   R0,5
+        ADDI    R0,1
+RMSG23: MOVE    R10,R0
+        MOVE    R1,R11
+        SETZ    R2,
+        PUSHJ   P,ALLSP
+        HRRZ    R2,(R11)
+        MOVEI   R0,0(R10)
+        MOVE    R1,R13
+        SETZ    R3,
+        PUSHJ   P,TFR
+        FREE    R1
+        MOVE    R0,R1
+        PUSHJ   P,CLOSEF
+RMSG28: MOVE    R0,(R11)
+        MOVEM   -13(P)                  ;store result
+        PUSHJ   P,POPREG
+        POPJ    P,
+
+RMSG30: SETZM   BADERR
+        MOVEI   R1,[ASCIZ /TBA system error /]
+        MOVEM   R1,(R11)
+        JRST    RMSG28
+
+        RELOC
+DESCR:  BLOCK   2
+BADERR: BLOCK 1
+        RELOC
+;       RRCD
+
+RRCD:   MOVE    R1,ERRCOD               ;RRCD.1
+        POPJ    P,
+
+
+
+
+;       RRLN
+
+RRLN:   MOVE    R1,ERRLIN               ;RRLN.1
+        POPJ    P,
+
+
+
+
+;       RRFL
+
+RRFL:   MOVE    R1,ERRFIL               ;RRFL.1
+        POPJ    P,
+;       RERR
+
+RERR:   DIR.INT                         ;Disable interrupt system
+        PUSHJ   P,PUSREG                ;SAVE REGISTERS
+        HLRZ    R12,.JBUUO
+        LSH     R12,-9                  ;get opcode field
+        CAILE   R12,16                  ;value trace?
+        JRST    RERR6                   ;no
+        PUSHJ   P,POPREG                ;yes, RESTORE REGISTERS
+        EIR.INT                         ;Enable interrupt system
+        SKIPE   [RVTRC]                 ;process the value trace
+         JRST   RVTRC                   ;if it is loaded
+        ERROR   RVTNRF                  ;No, Shucks, It must be a compiler bug
+RERR6:  SKIPN   R1,AFILE                ;any active operations?
+        JRST    NOTACT
+        HRRZ    R1,OCBR16(R1)           ;get R16 part of this cell
+        HRRZ    R10,R16
+        CAME    R10,R1                  ;in the current line?
+        JRST    NOTACT
+        PUSHJ   P,RKLFMT                ;yes, so flush it
+        JRST    RERR6                   ;and see if there are any more active operations in this line
+NOTACT: MOVE    R10,0(R16)              ;get line number
+        SKIPN   R16
+        SETZ    R10,                    ;if R16=0 set lineno=0 also
+        MOVEM   R10,ERRLIN
+        MOVE    R11,.JBUUO              ;get UUO
+        HRRZM   R11,ERRCOD
+        MOVEI   R5,-UUONUM(R12)         ;pull error type
+        CAIGE   R5,DATNUM               ;a file-type error?
+        JRST    RERR18                  ;no
+        CAIGE   R5,ENDNUM
+        JRST    [HRREI  R3,DATFIL       ;DATAEND == ENDFILE(-3)
+                 JRST   RERR17]
+        MOVE    R3,-12(P)               ;pull file number
+        CAMGE   R3,[FILMIN]             ;beyond user traps?
+        JRST    RERR24                  ;yes, do not compute trap loc
+RERR17: MOVEM   R3,ERRFIL
+RERR18: TLNE    R11,(4B12)              ;0100 AC bit means don't take user trap
+        JRST    RERR24
+
+; Check to see of error is dvi by zer and user has this trap set:
+
+        caie    r5,matnum               ;MATH error?
+        jrst    rerr19                  ;no
+        move    r1,errcod               ;get error #
+        caie    r1,mte1                 ;integer divide check?
+        cain    r1,mte4                 ;floating divide check?
+        skipa                           ;yes
+        jrst    rerr19
+        skipe   r1,contab+dvznum        ;does user have this trap set?
+        jrst    rsmset                  ;yes, honor it
+
+rerr19: PUSHJ   P,GETNDX                ;get index into contab
+        SKIPE   R1,CONTAB(R5)
+        JRST    RSMSET                  ;Set resume stack and go
+        CAIE    R12,UUONUM+ENDNUM
+        JRST    RERR23
+
+;For ENDFILE(N) must check FILE(N) also:
+
+        MOVEI   R5,FILNUM
+        PUSHJ   P,GETNDX
+        SKIPE   R1,CONTAB(R5)
+        JRST    RSMSET                  ;Set resume stack and go
+
+RERR23:                 ;if error=ESCAPE, and user has set ESCNER, do not
+                        ;trap to user ERROR statement.
+        caie    r12,uuonum+escnum
+        jrst    rer235
+        skipe   escner
+        jrst    rerr24                  ;skip over ON ERROR check
+
+rer235: SKIPE   R1,CONTAB+ERRNUM        ;check for ON ERROR
+        JRST    RSMSET                  ;Set resume stack and go
+RERR24: TLNE    R11,(2B12)              ;If 0010 AC bit on, do not print
+        JRST    [TLNN   R11,(1B12)      ;returning to caller?
+                 JRST   RERR33          ;no, print "in line ..."
+                 JRST   RERR35]
+        CALL    RRMSG,<,(R11),,,DESCR>  ;get addr of message from file into R0
+        TLNE    R11,(1B12)              ;0001 AC bit means return to caller
+        JRST    [PUSHJ  P,CXER3
+                 JRST   RERR33]
+        PUSHJ   P,CXER4                 ;Otherwise close up shop
+RERR33:
+	skipe	r1,descr	; Skip if nothing to release.
+	pushj	p,relsp		; Release error text.
+	setzm	descr
+	MOVEI   R1,0(R10)               ;line number
+        SKIPE   R1                      ;if zero don't print anything
+        TLNE    R11,(1B12)              ;or if we are returning to caller
+        JRST    RERR35
+        CAIN    R1,^D100000             ;Direct statement?
+        JRST    [MOVEI  R0,[ASCIZ/in Direct statement/]
+                 CALL   CXER3
+                 JRST   RERR34]
+        MOVEI   R0,[ASCIZ/in line /]
+        PUSH    P,R1
+        CALL    CXER3
+        POP     P,R1
+        PUSHJ   P,VALTYP
+        PUSHJ   P,NAMTYP                ;print module name if not workspace
+RERR34: MOVEI   R0,[0]
+        CALL    CXER3                   ;type CRLF
+RERR35: TLNN    R11,(1B12)              ;0001 AC - return to caller
+        JRST    [PUSHJ  P,POPREG        ;restore registers
+                 MOVEI  R1,^D10
+                 EIR.INT
+                 JRST   RUNCOM]
+        PUSHJ   P,POPREG                ;restore registers
+        EIR.INT
+        POPJ    P,
+;       RNOCN
+
+RNOCN:  PUSHJ   P,GETNDX              ;RNOCN.1
+        SETZM   CONTAB(R5)              ;RNOCN.2
+        CAIE    R5,RSTNUM               ; ON STEP?
+        POPJ    P,
+        H.OFF   R1,H.ONST
+        POPJ    P,
+
+
+
+
+;       RONCN
+
+RONCN:  PUSHJ   P,GETNDX              ;RONCN.1
+        MOVEM   R1,CONTAB(R5)           ;RONCN.2
+
+        SKIPN   R5                      ;R5 = 0 if ON ESCAPE
+        SKIPN   ESCLVL                  ;At interrupt level ?
+         JRST   RONCN1                  ;No
+
+        H.ON    R1,H.ESC                ; SET ESCAPE PENDING FLAG
+        MOVEI   R1,2                    ; And # steps to arm flag
+        MOVEM   R1,ESCARM               ;...
+
+RONCN1: SKIPN   STPLVL##
+        CAIE    R5,RSTNUM
+        POPJ    P,
+        H.ON    R1,H.ONST
+        POPJ    P,
+
+
+; TRPSET (CALLED BY RHED/RPHED)
+        ENTRY   TRPSET
+TRPSET: H.OFF   R1,H.ONST
+        MOVE    R1,0(R16)       ; SAVE LINE NUMBER
+        MOVEM   R1,STPLIN##
+        SKIPN   R1,CONTAB+RSTNUM
+        HALT
+        MOVEI   R5,STPNUM
+        AOS     STPLVL##
+        JRST    RSMSET
+
+; RESTEP (CALLED BY RHED/RPHED)
+        ENTRY   RESTEP
+RESTEP: H.OFF   R1,H.RSTP
+        SKIPN   CONTAB+RSTNUM
+        POPJ    P,
+        H.ON    R1,H.ONST
+        POPJ    P,
+
+
+
+
+;       GETNDX
+
+getndx: xct     ndxtb1(r5)
+        movei   r5,@ndxtb2(r5)
+        popj    p,
+
+chkfil: caml    r3,[filmin]
+        caile   r3,filmax
+        error   rgsmsg+^d17
+        popj    p,
+
+ndxtb1: jfcl                                    ; escape
+        jfcl                                    ; error
+        jfcl                                    ; math
+        jfcl                                    ; transform
+        jfcl                                    ; data end
+        pushj   p,chkfil                        ; eof
+        pushj   p,chkfil                        ; file error
+        jfcl                                    ; step
+        jfcl                                    ; div by zer
+
+ndxtb2:         0                               ; escape
+                1                               ; error
+                2                               ; math
+                3                               ; transform
+                errnof-filmin+datfil            ; data end
+                errnof-filmin(r3)               ; eof
+                errnof-2*filmin+filmax+1(r3)    ; file error
+                rstnum                          ; on step goto trap
+                dvznum                          ; on div by zer
+
+
+
+
+
+;       NAMTYP
+
+;Routine to print out name of user module that error occurred in
+; IF that module is not the workspace module. PTZ 16 august 1976.
+
+NAMTYP: PUSHJ   P,RGQTMD      ;Search load map for end module - 
+                                ; SIXBIT name returned in R1
+        SKIPN   QTMDNO          ;Did we end execution in wksp module?
+        POPJ    P,              ;Yes, don't print anything
+        PUSH    P,R1
+        MOVEI   R0,[ASCIZ / module /]   ;No, print "module" & name
+        CALL    CXER1
+        POP     P,R1
+        MOVEI   R2,6            ;Print SIXBIT name <= 6 chars
+        MOVE    R5,[POINT 7,R3]
+        SETZ    R3,
+        SETZ    R4,
+NAMTY1: SETZ    R0,
+        LSHC    R0,6
+        JUMPE   R0,NAMTY2
+        ADDI    R0," "
+        IDPB    R0,R5
+        SOJG    R2,NAMTY1
+NAMTY2: SETZ    R5
+        MOVEI   R0,R3
+        CALL    CXER1
+        POPJ    P,
+;+
+; RSMSET
+;  called with r1=address to jump to
+;  r5=condition type (0-6)
+;  Sets up resume stack to point to (16)-1 and jump to specified address
+; assumes that a DIR has already been done so an EIR is necessary
+;-
+
+RSMSET: AOS     R2,RSMLV1       ;Bump front pointer up 1
+        ANDI    R2,^O37         ;Make into ring pointer
+        MOVEM   R2,RSMLV1       ;store new front pointer
+        CAME    R2,RSMLV2       ;Have we collided with the front pointer ?
+        JRST    RSMSE0          ;no, dont modify
+        MOVEI   R3,1(R2)        ;Yes, bump back pointer up
+        ANDI    R3,^O37         ;make into ring pointer
+        MOVEM   R3,RSMLV2       ;and store new back pointer
+RSMSE0: HRR     R3,R16          ;Rh=adr+1 to resume to
+        HRL     R3,R5           ;Lh=Condition code
+        SOS     R3              ;Point to JSP at step no
+        MOVEM   R3,RSMSTK(R2)   ;store away
+        MOVEM   R1,-R12(P)    ;Save R1
+        PUSHJ   P,POPREG
+        EIR.INT                 ;Enable interrupt system
+        INISTK
+        JRST    (R1)            ;And away we go...
+
+        ENTRY   PUSREG
+
+;&PUSREG is a routine that stores registers r0-r16 onto the stack.
+
+PUSREG: POP     P,R14(P)          ;PUT RETURN ADDRESS AT TOP OF STACK
+        MOVEM   R0,R1(P)
+        HRLI    R0,R1
+        HRRI    R0,R2(P)
+        BLT     R0,R14(P)
+        ADD     P,[XWD 15,15]         ;ADJUST P POINTER
+        MOVE    R0,-R14(P)            ;RESTORE R0
+        POPJ    P,
+
+
+        ENTRY   POPREG
+
+;&POPREG is a routine to restore registers r0-r13 from the stack.
+
+POPREG: HRLZI   R13,-R14(P)
+        BLT     R13,R13
+        POP     P,-R14(P)           ;RELOCATE RETURN ADDRESS
+        SUB     P,[XWD R13,R13]
+        POPJ    P,
+
+
+        TBADCL  ESCERR,<ESCVAL>
+        EXTERN  ESCNER
+
+        SETZ    R0,
+        SKIPN   ESCVAL
+        SETO    R0,
+        MOVEM   R0,ESCNER
+
+        TBARET
+
+        END
+  
