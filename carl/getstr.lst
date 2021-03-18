@@ -1,0 +1,284 @@
+GetStr	MACRO %53A(1155) 01:45  8-May-86 Page 1
+DCLD	MAC	 7-Dec-74 05:29		TBADCL - Declare TBA ENTRY procedure
+
+
+
+					    XLIST
+					    LIST
+GetStr	MACRO %53A(1155) 01:45  8-May-86 Page 1
+TBADCL	MAC	 7-Dec-74 05:35		OPDEF's
+
+					    xlist
+					list
+GetStr	MACRO %53A(1155) 01:45  8-May-86 Page 1
+GETSTR	MAC	 7-Dec-74 05:45		TBADCL - Declare TBA ENTRY procedure
+
+					Title	GetStr
+
+	400000'					Twoseg
+
+						radix   8
+	400000'					reloc   400000
+						extern  allsp
+
+					subttl  overview
+
+					;+
+					;.upper case
+					;.spacing 1
+					;.paper size 60,78
+					;.left margin 8
+					;.right margin 78
+					;.paragraph 0
+					;.number 1
+					;.first title
+					;.nojustify
+					;	Overview of package
+					;.s
+					; This set of routines is designed to return
+					; a TBA string.
+					;.nf.s
+					; The Procedures are:
+					;.fill.s
+					; All of the entry points are callable as EXTERNAL TBA routines/functions.
+					;-
+
+GetStr	MACRO %53A(1155) 01:45  8-May-86 Page 2
+GETSTR	MAC	 7-Dec-74 05:45		GetStr
+
+					subttl	GetStr
+
+					;+
+					;.page;.nf;.s; GETSTR				     NOT SUPPORTED
+					; -------------
+					;.s; Form of DEF:
+					;.s.i+4; DEF STRING EXTERNAL GETSTR
+					;.s; Arguments:
+					;.s.lm+4; None
+					;.i-4.s; Results:
+					;.f;.s; String or null if error
+					;.lm-4
+					;-
+
+						tbadcl  getstr^
+	400000'	261 17 0 00 000001 	getstr:	push p,r1
+			000003		protab== 3
+
+	400001'	561 00 0 00 000003 		hrroi   r0,protab	    ; index = -1
+	400002'	047 00 0 00 000041 		gettab  r0,
+	400003'	201 00 0 00 000000 		movei   r0,0
+
+	400004'	200 01 0 17 000000 		move    r1,(p)	  ; get dest string address
+	400005'	550 01 0 01 000000 		hrrz    r1,(r1)
+						call    makes	       ^;convert 6-bit name to 7-bit
+	400006'	260 17 0 00 400011'		Pushj	p,makes
+	400007'	350 00 0 17 000000 		aos     (p)
+
+	400010'	263 17 0 00 000000 		tbaret^popj p,^
+GetStr	MACRO %53A(1155) 01:45  8-May-86 Page 3
+GETSTR	MAC	 7-Dec-74 05:45		makes
+
+					       subttl  makes
+					;
+					;	makes - local subroutine to convert a 6 bit file name or
+					;		extension to 7 bit and store into tmp string.
+					;
+					;	inputs:
+					;	  r0 - 6 bit file name or extension
+					;	  r1 - address of tmp string descriptor
+					;
+						dclne   makes,<tword,mystg>^
+	400011'	261 17 0 00 000000 		    Push   p,r.^0^
+	400012'	261 17 0 00 000001 		    Push   p,r.^1^
+			000001		cnt==1
+			000002		out.ptr==2
+			000003		stgdsc==3
+			000004		chr==4
+
+						call    allsp,<2,$,mystg,0>	^; allocate core for tmp string
+	400013'	201 00 0 00 000002 		   Movei   R.^0^,2>>
+	400014'	200 01 0 17 000000 		   Move    R.^1^,mystg>^-0(p)^
+	400015'	201 02 0 00 000000 		   Movei   R.^2^,0>>
+	400016'	260 17 0 00 000000*		Pushj	p,allsp
+
+	400017'	201 00 0 00 000006 		movei   r0,6			  ; set declared length as 6
+	400020'	200 03 0 17 000000 		move    stgdsc,mystg^-0(p)^
+	400021'	202 00 0 03 000001 		movem   r0,1(stgdsc)
+
+	400022'	550 02 0 03 000000 		hrrz    out.ptr,0(stgdsc)	; build output byte pointer
+	400023'	505 02 0 00 440700 		hrli    out.ptr,(point 7,)
+
+	400024'	400 01 0 00 000000 		setz    cnt,			 ; set count to zero
+
+	400025'	200 05 0 17 777777 		move    chr+1,tword ^-1(p)^	    ; pick up word to convert
+	400026'	322 05 0 00 400034'	loop:   jumpe   chr+1,done		; done?
+	400027'	400 04 0 00 000000 		setz    chr,			 ; get next char
+	400030'	246 04 0 00 000006 		lshc    chr,6
+	400031'	271 04 0 00 000040 		addi    chr,"A"-'A'		 ; convert to 7 bit
+	400032'	136 04 0 00 000002 		idpb    chr,out.ptr		   ; stuff it
+	400033'	344 01 0 00 400026'		aoja    cnt,loop		     ; increment count and continue
+
+	400034'	506 01 0 03 000001 	done:   hrlm	cnt,1(stgdsc)	       ; set actual length
+						return  makes^
+	400035'	274 17 0 00 400113'		   Sub     p,l.^[2,,2]^
+	400036'	263 17 0 00 000000 		   Popj    p,
+GetStr	MACRO %53A(1155) 01:45  8-May-86 Page 4
+GETSTR	MAC	 7-Dec-74 05:45		cvtppn
+
+					       subttl  cvtppn
+
+					;	cvtppn - local subroutine to convert an integer ppn into
+					;	a string of the format [account,user no],leading zeros suppressed
+
+					;	inputs:
+					;	  r0 - integer ppn
+					;	  r1 - address of string descriptor
+
+						dclne   cvtppn,<pword,stoptr>^
+	400037'	261 17 0 00 000000 		    Push   p,r.^0^
+	400040'	261 17 0 00 000001 		    Push   p,r.^1^
+
+			000003		strdsc== 3			  ;string descriptor
+			000002		out.ptr== 2			  ;output byte pointer
+			000001		cnt== 1			     ;count of moved characters
+			000004		ccount== 4			  ;character counter
+			000005		lp.count== 5			 ;loop counter
+			000006		chr== 6			     ;long register for extraction of char.
+
+						call allsp,<3,$,stoptr,0>     ^;reserve 3 words for string
+	400041'	201 00 0 00 000003 		   Movei   R.^0^,3>>
+	400042'	200 01 0 17 000000 		   Move    R.^1^,stoptr>^-0(p)^
+	400043'	201 02 0 00 000000 		   Movei   R.^2^,0>>
+	400044'	260 17 0 00 400016*		Pushj	p,allsp
+
+	400045'	201 00 0 00 000017 		movei   r0,^d15	 ;maximum string length
+	400046'	200 03 0 17 000000 		move    strdsc,stoptr^-0(p)^
+	400047'	202 00 0 03 000001 		movem   r0,1(strdsc)    ;store max. string length
+
+	400050'	550 02 0 03 000000 		hrrz    out.ptr,0(strdsc)	;saddr.of destination
+	400051'	505 02 0 00 440700 		hrli    out.ptr,(point 7,)	 ;build output byte pointer
+	400052'	400 01 0 00 000000 		setz    cnt,
+
+	400053'	201 06 0 00 000133 		movei   chr,"["
+	400054'	136 06 0 00 000002 		idpb    chr,out.ptr	   ;store left bracket
+	400055'	271 01 0 00 000001 		addi    cnt,1		   ;incrment char count
+
+	400056'	200 07 0 17 777777 		move    chr+1,pword ^-1(p)^    ;get ppn to be converted
+
+	400057'	571 05 0 00 777776 		hrrei    lp.count,-2     ;initialize loop counter
+									;first convert account number
+					; start of loop to convert 6 digits
+
+	400060'	571 04 0 00 777772 	do.6:   hrrei	  ccount,-6	    ;initialize character counter
+
+	400061'	400 06 0 00 000000 	loop1:  setz	chr,	     ;clear upper register
+	400062'	246 06 0 00 000003 		lshc    chr,3		 ;move over one digit
+	400063'	326 06 0 00 400071'		jumpn  chr,gotone	 ;skip to first non-zero char.
+	400064'	341 04 0 00 400061'		aojl    ccount,loop1
+
+	400065'	201 06 0 00 000060 		movei   chr,"0" 	;store at least one 0
+	400066'	136 06 0 00 000002 		idpb    chr,out.ptr
+	400067'	271 01 0 00 000001 		addi    cnt,1
+	400070'	254 00 0 00 400100'		jrst    endlp1
+GetStr	MACRO %53A(1155) 01:45  8-May-86 Page 4-1
+GETSTR	MAC	 7-Dec-74 05:45		cvtppn
+
+
+	400071'	271 06 0 00 000060 	gotone: addi    chr,"0"	   ;convert to 7 bit digit
+	400072'	136 06 0 00 000002 		idpb    chr,out.ptr	   ;stuff digit
+	400073'	271 01 0 00 000001 		addi    cnt,1		   ;increment character count
+	400074'	345 04 0 00 400100'		aojge   ccount,endlp1	;jump if 6 characters have been processed
+
+	400075'	400 06 0 00 000000 		setz    chr,		 ;clear upper register
+	400076'	246 06 0 00 000003 		lshc    chr,3		 ;move over next digit
+	400077'	254 00 0 00 400071'		jrst gotone	      ;go convert digit
+
+	400100'	342 05 0 00 400105'	endlp1: aoje    lp.count,cvtdon   ;jump when loop count satisfied
+
+	400101'	201 06 0 00 000054 		movei   chr,"," 	;insert the comma
+	400102'	136 06 0 00 000002 		idpb    chr,out.ptr
+	400103'	271 01 0 00 000001 		addi    cnt,1		   ;increment char.count
+
+	400104'	254 00 0 00 400060'		jrst    do.6		  ;go convert user number
+
+					; end of 6 digit convert loop
+
+	400105'	201 06 0 00 000135 	cvtdon:   movei   chr,"]"	    ;insert right bracket
+	400106'	136 06 0 00 000002 		idpb    chr,out.ptr
+	400107'	271 01 0 00 000001 		addi    cnt,1		   ;increment char. count
+
+	400110'	506 01 0 03 000001 		hrlm    cnt,1(strdsc)   ;store actual char.count in str.descrpt wd.
+						return  cvtppn^
+	400111'	274 17 0 00 400113'		   Sub     p,l.^[2,,2]^
+	400112'	263 17 0 00 000000 		   Popj    p,
+
+	400113'					lit
+	400113'	000002	000002
+						end
+
+NO ERRORS DETECTED
+
+HI-SEG. BREAK IS 400114
+PROGRAM BREAK IS 000000
+CPU TIME USED 01:50.116
+
+12P CORE USED
+GetStr	MACRO %53A(1155) 01:45  8-May-86 Page S-1
+GETSTR	MAC	 7-Dec-74 05:45		SYMBOL TABLE
+
+A	270000	000000		R16		000016	spd	
+AI	271000	000000		R17		000017	spd	
+ALLSP		400044'	ext	R2		000002	spd	
+AM	272000	000000		R3		000003	spd	
+CCOUNT		000004	spd	R4		000004	spd	
+CHR		000006	spd	R5		000005	spd	
+CNT		000001	spd	R6		000006	spd	
+CVTDON		400105'		R7		000007	spd	
+CVTPPN		400037'		RCNT		000000	spd	
+DCNT	777777	777776	spd	REG		000001	spd	
+DO.6		400060'		S	274000	000000		
+DONE		400034'		SE	332000	000000		
+ENDLP1		400100'		SG	337000	000000		
+GETSTR		400000'	ent	SGE	335000	000000		
+GETTAB	047000	000041		SI	275000	000000		
+GOTONE		400071'		SL	331000	000000		
+H4		000004	spd	SLE	333000	000000		
+J	254000	000000		SM	276000	000000		
+JE	322000	000000		SN	336000	000000		
+JG	327000	000000		STGDSC		000003	spd	
+JGE	325000	000000		STRDSC		000003	spd	
+JL	321000	000000		VCNT		000010	spd	
+JLE	323000	000000		VFLAG		000000	spd	
+JMP	254000	000000		%LAST	777777	777777	spd	
+JN	326000	000000		
+LCNT		000000	spd	
+LOOP		400026'		
+LOOP1		400061'		
+LP.COU		000005	spd	
+M	200000	000000		
+MAKES		400011'		
+MI	201000	000000		
+MM	202000	000000		
+MN	210000	000000		
+MNI	211000	000000		
+MNM	212000	000000		
+OUT.PT		000002	spd	
+P		000017		
+P1		000010	spd	
+P2		000011	spd	
+P3		000012	spd	
+P4		000013	spd	
+P5		000014	spd	
+P6		000015	spd	
+P7		000016	spd	
+PCNT		000000	spd	
+PROTAB		000003	spd	
+R0		000000	spd	
+R1		000001	spd	
+R10		000010	spd	
+R11		000011	spd	
+R12		000012	spd	
+R13		000013	spd	
+R14		000014	spd	
+R15		000015	spd	
+  
