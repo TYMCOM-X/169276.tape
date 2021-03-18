@@ -1,0 +1,186 @@
+        TITLE   REPWR
+        TWOSEG
+        RELOC   400000
+
+subttl   ELEMENT-BY-ELEMENT MATRIX/SCALAR POWER
+
+
+        EXTERN  RPWR,RDXMX,.ASCN2,.AINC2,RNDBL,RELSP,convrt
+        EXTERN  ACOD,SSAV,ASAV,RLT,SLEFT,PTYPS,BTYP,PTYP,.cadr
+
+; INPUT:
+;       r0:  array code  ( bit 35 = 1  => deallovate r3 array after use)
+;       r1(,r2):  scalar
+;       r3:  array
+;       r4:  result array
+;       r5:  type of scalar (+10d if scalar is on left)
+; OUTPUT:
+;   Result in array specified by R4. Input array is deallocated if specified
+;  by the array code.
+
+; DO:
+;   Produce result array whose values are :
+;       i) input array values to the scalar power if the scalar is on the left
+;       ii) scalar to the power of the input array values
+
+
+        DCL REPWR,,<INPARY,IARFLG>
+
+;  .1.1         check for undeclared array
+        HRRZ    R6,.aloc(R3)    ; /ALOC
+        JUMPN   R6,REP13
+;  .1.2
+        ERROR   ME15            ;REFERENCE TO UNDECLARED ARRAY
+
+;  .1.3         save arguments
+REP13:  MOVEM   R0,ACOD
+        DMOVEM  R1,SSAV
+        MOVEM   R3,ASAV
+        MOVEM   R4,RLT
+        SETZM   SLEFT           ;   scalar on left flag
+        SETZM   IARFLG
+        HLRZ    R6,.atyp(R3)    ;ASAV /ATYP
+;  .2
+        CAIG    R5,5
+        JRST    REP4X
+;  .3
+        SUBI    R5,^D10
+        EXCH    R5,R6
+        AOS     SLEFT
+;  .4
+REP4X:  HRRZM   R5,PTYP
+        HRRZM   R6,BTYP
+        HRLM    R6,PTYPS
+        HRRM    R5,PTYPS
+        CAML    R6,R5           ; is the type of base < type of power
+        JRST    REPWR7
+        SKIPE   SLEFT           ; and is the base the scalar
+        ERROR   ME10            ;  yes, give error
+        MOVEM   R3,INPARY       ;  no, convert array up to type of scalar
+        AOS     IARFLG
+        MOVEM   R5,BTYP
+        HRLM    R5,PTYPS
+        MOVE    R1,R3
+        MOVE    R2,R5
+        CALL    CONVRT
+        MOVEM   R1,ASAV
+        MOVE    R3,R1
+        MOVE    R4,RLT
+
+;  .7.1         declare result array
+REPWR7: HRL     R7,R3
+        HRR     R7,R4
+        HRRZ    R10,.andim(R3)
+        MOVE    R10,.cadr(R10)
+        ADDI    R10,-1(R4)
+        BLT     R7,(R10)
+        SETZM   .aloc(R4)
+        HRLM    R6,.atyp(R4)    ;RLT /ATYP
+;  .7.2
+        CALL    RDXMX,<,$,R4>
+
+        CALL    .ASCN2,<,$,ASAV,$,RLT>
+;  .9.2
+REP92:  CALL    .AINC2
+        JUMPE   R1,REP11
+;  .9.3
+        MOVE    R6,BTYP
+        MOVE    R7,PTYP
+        MOVE    R10,SLEFT
+        MOVE    R11,R1
+        MOVE    R12,R2
+;  .9.4
+        XCT     @LODBAS(R6)
+        XCT     @LODPWR(R7)
+;  .9.5
+        MOVE    R5,PTYPS
+        CALL    RPWR
+;  .9.6
+        XCT     STOTAB(R6)
+;  .9.7
+        JRST    REP92
+
+;  .11          release converted array if one was made
+REP11:  SKIPN   IARFLG
+        JRST    REP11A
+        ; first the body
+        MOVE    R1,ASAV
+        REL
+        ; the the descriptor
+        MOVEI   R1,ASAV
+        REL
+        MOVE    R3,INPARY
+        MOVEM   R3,ASAV
+
+;               release input array if ACOD says to
+REP11A: MOVE    R1,ACOD
+        TRNN    R1,1
+        JRST    REPEXT
+;  .12
+        MOVE    R1,ASAV
+        move    r1,.amap(r1)
+        tlnn    r1,-1   ; skip if slice
+        pushj   r17,relsp
+;
+REPEXT: RETURN  REPWR
+;
+;
+;
+;
+;  OPERAND LOAD TABLES
+;
+LODBAS: MOV1(R10)                ;0 - LOGICAL
+        MOV1(R10)                ;1 - INTEGER
+        MOV1(R10)                ;2 - REAL
+        DMOV1(R10)               ;3 - DOUBLE
+        DMOV1(R10)               ;4 - COMPLEX
+;
+LODPWR: MOV2(R10)
+        MOV2(R10)
+        MOV2(R10)                ;AS ABOVE
+        DMOV2(R10)
+        DMOV2(R10)
+;
+MOV1:   MOVE    R1,(R11)
+        MOVE    R1,SSAV
+DMOV1:  DMOVE   R1,(R11)
+        DMOVE   R1,SSAV
+;
+MOV2:   MOVE    R3,SSAV
+        MOVE    R3,(R11)
+DMOV2:  DMOVE   R3,SSAV
+        DMOVE   R3,(R11)
+;
+;  RESULT STORAGE TABLE
+;
+STOTAB: MOVEM   R1,(R12)
+        JSP     R5,DBLINT
+        JSP     R5,DBLRL        ;AS ABOVE
+        DMOVEM  R1,(R12)
+        DMOVEM  R1,(R12)
+;
+;  DOUBLE TO INTEGER 
+;
+DBLINT: MOVE    R3,R1
+        TLNN    R1,400000
+        TLZA    R1,377000
+        TLO     R1,377000
+        ASH     R3,-^D27
+        TRNE    R3,400
+        SETCA   R3,
+        SUBI    R3,^D128+^D27
+        ASHC    R1,(R3)
+        TLNE    R2,200000
+        ADDI    R1,1
+        MOVEM   R1,(R12)
+        JRST    (R5)
+;
+;  DOUBLE TO REAL
+;
+DBLRL:  CALL    RNDBL
+        MOVEM   R1,(R12)
+        JRST    (R5)
+;
+        LIT
+;
+        END
