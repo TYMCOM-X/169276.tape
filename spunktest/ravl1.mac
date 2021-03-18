@@ -1,0 +1,43 @@
+TITLE   RAVL1
+SUBTTL  VAL function of a string array
+
+;+
+;.FIRST TITLE .NJ .P 0 .FLAG CAP .FLAG IND
+;.SUBTITLE VAL function of a string array
+;-
+
+; Initial compiler stuff
+        TWOSEG
+        RELOC   ^O400000
+        RADIX   10               ;*** CAUTION !! RADIX 10 FILE !! CAUTION ***;
+
+; Externals
+        EXTERN  VALIPT, VALRST, RION1, VALRST, RINPT, RKLFMT
+
+; Entry points
+        ENTRY   RAVL1
+
+;
+;******************************************************************
+        SUBTTL  RAVL1
+        DCL     RAVL1,<SR0>
+;******************************************************************
+;
+;       VAL(STRING ARRAY)
+;
+        MOVEM   R3,VALIPT       ; ADDR OF ARRAY
+        MOVEM   R4,VALRST       ; ADDR OF RESULT
+        SETZ    R0,             ; RION PARAMETER FW1 - INPFF
+        HRLZI   R11,FCBVAL      ; INDICATE VAL FUNCTION
+        PUSHJ   R17,RION1       ; SET UP FOR "INPUT"
+        0
+        HRLZI   R13,^O2000      ; HW1,,HW2 FOR RINPT - CLASS,TYPE
+        HRRI    R13,REAL
+        MOVE    R1,VALRST       ; ADDR OF RESULT ARRAY
+        MOVE    R0,SR0          ; ARRAY CODE
+        PUSHJ   R17,RINPT
+        0
+        PUSHJ   R17,RKLFMT
+        RETURN  RAVL1
+
+        END
