@@ -1,0 +1,511 @@
+        TITLE   REEOPS
+        TWOSEG
+        RELOC   ^O400000
+
+subttl   MATRIX-MATRIX ELEMENT BY ELEMENT OPERATIONS
+
+        ENTRY   REEOPS
+
+        EXTERN  CONF1,CVRTM,RPWR,RNDBL,.CMUL,.CDIV
+        EXTERN  ACOD,OPCD,RSAV,LSAV,RLT,LEFT,RIGHT,RSLT
+        EXTERN  TYP,RET,PTYPS,.ascn2,.ainc2,RMAD
+
+        RADIX   10
+
+        OPDEF   ERROR   [^O32B8]
+;
+R0==0
+R1==1
+R2==2
+R3==3
+R4==4
+R5==5
+R6==6
+R7==7
+R8==8
+R9==9
+R10==10
+R11==11
+r17==15
+; NOTE on input arrays and their eventual de-allocation
+;       The original arguments from r2,r3 are treasured in LSAV,RSAV,
+;       with their temp bits from r0 in ACOD. LSAV and RSAV are
+;       submitted to CONF1 for conformability checks and possible
+;       type conversion of one of them. CONF1 returns two arrays--
+;       maybe the same ones you handed in, maybe not. These are 
+;       treasured in LEFT,RIGHT and are the arrays actually computed
+;       on.  Come time to de-allocate, we look at CVRTM, who was left
+;       in the back room by CONF1.  If non-zero, CONF1 made a converted
+;       input array and CVRTM points to it. We de-allocate (carefully,
+;       now) first the body, then the descriptor (who also lives
+;       in DSA space). It's then routine to de-allocate LSAV,RSAV
+;       (not LEFT,RIGHT) conditional on ACOD.
+
+REEOPS:
+;   .1
+        MOVEM   R0,ACOD
+        MOVEM   R2,LSAV
+        MOVEM   R3,RSAV
+;       *** following change is to allow input array to be result array
+        PUSH    r17,R4          ; SAVE USER SPECIFIED RESULT ADR
+        PUSH    r17,R1
+        HRRZ    R5,.andim(R2)   ; GET # OF DIMENSIONS
+        MOVE    R0,SIZTAB(R5)   ; GET SIZE NEEDED FOR RESULT DESCRIPTOR
+        MOVEI   R1,RLT          ; return pointer in RLT
+        MOVEI   R2,0            ; tag for ALLOC
+        ALLOC
+        MOVE    R4,R2           ; adr of descriptor for result, also in RLT
+        MOVE    R3,RSAV
+        MOVE    R2,LSAV
+        POP     r17,R1
+        MOVE    R0,ACOD
+;       ***
+;  .2
+        CAIN    R1,31           ;OPCD=31?
+        JRST    REE5
+        CAILE   R1,24           ;OPCD<=24?
+        JRST    REE4
+;  .3
+        SUBI    R1,22
+        SETZ    R5,
+        JRST    REE6X
+;  .4
+REE4:   SUBI    R1,23
+        SETZ    R5,
+        JRST    REE6X
+;  .5
+REE5:   MOVEI   R1,6
+        MOVEI   R5,1
+;
+REE6X:  MOVEM   R1,OPCD
+;  .6
+        SETZM   ,(R4)   ; THIS DESCRIPTOR HAS NO BODY
+
+        CALL    CONF1,<,$,R2,$,R3,$,R5>,<LEFT,RIGHT>
+;  .7
+        MOVE    R3,(R1)         ;R1=LEFT
+        IOR     R3,(R2)         ;R2=RIGHT
+        TLNN    R3,^O777777
+        JRST    REE9
+;  .8.1         SLICED
+        call    .ascn2  ; set addressing routine
+        move    r1,left
+        move    r2,right
+        MOVE    R3,RLT          ;LEFT,RIGHT IN R1,R2
+;  .8.2
+        HRRZ    R4,.aloc(R3)         ;RSLT /ALOC
+        MOVEM   R4,RSLT
+        HLRZ    R4,.atyp(R1)        ;/ATYP
+        MOVEM   R4,TYP
+        HRL     R4,R4           ;TYP
+        HLR     R4,.atyp(R2)        ;RIGHT /ATYP
+        MOVEM   R4,PTYPS
+        MOVEI   R4,SRET
+        MOVEM   R4,RET
+;  .8.3.1,2
+REE831:
+        call    .ainc2  ; get r1=right elet, r2 = left elet
+        jumpe   r1,ree10        ; returns zero if done
+;  .8.3.3
+        MOVE    R6,OPCD         ;OPCD
+        MOVE    R7,R1           ;OP1
+        MOVE    R8,r2         ;OP2
+        MOVE    R9,RSLT         ;RSLT
+        MOVE    R10,RET         ;RET
+        MOVE    R11,TYP         ;TYP
+;  .8.3.4
+        XCT     LODTAB(R11)
+        XCT     @TYPTAB(R11)
+SRET:   XCT     STOTAB(R11)
+;  .8.3.5
+        ADD     R9,ITAB(R11)
+        MOVEM   R9,RSLT
+;  .8.3.6
+        JRST    REE831
+;  .9.1         no slice
+REE9:   MOVE    R6,OPCD         ;OPCD*
+        MOVE    R3,RLT          ;RIGHT,LEFT IN R1,R2
+;  .9.2
+        HRRZ    R7,.aloc(R1)         ;OP1=LEFT /ALOC*
+        HRRZ    R8,.aloc(R2)         ;OP2=RIGHT /ALOC*
+        HRRZ    R9,.aloc(R3)         ;RSLT=RLT /ALOC*
+        HLRZ    R4,.atyp(R1)        ;/ATYP
+        MOVE    R10,RETAB(R4)   ;RET*
+        HLRZ    R11,.absz(R1)       ; /ABSZ
+        ADD     R11,R7          ;BND=OP1+/ABSZ*
+        HRL     R5,R4           ;TYP
+        HLR     R5,.atyp(R2)        ;RIGHT /ATYP
+        MOVEM   R5,PTYPS
+;  .9.3
+        JRST    @OPTAB(R4)
+;
+OPTAB:  INTOP
+        INTOP
+        REALOP
+        DBLOP
+        CMPXOP
+        REOPER                  ;STRING=ERROR
+;  .9.5.1
+INTOP:  MOVE    R1,(R7)
+        XCT     ITXTB(R6)
+ITRT:   MOVEM   R1,(R9)
+;  .9.5.2
+        ADDI    R7,1
+        ADDI    R8,1
+        ADDI    R9,1
+;  .9.5.3
+        CAMGE   R7,R11          ;OP1=>BND?
+        JRST    INTOP
+        JRST    REE10
+;  .9.6.1
+REALOP: MOVE    R1,(R7)
+        XCT     RLXTB(R6)
+RLRT:   MOVEM   R1,(R9)
+;  .9.6.2
+        ADDI    R7,1
+        ADDI    R8,1
+        ADDI    R9,1
+;  .9.6.3
+        CAMGE   R7,R11          ;OP1=>BND?
+        JRST    REALOP
+        JRST    REE10
+;  .9.7.1
+DBLOP:  DMOVE   R1,(R7)
+        XCT     DBXTB(R6)
+DBRT:   DMOVEM  R1,(R9)
+;  .9.7.2
+        ADDI    R7,2
+        ADDI    R8,2
+        ADDI    R9,2
+;  .9.7.3
+        CAMGE   R7,R11          ;OP1=>BND?
+        JRST    DBLOP
+        JRST    REE10
+;  .9.8.1
+CMPXOP: JRST    @CTYPTB(R6)
+;
+CTYPTB: CADDLP                  ;+
+        CSUBLP                  ;-
+        REOPER                  ;DIV
+        CDIVLP                  ;/
+        CMULLP                  ;*
+        REOPER                  ;MOD
+        CPWRLP                  ;^
+;  .9.8.2
+CADDLP: DMOVE   R1,(R7)
+        FADR    R1,(R8)
+        FADR    R2,1(R8)
+        DMOVEM  R1,(R9)
+;  .9.8.3
+        ADDI    R7,2
+        ADDI    R8,2
+        ADDI    R9,2
+;  .9.8.4
+        CAMGE   R7,R11          ;OP1=>BND?
+        JRST    CADDLP
+        JRST    REE10
+;  .9.8.5
+CSUBLP: DMOVE   R1,(R7)
+        FSBR    R1,(R8)
+        FSBR    R2,1(R8)
+        DMOVEM  R1,(R9)
+;  .9.8.6
+        ADDI    R7,2
+        ADDI    R8,2
+        ADDI    R9,2
+;  .9.8.7
+        CAMGE   R7,R11          ;OP1=>BND?
+        JRST    CSUBLP
+        JRST    REE10
+;  .9.8.8
+CMULLP: DMOVE   R1,(R7)
+        DMOVE   R3,(R8)
+;  .9.8.9
+        PUSHJ   P,.CMUL
+;  .9.8.10
+        DMOVEM  R1,(R9)
+        ADDI    R7,2
+        ADDI    R8,2
+        ADDI    R9,2
+;  .9.8.11
+        CAMGE   R7,R11          ;OP1=>BND?
+        JRST    CMULLP
+        JRST    REE10
+;  .9.8.12
+CDIVLP: DMOVE   R1,(R7)
+        DMOVE   R3,(R8)
+;  .9.8.13
+        PUSHJ   P,.CDIV
+;  .9.8.14
+        DMOVEM  R1,(R9)
+        ADDI    R7,2
+        ADDI    R8,2
+        ADDI    R9,2
+;  .9.8.15
+        CAMGE   R7,R11          ;OP1=>BND?
+        JRST    CDIVLP
+        JRST    REE10
+;  .9.8.16
+CPWRLP: DMOVE   R1,(R7)
+        DMOVE   R3,(R8)
+        MOVE    R5,PTYPS
+;  .9.8.17
+        CALL   RPWR
+;  .9.8.18
+        DMOVEM  R1,(R9)
+        ADDI    R7,2
+        HRRZ    R3,PTYPS        ;GET POWER TYPE
+        ADD     R8,ITAB(R3)
+        ADDI    R9,2
+;  .9.8.19
+        CAMGE   R7,R11          ;OP1=>BND?
+        JRST    CPWRLP
+;
+;  .10.1
+REE10:  MOVE    R1,CVRTM
+        JUMPE   R1,REE104
+;  .10.2
+        REL                     ;RELEASE CONVERT.ARRAY BODY
+;  .10.3
+        MOVEI   R1,CVRTM
+        REL                     ;RELEASE CONVERT.ARRAY DESCRIPTOR
+;  .10.4
+REE104: MOVE    R2,ACOD
+        TRNN    R2,4
+        JRST    RE106X
+;  .10.5
+        MOVE    R1,LSAV
+                     ;RELEASE LEFT TEMPORARY ARRAY
+        move    r1,.amap(r1)
+        tlnn    r1,-1           ; skip if slice
+        pushj   r17,relsp
+;  .10.6
+        MOVE    R2,ACOD
+RE106X: TRNN    R2,1
+        JRST    REEXIT
+;  .10.7
+        MOVE    R1,RSAV
+                     ;RELEASE RIGHT TEMPORARY ARRAY
+        move    r1,.amap(r1)
+        tlnn    r1,-1           ; skip if slice
+        pushj   r17,relsp
+;
+;       *** we now allow input array to be result array
+REEXIT: MOVE    R0,RLT          ; OUR RESULT DESCRIPTOR
+        POP     r17,1           ; CALLERS RESULT DESCRIPTOR THAT WE PUSHED
+        CALL    RMAD
+        MOVEI   R1,RLT          ; NOW WE DEALLOCATE OURS
+        REL
+        POPJ    r17,            ; AND RETURN
+;       ***
+;
+;
+;   ERROR EXIT:
+REOPER: ERROR   ME12
+;
+;
+;
+;   TABLES FOR ELEMENT BY ELEMENT OPERATIONS:
+;
+;
+;   OPERAND LOAD TABLE - XCT
+LODTAB: MOVE    R1,(R7)         ;0 - LOGICAL
+        MOVE    R1,(R7)         ;1 - INTEGER
+        MOVE    R1,(R7)         ;2 - REAL
+        DMOVE   R1,(R7)         ;3 - DOUBLE
+        DMOVE   R1,(R7)         ;4 - COMPLEX
+;
+;   RESULT STORE TABLE - XCT
+STOTAB: MOVEM   R1,(R9) 
+        MOVEM   R1,(R9)
+        MOVEM   R1,(R9)         ;AS ABOVE
+        DMOVEM  R1,(R9)
+        DMOVEM  R1,(R9)
+;
+;   OPERATION DISPATCH TABLE - INDIRECT XCT (FOR SLICED ARRAYS ONLY)
+TYPTAB: ITXTB(R6)
+        ITXTB(R6)
+        RLXTB(R6)               ;AS ABOVE
+        DBXTB(R6)
+        CPXTB(R6)
+;
+;   OPERATIONS SUBTABLES - XCT DIRECTLY OR THRU TYPTAB
+;
+;   INTEGER OPERATIONS
+;
+ITXTB:  ADD     R1,(R8)         ;+
+        SUB     R1,(R8)         ;-
+        IDIV    R1,(R8)         ;DIV
+        JRST    ITDIVD          ;/
+        IMUL    R1,(R8)         ;*
+        JRST    ITMOD           ;MOD
+        JRST    ITPWR           ;^
+;
+;   ROUNDED DIVIDE
+ITDIVD: FLTR    R2,(R8)
+        FLTR    R1,R1
+        FDVR    R1,R2
+        FIXR    R1,R1
+        JRST    (R10)
+;
+;   MODULO
+ITMOD:  IDIV    R1,(R8)
+        MOVE    R1,R2
+        JRST    (R10)
+;
+;   INTEGER POWER
+ITPWR:  CALL    RPWR,<,,,$,(R8),,$,PTYPS>
+        MOVE    R3,R1           ;DOUBLE TO INTEGER
+        TLNN    R1,^O400000
+        TLZA    R1,^O377000
+        TLO     R1,^O377000
+        ASH     R3,-27
+        TRNE    R3,^O400
+        SETCA   R3,
+        SUBI    R3,128+27
+        ASHC    R1,(R3)
+        TLNE    R2,^O200000
+        ADDI    R1,1
+        JRST    (R10)
+;
+;   REAL OPERATIONS
+;
+RLXTB:  FADR    R1,(R8)         ;+
+        FSBR    R1,(R8)         ;-
+        JRST    RLDIV           ;DIV
+        FDVR    R1,(R8)         ;/
+        FMPR    R1,(R8)         ;*
+        JRST    RLMOD           ;MOD
+        JRST    RLPWR           ;^
+;
+;   TRUNCATING DIVIDE
+RLDIV:  FDVR    R1,(R8)
+        FIX     R1,R1
+        FLTR    R1,R1
+        JRST    (R10)
+;
+;   MODULO
+RLMOD:  MOVE    R2,R1
+        MOVE    R3,(R8)
+        FDVR    R2,R3
+        FIX     R2,R2
+        FLTR    R2,R2
+        FMPR    R2,R3
+        FSBR    R1,R2
+        JRST    (R10)
+;
+;   REAL POWER
+RLPWR:  CALL    RPWR,<,,,$,(R8),,$,PTYPS>
+        CALL    RNDBL
+        JRST    (R10)
+;
+;   DOUBLE OPERATIONS
+;
+DBXTB:  DFAD    R1,(R8)         ;+
+        DFSB    R1,(R8)         ;-
+        JRST    DBDIV           ;DIV
+        DFDV    R1,(R8)         ;/
+        DFMP    R1,(R8)         ;*
+        JRST    DBMOD            ;MOD
+        JRST    DBPWR            ;^
+;
+;   TRUNCATING DIVIDE
+DBDIV:  DFDV    R1,(R8)
+        MOVE    R3,R1
+        TLNN    R1,^O400000
+        TLZA    R1,^O377000
+        TLO     R1,^O377000
+        ASH     R3,-27
+        TRNE    R3,^O400
+        SETCA   R3,
+        SUBI    R3,128+27
+        ASHC    R1,(R3)
+        JUMPGE  R1,DBDIV1
+        SKIPE   R2
+        ADDI    R1,1
+DBDIV1: SETZ    R2,
+        JUMPE   R1,DBDIV2
+        ASHC    R1,-9
+        TLOE    R1,^O244000
+        TLZ     R1,^O244000
+        DFAD    R1,[EXP 0,0]
+DBDIV2: JRST    (R10)
+;
+;   MODULO
+DBMOD:  DMOVE   R3,R1
+        DFDV    R3,(R8)
+        FIX     R3,R3
+        FLTR    R3,R3
+        SETZ    R4,
+        DFMP    R3,(R8)
+        DFSB    R1,R3
+        JRST    (R10)
+;
+;   DOUBLE POWER
+DBPWR:  DMOVE   R3,(R8)
+        MOVE    R5,PTYPS
+        CALL    RPWR
+        HRRZ    R3,PTYPS        ;GET POWER TYPE
+        CAIG    R3,2            ;CHECK IF POWER DOUBLE
+        SUBI    R8,1            ;IF NOT CONVERT STEP INCREMENT
+        JRST    (R10)
+;
+;   COMPLEX OPERATIONS (TABLE USED FOR SLICED ARRAYS ONLY)
+;
+CPXTB:  JRST    CPADD           ;+
+        JRST    CPSUB           ;-
+        JRST    REOPER          ;DIV
+        JRST    CPDIVD          ;/
+        JRST    CPMUL           ;*
+        JRST    REOPER          ;MOD
+        JRST    CPPWR           ;^
+;
+;   ADD
+CPADD:  FADR    R1,(R8)
+        FADR    R2,1(R8)
+        JRST    SRET
+;
+;   SUBTRACT
+CPSUB:  FSBR    R1,(R8)
+        Fsbr    R2,1(R8)
+        JRST    SRET
+;
+;   MULTIPLY
+CPMUL:  DMOVE   R3,(R8)
+        PUSHJ   P,.CMUL
+        JRST    SRET
+;
+;   DIVIDE
+CPDIVD:  DMOVE   R3,(R8)
+        PUSHJ   P,.CDIV
+        JRST    SRET
+;
+;   COMPLEX POWER
+CPPWR:  DMOVE   R3,(R8)
+        MOVE    R5,PTYPS
+        CALL    RPWR
+        JRST    SRET
+;
+;   "RETURN" ADDRESS TABLE - NON-SLICED ARRAY OPERATIONS ONLY
+;
+RETAB:  REOPER          ;NOT USED
+        ITRT
+        RLRT
+        DBRT
+        REOPER          ;NOT USED
+;
+;  ELEMENT SIZE INCREMENT TABLE
+;
+ITAB:   1               ;0 - LOGICAL
+        1               ;1 - INTEGER
+        1               ;2 - REAL
+        2               ;3 - DOUBLE
+        2               ;4 - COMPLEX
+;
+SIZTAB: wstdsc
+;
+;
+        LIT
+;
+        END
+  
