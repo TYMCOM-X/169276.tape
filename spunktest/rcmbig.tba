@@ -1,0 +1,404 @@
+100    !******************************************************
+300    !
+500    !  RCM PROGRAM
+700    !        WRITTEN BY: JACK E THOMAS   8/1/80
+900    !
+1100    !******************************************************
+1300  INTEGER NUMCHAR, NUMCHAR2, SWITCH, ERRFLG, PPN, FUNC
+1500  !
+1700  DEF INTEGER EXTERNAL IGFD.PPN
+1900  !
+2100  DEF EXTERNAL SFO PPNNAM(INTEGER I,STRING S)
+2300  !
+2500  DEF LOGICAL EXTERNAL SIMPL IFTP
+2700  !
+2900  DEF EXTERNAL SIMPL STUFIB (STRING S)
+3100  !
+3300 DEF EXTERNAL SFO CECHO(INTEGER I) AKA 'ECHO'
+3500  !
+3700  DEF EXTERNAL SIMPL CORFIL (STRING S, STRING T, INTEGER I, INTEGER J)
+3900  !
+4100  DEF EXTERNAL SFO ASCSIX (STRING S, STRING T, INTEGER I)
+4300  !
+4500  DEFINE EXTERNAL SIMPL RUNUUO(STRING S,INTEGER I)
+4700  !
+4900  DEFINE INTEGER EXTERNAL JOBNO AKA '.JOBNO'
+5100  !
+5300 DEFINE EXTERNAL SFO USERNA(STRING S)
+5500 !
+5700 !
+5900 DEFINE EXTERNAL SFO TRSCAN
+6100 !
+6300 DEFINE EXTERNAL SFO SETRCM(INTEGER I, STRING S, STRING T, INTEGER J)
+6500  !******************************************************
+6700  !
+6900  !   START OF PROCESSING 
+7100  !       SET UP CONSTANT VARIABLES SUCH AS MASTER USERID 
+7300  !            AND PROGRAM NAME
+7500  !******************************************************
+7700 TRAP$ = 'XXXXXXXX'
+7900 USRNAM$ = 'CONLIB      '
+8100 FNAME$ = 'RCMTST'
+8300 SWITCH = 1
+8500 LOL 132
+8700  !******************************************************
+8900  !
+9100  !
+9300  !   CALL SETRCM :  WHERE  SWITCH =1=ON,  SWITCH =0=OFF
+9500  !          FNAME$ = PROGRAM NAME OF RCM PROGRAM (INIT PROGRAM)
+9700  !          USRNAM$ = MASTER USERID    ERRFLG=ERROR RETURN
+9900  !******************************************************
+10100 CALL SETRCM(SWITCH,FNAME$,USRNAM$,ERRFLG)
+10300 CALL TRSCAN        !RESCANS THE INPUT BUFFER TO GET READY FOR AN INPUT
+10500 NAME$ = SPACE(15)
+10700 CALL USERNA(NAME$)   !GET THE USERNAME OF THE PERSON RUNNING
+10900 NAME$ = RJUST(NAME$)
+11100 !******************************************************
+11300 !
+11500 !      THE TERM  FUNCTION SHOULD BE FALSE ON LOGIN
+11700 !******************************************************
+11900 IF NOT TERM THEN 36900 !CHECK IF ANY TTY INPUT READY
+12100 TRAP$ = NAME$  ! SET AFTER FIRST TIME THROUGH
+12300 INPUT IN FORM 'R':ICOM$   !****GET A COMMAND
+12500  !******************************************************
+12700  !
+12900  !     SET UP THE AUDIT TRAIL OF THE USER AND WHAT
+13100  !
+13300  !             HE IS RUNNING WITH DATE AND TIME
+13500  !******************************************************
+13700 ! OPEN(10,'(CONLIB)AUDIT.DAT-A',RANDIO)
+13900 ! LOCATE SIZE(10)+1 ON 10
+14100 IF SUBSTR(IMSG$,1,5) = 'SIGN-' THEN 14500  !FIRST TIME
+14300 IMSG$ = RJUST(ICOM$)
+14500 IF IMSG$ = '' THEN 16500
+14700 ! PRINT ON 10:DATE;NAME$;IMSG$
+14900 ! CLOSE 10
+15100  !******************************************************
+15300  !
+15500  !    EVERYTHING IS READY -- LET'S SEE WHAT WE GOT
+15700  !
+15900  !
+16100  !******************************************************
+16300 IF SUBSTR(IMSG$,1,5) = 'SIGN-' THEN 35500
+16500 ICOM$ = LJUST(RJUST(ICOM$))
+16700 SPACIND = INDEX(ICOM$,' ')
+16900 IF SPACIND = 0 THEN SPACIND = LENGTH(ICOM$)
+17100 COMND$ = RJUST(SUBSTR(ICOM$,1,SPACIND))
+17300 COMARG$ = LJUST(SUBSTR(ICOM$,SPACIND+1))
+17500  !******************************************************
+17700  !
+17900  !    WE HAVE A COMMAND SO PROCESS IT
+18100  !
+18300  !
+18500  !******************************************************
+18700   IF COMND$  =  ''          THEN  35500
+18900   IF INDEX(COMARG$,'RCMTST') # 0 THEN 35500
+19100   IF COMND$  =  'DELETE' AND COMARG$ = 'ALL' THEN  35300
+19300   IF SUBSTR(COMND$,1,3)  =  'DEL' AND INDEX(COMARG$,'*') # 0 THEN 47900
+19500   IF COMND$  =  'RUN'       THEN 55500
+19700   IF COMND$  =  'R'         THEN 55500
+19900   IF COMND$  =  'EXIT'      THEN 68500
+20100   IF COMND$  =  'LOG'       THEN 68500
+20300   IF COMND$  =  'LOGOUT'    THEN 68500
+20500   IF COMND$  =  'PASSWORD'  THEN 41300
+20700   IF COMND$  =  'HELP'     THEN  45500
+20900   IF COMND$  =  'PER'      THEN  42900
+21100   IF COMND$  =  'PERFORM'  THEN  42900
+21300   IF COMND$  =  'FLASH'     THEN  42900
+21500   IF COMND$  =  'TBA'       THEN  39700
+21700   IF COMND$  =  'BATCH'     THEN  53900
+21900   IF COMND$  =  'EDIT'      THEN  38100
+22100   IF COMND$  =  'EDITOR'    THEN  38100
+22300   IF COMND$  =  'GFD'       THEN  58500
+22500   IF COMND$  =  'TIME'      THEN 70500
+22700   IF COMND$  =  'WHO'       THEN  61500
+22900   IF COMND$  =  'WHO.'      THEN  61500
+23100   IF COMND$  =  'SEARCH'    THEN  77500
+23300   IF COMND$  =  'CHANGE'    THEN  77500
+23500   IF COMND$  =  'DOC'       THEN  75900
+23700   IF COMND$  =  'TRU'       THEN  65100
+23900   IF COMND$  =  'TTY'       THEN  66700
+24100 !******************************************************
+24300 !
+24500 !      ALL OF THE BELOW ARE RPG COMMANDS
+24700 !
+24900 !
+25100 !******************************************************
+25300    IF COMND$ =  'COM'      THEN 49500
+25500    IF COMND$ =  'COMPILE'  THEN 49500
+25700    IF COMND$ =  'COPY'     THEN 49500
+25900    IF COMND$ =  'CRE'      THEN 49500
+26100   IF COMND$  =  'CREATE'    THEN  49500
+26300   IF COMND$  =  'DATE'      THEN  49500
+26500   IF COMND$  =  'DEBUG'    THEN 49500
+26700   IF COMND$  =  'DEC'      THEN 49500
+26900   IF COMND$  =  'DECLARE'  THEN 49500
+27100   IF COMND$  =  'DEL'      THEN 49500
+27300   IF COMND$  =  'DELETE'   THEN 49500
+27500   IF COMND$  =  'DIFF'     THEN 49500
+27700   IF COMND$  =  'DIFFERENCES'   THEN 49500
+27900   IF COMND$  =  'DIR'      THEN 49500
+28100   IF COMND$  =  'DIRECTORY' THEN 49500
+28300   IF COMND$  =  'FDC'      THEN 49500
+28500   IF COMND$  =  'FDEBUG'   THEN 49500
+28700   IF COMND$  =  'FIL'      THEN 49500
+28900   IF COMND$  =  'FILES'    THEN 49500
+29100   IF COMND$  =  'LIST'     THEN 49500
+29300   IF COMND$  =  'LOAD'     THEN 49500
+29500   IF COMND$  =  'MAIL'     THEN 49500
+29700   IF COMND$  =  'MOD'      THEN 49500
+29900   IF COMND$  =  'MODIFY'   THEN 49500
+30100   IF COMND$  =  'PDP'      THEN 49500
+30300   IF COMND$  =  'PDP10'    THEN 49500
+30500   IF COMND$  =  'PFDC'     THEN 49500
+30700   IF COMND$  =  'POSTMAN'  THEN 49500
+30900   IF COMND$  =  'PRINT'    THEN 49500
+31100   IF COMND$  =  'REN'      THEN 49500
+31300   IF COMND$  =  'RENAME'   THEN 49500
+31500   IF COMND$  =  'SEND'     THEN 49500
+31700   IF COMND$  =  'SETRPG'   THEN 49500
+31900   IF COMND$  =  'SETPROC'  THEN 49500
+32100   IF COMND$  =  'TECO'     THEN 49500
+32300   IF COMND$  =  'TRY'      THEN 49500
+32500   IF COMND$  =  'TYP'      THEN 49500
+32700   IF COMND$  =  'TYPE'     THEN 49500
+32900   IF COMND$  =  'XEX'      THEN 49500
+33100   IF COMND$  =  'XEXEC'    THEN 49500
+33300 IF COMND$ = 'JACK' THEN
+33500          CALL CECHO(0)
+33700           IIM 'ENTER PASSWORD: #':PASS$
+33900           CALL CECHO(1)
+34100                   IF PASS$ = 'JETTHT' THEN
+34300                             SWITCH = 0
+34500                              CALL SETRCM(SWITCH,FNAME$,USRNAM$,ERRFLG)
+34700                              END 'OUT'
+34900                   ENDIF
+35100 ENDIF
+35300   PRINT '** ILLEGAL COMMAND **'
+35500   END ''
+35700 !******************************************************
+35900 !
+36100 !   THIS ROUTINE PROCESSES FIRST TIME THROUGH ONLY
+36300 !        IT SETS UP MSG$ TO GO INTO THE AUDIT TRAIL
+36500 !
+36700 !******************************************************
+36900  IMSG$ = 'SIGN-ON'
+37100 PRINT 
+37300 PRINT 'WELCOME TO THE POSTAL SERVICE CONVERSION'
+37500 PRINT 'YOUR JOB NUMBER IS *':STR(JOBNO,'DDD'):'*'
+37700 PRINT
+37900 GOTO 12500
+38100 !******************************************************
+38300 !
+38500 !                EDITOR
+38700 !
+38900 !
+39100 !******************************************************
+39300 CALL RUNUUO('(SYS)EDITOR',0)
+39500 END '** COULD NOT RUN EDITOR **'
+39700 !******************************************************
+39900 !
+40100 !                TBA
+40300 !
+40500 !
+40700 !******************************************************
+40900 CALL RUNUUO('(CONLIB)TBA',0)
+41100 END '** COULD NOT RUN TBA **'
+41300 !******************************************************
+41500 !
+41700 !              PASSWORD
+41900 !
+42100 !
+42300 !******************************************************
+42500 CALL RUNUUO('(SYS)PASSWORD',0)
+42700 END '** COULD NOT RUN PASSWORD **'
+42900 !******************************************************
+43100 !
+43300 !                  PERFORM
+43500 !
+43700 !
+43900 !******************************************************
+44100 IF COMARG$ = '' THEN IIM 'FILE NAME: #':COMARG$
+44300 COPY COMARG$ TO STR(JOBNO,'DDD')+'PEA.TMP-A'
+44500 OPEN (1,STR(JOBNO,'DDD')+'PEB.TMP-A',RANDOUT,BINARY)
+44700 PRINT ON 1:0
+44900 CLOSE 1
+45100 CALL RUNUUO('(CONLIB)PERFOR',1)
+45300 END '** COULD NOT RUN PERFOR **'
+45500 !******************************************************
+45700 !
+45900 !                    HELP
+46100 !
+46300 !
+46500 !******************************************************
+46700 PRINT 'VALID COMMANDS ARE:'
+46710 PRINT 'BATCH      COMPILE         COPY            CREATE'
+46720 PRINT 'DATE       DEBUG           DECLARE         DELETE'
+46730 PRINT 'DIFF       DIRECTORY       DOC             EDITOR'
+46740 PRINT 'EXIT       FDC             FDEBUG          FILES'
+46750 PRINT 'GFD        HELP            LIST            LOAD'
+46760 PRINT 'LOG        MAIL            MODIFY          PASSWORD'
+46770 PRINT 'PDP10      PERFORM         PFDC            POSTMAN'
+46780 PRINT 'PRINT      R               RENAME          RUN'
+46790 PRINT 'SEARCH     SEND            SETRPG          SETPROC'
+46800 PRINT 'TBA        TECO            TIME            TRU'
+46810 PRINT 'TRY        TTY             TYPE            WHO'
+46820 PRINT 'XEXEC'
+47700 GOTO 35500
+47900 !***********************************************************
+48100 !  VERIFY THE DELETEING OF A GROUP OF FILES
+48300 !***********************************************************
+48500 PRINT 'ARE YOU SURE YOU WISH TO DELETE ALL ':COMARG$:'? ':
+48700 CIB
+48900 INPUT IN FORM 'R':ANS$
+49100 IF SUBSTR(ANS$,1,1) = 'N' THEN  END ''
+49300 IF SUBSTR(ANS$,1,1) # 'Y' THEN 48500
+49500 !******************************************************
+49700 !                   RPG
+49900 !  USES  CALL ASCSIX WHICH MAKES 'SVC' INTO SIXBIT
+50100 !   USES  CALL CORFIL WHICH SETS UP THE TMPCOR FILE
+50300 !          FOR RPG
+50500 !******************************************************
+50700 SVCNAM$ = SPACE(6)
+50900 SVC$ = '   SVC'
+51100 NUMCHAR = 6
+51300 CALL ASCSIX(SVC$,SVCNAM$,NUMCHAR)
+51500 NUMCHAR = FIX((LENGTH(ICOM$)+4)/5) + 1  !SETS UP NUMBER OF WORDS
+51700 ICOM$ = RPAD(ICOM$,NUMCHAR*5)
+51900 NUMCHAR2 = 3    !FUNCTION NUMBER OF CORFIL
+52100 CALL CORFIL(SVCNAM$,ICOM$,NUMCHAR,NUMCHAR2)
+52300 IF SUBSTR(ICOM$,1,3)#'MOD' AND SUBSTR(ICOM$,1,3)#'CRE' THEN 53500
+52500 IF COMARG$ = '' THEN 53500
+52700 EDSNAM$ = SPACE(6)
+52900 EDS$ = '   EDS'
+53100 CALL ASCSIX(EDS$,EDSNAM$,6)
+53300 CALL CORFIL(EDSNAM$,ICOM$,NUMCHAR,NUMCHAR2)
+53500 CALL RUNUUO('(SYS)RPG',1)
+53700 END '** COULD NOT RUN RPG ** '
+53900 !******************************************************
+54100 !
+54300 !                    BATCH
+54500 !
+54700 !
+54900 !******************************************************
+55100 CALL RUNUUO('(SYS)BATCH',0)
+55300 END '** COULD NOT RUN BATCH **'
+55500 !******************************************************
+55700 !
+55900 !       ALL RUN COMMANDS
+56100 !
+56300 !
+56500 !****************************************************
+56700 UNAME$ = ''
+56900 IF COMND$ = 'R'  THEN  UNAME$ = '(SYS)'
+57100 IF SUBSTR(COMARG$,1,1) = '('  THEN  
+57300           UNAME$ = SUBSTR(COMARG$,1,INDEX(COMARG$,')'))
+57500           COMARG$ = LJUST(SUBSTR(COMARG$,(INDEX(COMARG$,')')+1)))
+57700   ENDIF
+57900  PROGN$ = COMARG$
+58100 CALL RUNUUO(UNAME$+PROGN$,0)
+58300 END '** ILLEGAL RUN COMMAND **'
+58500 !******************************************************
+58700 !
+58900 !                GFD 
+59100 !
+59300 !
+59500 !******************************************************
+59700 IF COMARG$ = '' THEN COMARG$ = NAME$
+59900 GFD$ = '   GFD'
+60100 GFDNAM$ = SPACE(6)
+60300 CALL ASCSIX(GFD$,GFDNAM$,6)
+60500 GFDSTR$ = COMARG$ + CHAR(13)+CHAR(0)+CHAR(0)
+60700 GFDLEN = LENGTH(GFDSTR$)/5 + 1
+60900 CALL CORFIL (GFDNAM$,GFDSTR$,GFDLEN,3)
+61100 CALL RUNUUO('(SYS)GFD',1)
+61300 END '** COULD NOT RUN GFD **'
+61500 !******************************************************
+61700 !
+61900 !                   WHO
+62100 !
+62300 !
+62500 !******************************************************
+62700 IF COMND$ = 'WHO.' OR COMARG$ = '.' THEN 63700
+62900  IF NOT IFTP THEN 63700
+63100  CALL STUFIB('WHO'+CHAR(13))
+63300  CALL RUNUUO('(SYS)SYSTAT',2)
+63500  END '**COULD NOT RUN SYSTAT**'
+63700  PPN = IGFD.PPN
+63900  GFD$ = SPACE(15)
+64100 CALL PPNNAM (PPN, GFD$)
+64300  GFD2$ = SUBSTR(GFD$,1,(INDEX(GFD$,')')))
+64500  IF GFD2$ = '('+NAME$+')' THEN GFD2$ = ''
+64700  PRINT JOBNO:' * ':NAME$;GFD2$
+64900 END ''
+65100 !******************************************************
+65300 !
+65500 !                         TRU
+65700 !
+65900 !
+66100 !******************************************************
+66300 PRINT TRU;'=TRU'
+66500 END ''
+66700 !******************************************************
+66900 !
+67100 !                    TTY
+67300 !
+67500 !
+67700 !******************************************************
+67900 IF SUBSTR(COMARG$,1,5) # 'WIDTH'  THEN 68300
+68100 LOL VAL(SUBSTR(COMARG$,6))
+68300 END ''
+68500 !******************************************************
+68700 !
+68900 !            LOGOUT AND EXIT ROUTINES
+69100 !
+69300 !
+69500 !******************************************************
+69700 IF COMND$ = 'LOG'  THEN  LOG
+69900  IF COMND$ # 'EXIT'  THEN END ' '
+70100 CALL RUNUUO('(SYS)LOGOUT',1)
+70300 END '** COULD NOT RUN LOGOUT **'
+70500 !******************************************************
+70700 !
+70900 !                   TIME
+71100 !
+71300 !
+71500 !******************************************************
+71700  TIMNAM$ = SPACE(6)
+71900  TIM$    = '   TIM'
+72100  CALL ASCSIX(TIM$,TIMNAM$,6)
+72300  ! SEE IF WE HAVE DONE BEFORE
+72500  TIMPAR$ = SPACE(15)
+72700  FUNC = 1
+72900 CALL CORFIL(TIMNAM$,TIMPAR$,3,FUNC)
+73100 IF TIMPAR$ = SPACE(15) THEN 73700
+73300 OLDTRU  = VAL(SUBSTR(TIMPAR$,1,10))
+73500 OLDTIME = VAL(SUBSTR(TIMPAR$,11))
+73700 NEWTRU = TRU
+73900 NEWTIM = (60*(VAL(SUBSTR(DATE,11,2)))) + VAL(SUBSTR(DATE,14,2))
+74100 TIMPAR$ = STR(NEWTRU,'DDDDDD.DDD') + ' ' + STR(NEWTIM,'DDDD')
+74300  PRINT IN FORM "ZZZZZ.DD ' TRU' /":NEWTRU-OLDTRU
+74500 PRINT IN FORM "ZZZZZ.DD ' TRU' /":NEWTRU
+74700 PRINT IN FORM "'TERMINAL TIME: ' ZZZZ.DD  /":(NEWTIM-OLDTIME)/60
+74900 PRINT IN FORM "'TERMINAL TIME: ' ZZZZ.DD /":NEWTIM/60
+75100 FUNC = 3
+75300 CALL CORFIL(TIMNAM$,TIMPAR$,3,FUNC)
+75500 IF FUNC = -1 THEN PRINT '**ERROR** COULD NOT GET TIME'
+75700 END ' '
+75900 !******************************************************
+76100 !
+76300 !                    DOC
+76500 !
+76700 !
+76900 !******************************************************
+77100 CALL RUNUUO('(CONLIB)DOC',0)
+77300 END '**CANNOT RUN DOC**'
+77500 !*****************************************************
+77700 !
+77900 !              SEARCH AND CHANGE
+78100 !
+78300 !
+78500 !*****************************************************
+78700 CALL RUNUUO('(CONLIB)'+COMND$,0)
+78900 END '**CANNOT RUN '+COMND$+'**'
+     
