@@ -1,0 +1,307 @@
+        TWOSEG
+        RELOC   ^O400000
+        RADIX   10
+        TITLE   RACMMX
+;
+        EXTERN ARY1,ARY2,ACOD,ATYP1,ATYP2,ARYCUR,SRCADR,TRGADR
+;
+        EXTERN  CONF2,RACMS,CONV2,.ASCN2,.AINC2,.ascn1,.ainc1,.parnt,RELSP
+;
+        SUBTTL  RACMMX
+        DCL     RACMMX,,<DSAPTR,RTNPTR,DSPADR,ELETSZ,NEWPTR>
+
+;Move array to array.
+;Input - R0: array release code
+;        R1: source descriptor address
+;        R2: destination descriptor address
+
+;Store the contents of the source array into the destination array
+;making a type conversion if necessary. Release the source array
+;if temporary. Take care to cover all types, and parent and slice arrays.
+;Also, if storing from one slice into another whose parents are the same,
+;do not clobber the overlapped data.
+;
+;                       1
+        TRZ     0,^O777773
+        MM      0,ACOD
+        MM      2,ARY1
+        MM      3,ARY2
+;
+;                       2
+        M       1,3
+        CALL    CONF2
+	CALL	fxacod          ;fix ACOD - turn ACOD off if array is a slice
+;
+;                       3
+        M       1,ARY1		; register setup
+        hll     3,.amap(1)	; 1:	ary1
+        HLRZ    5,.atyp(1)	; 2:	ary2
+        MM      5,ATYP1	; 3:	slc1,,slc2
+        M       2,ARY2	; 4:
+        hlr     3,.amap(2)	; 5:	atyp1
+        HLRZ    6,.atyp(2)	; 6:	atyp2
+        MM      6,ATYP2
+;
+;                       4
+        CAME    5,6
+        J       RMMX30		; types differ
+;
+;                       5-6	; types the same
+	jumpe	3,rmmx16	; jump if no slicing
+
+		; subchart A: same types, some slicing
+		; INPUT: r1=ary1, r2=ary2, r5=atyp1
+                ; If we are storing from a slice into a slice whose parents are
+                ; the same we need to worry about overlapping data. For this
+                ; case we copy all the source data into a temporary
+                ; area in the DSA and then copy the data to the destination.
+
+        move    r0,dspch(r5)    ; set branch address according to type
+        movem   r0,dspadr
+        call    .parnt,,r4      ; get parent of ARY1 into r4
+        call    .parnt,<,$,ARY2>,r6 ; get parent of ARY2 into r6
+        move    r1,ARY1
+        move    r2,ARY2
+        came    r4,r6           ; same parent?
+        jrst    rmmx7           ; no
+
+;Same parent case:
+
+        hlrz    r0,.absz(2)         ; get # of elements
+        caile   r5,2            ; double complex and string
+        imuli   r0,2            ; are 2 wds per elmnt
+        movei   r1,dsaptr
+        setzm   dsaptr
+        setz    r2,
+        alloc                   ; allocate DSA space
+
+;If string, initialize all the descriptors in the temporary DSA area just
+;allocated. Zero the 1st word, set MAXSTR into right half of second word.
+
+        move    r5,ATYP1
+        caie    r5,5            ;string?
+        jrst    slmmx0
+        move    r1,ARY1
+        hlrz    r0,.absz(1)         ;# elements
+        move    r1,dsaptr
+        movei   r2,maxstr
+slmmx:  sojl    r0,slmmx0
+        setzm   .aloc(r1)
+        hrrzm   r2,.abase(r1)
+        addi    r1,2
+        jrst    slmmx
+
+slmmx0: move    r1,ARY1
+        call    .ascn1          ; set up to scan source slice
+        movei   r0,slmmx1
+        movem   r0,rtnptr
+        movei   r3,1            ; element size
+        move    r5,ATYP1
+        caile   r5,2
+        movei   r3,2            ; elet size
+        movem   r3,eletsz
+        move    r2,dsaptr
+        sub     r2,eletsz
+        movem   r2,newptr
+
+slmmx1: call    .ainc1          ; get next source elmnt address
+        jumpe   r1,slmmx2       ; all done?
+        move    r2,newptr
+        add     r2,eletsz
+        movem   r2,newptr
+        jrst    @dspadr         ; move 1 elmnt
+
+;We've now moved the subarray source data into the DSA.
+;Now we move it back into the destination subarray.
+
+slmmx2: movei   r0,slmmx3
+        movem   r0,rtnptr
+        move    r0,ACOD
+        tro     r0,4            ; stuff in DSA is temporary
+        movem   r0,ACOD
+        move    1,ARY2
+        call    .ascn1          ; set up to scan destination slice
+        move    r2,dsaptr
+        sub     r2,eletsz
+        movem   r2,newptr
+
+slmmx3: call    .ainc1
+        jumpe   r1,slmmx4
+        move    r2,newptr
+        add     r2,eletsz
+        movem   r2,newptr
+        exch    r1,r2
+        jrst    @dspadr         ; dispatch, move 1 elmnt
+
+;We've moved the source data from the DSA area into the destination slice
+;array. Now we release the DSA space.
+
+slmmx4: call    relsp,<,$,dsaptr>
+        setzm   ACOD
+        jrst    rmmx40
+
+;Different parent case:
+
+rmmx7:	call	.ascn2		; set up to scan 2 arrays
+        movei   r0,rmmx7L
+        movem   r0,rtnptr
+
+rmmx7L:	call	.ainc2		; get next address pair in r1,r2
+	jumpe	r1,rmmx40	; will return ZERO if we're done
+	jrst	@dspadr         ; branch to move routine
+
+dspch:	mov1	; logical - type 0
+	mov1	; integer
+	mov1	; real
+	mov2	; double
+	mov2	; complex
+	movstr	; string - type 5
+
+mov1:	move	0,(1)
+	movem	0,(2)
+	jrst	@rtnptr
+
+mov2:	dmove	0,(1)
+	dmovem	0,(2)
+	jrst	@rtnptr
+
+movstr:	move	5,acod		; string code
+	call	racms		; string store
+	jrst	@rtnptr
+
+;                       16	subchart B - same type, no slice
+RMMX16: CAIE    5,5
+        J       RMMX22
+;
+;                       17	string
+        HLRZ    3,.absz(1)
+        LSH     3,-1
+        MM      3,ARYCUR
+        HRRZ    1,.aloc(1)
+        MM      1,SRCADR
+        HRRZ    2,.aloc(2)
+        MM      2,TRGADR
+;
+;                       18
+RMMX18: M       5,ACOD
+;
+;                       19
+        CALL    RACMS
+;
+;                       20
+        SOSG    0,ARYCUR
+        J       RMMX40
+;
+;                       21
+        MI      1,2
+        ADDB    1,SRCADR
+        MI      2,2
+        ADDB    2,TRGADR
+        J       RMMX18
+;
+;                       22	not string
+RMMX22: SKIPN   0,ACOD
+        J       RMMX27
+;
+;                       23	temp source
+        SETZM   0,ACOD
+        M       1,2
+        M       4,2
+;
+;                       24
+        SKIPE   R1,(R1)
+        PUSHJ   P,RELSP         ;release destination numeric array
+;
+;                       26
+        M       3,ARY1
+        HRRZ    3,0(3)
+        MOVPTR  3,4
+        setzm   @ary1           ;zero the source descriptor pointer
+        J       RMMX40
+;
+;                       27
+RMMX27: HLRZ    3,.absz(1)  ;GET /ABSZ IN R3
+        HRRZ    4,.aloc(2)  ;TARGET
+        ADDI    3,-1(4) ;FINAL TARGET ADDRESS INTO R3
+        HRL     4,0(1)  ;SOURCE
+        BLT     4,0(3)
+        J       RMMX40	;		end subchart B
+
+;	subchart C/D - types are different
+;	INPUT:	r1:	ary1
+;		r2:	ary2
+
+rmmx30:
+	call	.ascn2		; initialize array addressing
+rmmx3l:
+	call	.ainc2	; get next address pair
+	jumpe	r1,rmmx40	; returns zero if done
+	move	5,atyp1
+	move	6,atyp2
+	call	conv2
+	jrst	rmmx3l
+
+;                       40-41
+RMMX40:
+	call	crela	; release temp array body, if any
+;                       EXIT
+RMMX$$: RETURN  RACMMX
+	SUBTTL	FXACOD -- fix ACOD (mis-set by compiler)
+; compiler sets temporary bits even on slices, which cannot have
+; their bodies releases.
+; You'd think we'd combine this with the release code, later, but
+; no: array routines dealing with strings tend to hand in ACOD in
+; lieu of SCOD and string bodies may be ripped off before we get
+; to release the array body
+
+;	INPUT:	ARY1:	address of array descriptor 1
+;		ARY2:	address of array descriptor 2
+;		ACOD:	bit 33=1 iff ARY1 points to temp
+;			bit 35=1 iff ARY2 points to temp
+;	OUTPUT:	ACOD bits 33, 35 forced zero if array is a slice
+
+ary1bt==4
+ary2bt==1
+
+DCL	FXACOD
+	; implementation note: You will wonder why we are so
+	; compulsive about checking ACOD before looking at the
+	; array descriptor. It's to avoid a possible ill mem ref
+	; if one of the arrays is missing and there is garbage in
+	; its cell.
+
+	move	0,acod
+	hrlzi	1,1
+	trnn	0,ary1bt
+	jrst	fx2
+	camg	1,@ary1	; slice iff word 0 of desc <= 1,,0
+	trz	0,ary1bt
+fx2:
+	trnn	0,ary2bt
+	jrst	fxexit
+	camg	1,@ary2	; slice iff word 0 of desc <= 1,,0
+	trz	0,ary2bt
+fxexit:
+	movem	0,acod
+	return	fxacod
+
+	SUBTTL	CRELA -- maybe release array
+; release the arrays pointed to by ARY1 and ARY2 if their
+; bits are on in ACOD
+
+DCL	CRELA
+	move	0,acod
+	trnn	0,ary1bt
+	jrst	crela2
+	move	r1,@ary1
+	call	relsp
+crela2:
+	trnn	0,ary2bt
+	jrst	crelax
+	move	r1,@ary2
+	call	relsp
+crelax:
+	return	crela
+
+        END
+ 
