@@ -1,0 +1,114 @@
+       subttl   HEDDEF - RHED/RPHED macros
+;
+;
+;       Macros for interfacing to RHED/RPHED
+;
+;
+
+
+; Define a bit for a RHED/RPHED dispatch
+%hpb==0
+define hedbit (namlst) <
+irp namlst, <hdbit2 namlst,%hpb
+%hpb==%hpb+1>>
+define hdbit2 (bnam,bp) <
+bnam==<1>_<<^d35>-bp>
+%'bnam==bp>
+
+
+; Turn on a set of bits in HEDFLG
+define h.on (ac,bitlst) <do.bit ac,0,<bitlst>>
+
+; Turn off a set of bits in HEDFLG
+define h.off (ac,bitlst) <do.bit ac,1,<bitlst>>
+
+;
+; For use by h.on and h.off
+;
+
+lhm1==^o777777000000
+rhm1==^o777777
+define do.bit (ac,mode,bitlst) <
+ifb <ac>,<
+ %ac==1
+ movem %ac,h.sav1##>
+ifnb <ac>,<
+ %ac==ac>
+%bv==0
+irp bitlst, <
+ %bv==%bv!bitlst>
+ifn rh(%bv),<
+ ife lh(%bv),<
+  hrrzi %ac,%bv>
+ ifn lh(%bv),<
+  ife lh(%bv)-lhm1,<
+   hrroi %ac,%bv>
+  ifn lh(%bv)-lhm1,<
+   ife rh(%bv)-rhm1,<
+    hrloi %ac,rjust(%bv)>
+   ifn rh(%bv)-rhm1,<
+    move %ac,[%bv]>>>>
+ife rh(%bv),<
+ hrlzi %ac,rjust(%bv)>
+ife mode,<
+ iorm %ac,hedflg##>
+ifn mode,<
+ andcam %ac,hedflg##>
+ifb <ac>,<
+ move %ac,h.sav1##>
+ife %bv,<
+ remark <Bleh... null or zero bit mask to h.on or h.off>>>
+
+define rh(val) <val&rhm1>
+define lh(val) <val&lhm1>
+define rjust(val) <<<<val>_<-^d18>>&rhm1>>
+
+; Skip if specified bit is on
+define h.ton (ac,bnam) <h.test ac,0,bnam>
+
+; Skip if specified bit is off
+define h.toff (ac,bnam) <h.test ac,1,bnam>
+
+; for use by h.ton and h.toff
+define h.test (ac,mode,bnam) <
+ife %'bnam,<
+ ife mode,<
+  skipl hedflg##>
+ ifn mode,<
+  skipge hedflg##>>
+ifn %'bnam,<
+ ife <ac>,<
+  %ac==1
+  movem ac,h.sav1##>
+ ifnb <ac>,<
+  %ac==ac>
+ ifl %'bnam-^d18,<
+  hrlzi %ac,rjust(bnam)>
+ ifge %'bnam-^d18,<
+  hrrzi %ac,bnam>
+ ife mode,<
+  tdnn %ac,hedflg##>
+ ifn mode,<
+  tdne %ac,hedflg##>
+ ifb <ac>,<
+  jrst .+3
+  move %ac,h.sav1##
+  jrst .+3
+  move %ac,h.sav1##>>>
+
+;
+;
+;       Bit definitions for controlling RHED/RPHED
+;
+;
+
+; the order of these bits is important!!! jps 04/26/77
+
+        hedbit  (h.esc)         ; escape
+        hedbit  (h.onst)        ; on step
+        hedbit  (h.rstp)        ; reset h.onst
+        hedbit  (h.pro)         ; profile
+        hedbit  (h.brk)         ; break
+        hedbit  (h.trc)         ; trace
+        hedbit  (h.stp)         ; step
+
