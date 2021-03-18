@@ -1,0 +1,5072 @@
+        TWOSEG
+        RELOC   ^O400000
+	radix	^d10
+        TITLE   PARSE3
+;
+        MOCR==   1
+        MONOCR== 2
+
+
+        DEFINE MAC.OK(NAME)
+        <CKCOMN(NAME,T1)>               ; T1 IS OK AS =VALUE AND AS MACRO
+
+        ENTRY   CKEND,DSTPSW,EXIT,MOVBIN,THREAD,XCMN1,XCMND2,XTPARS
+        ENTRY   EDMDCK
+;
+        extern  savbnm
+        extern  lastnm,lastlc,lastpt
+        EXTERN  ADDAMT,ADR,BCBGN,BINCDE,BINPOS,BKHALF,BOPNMS,BPBGN
+        extern  rdrng,lpont1
+        EXTERN  BPTR,BPTR1,BRKIDX,BRKN,BRKT,BUFPCL,BUFTCL,BUFTXT
+        EXTERN  C,CBYT18,CBYT9,CDEID,CDELN1,CDELN2,CDEPT1,CDEPTR,CHRNEW
+        EXTERN  CXLOC,DCFLGS,DEBGSW,DELH,DMPAD,DMPFLG,DMPTR,EDMOD
+        EXTERN  ELSECT,ENDCT,ENTR,ESCFLG,EXECSW,FILV,FILV1,FLRNG,FNAMS
+        EXTERN  FNUM,FORCNT,FSTNEW,FWDREC,GCOMSW,GETSW,GTFLG,HIGHLN
+        EXTERN  IFCT,IFPTR,IFSW,INPBUF,INTREC,KILFLG,LDFLG,LINMAP
+        EXTERN  LINPTR,LINREC,LISTYP,LNB,LNMB,LNMB1,LOC,LOWLN,LPOINT
+        EXTERN  LRT,LRTLOC,LRTPTR,LRTSW,LSTCT,LSTNEW,LSTPTR,LSTREC,LSTRG
+        EXTERN  LSTVAR,MDUFG,MKLNPT,MODSW,MOV2,MOV3,NCHR,NEWLN,NEWLOC
+        EXTERN  NEWLRT,NEWNM,NEWNMB,NEWPTR,NLINES,NOLM1,NOVTN,NOVTR
+        EXTERN  NUMB,NWTVAR,NXTLC,NXTNON,NXTNUM,OLDADR,OLDLOC,PBYT27
+        EXTERN  PBYT36,PBYT9,PGCNFG,PMCFLG,PMCID,PMCNMS,PMCNO,PMCPTR
+        EXTERN  PMCTBL,PMCWRT,PSW,PXFG,RADFLG,REAREC,RINC,RLINLN,RNFLG
+        EXTERN  RPTSW,RTXT,S.MOD,SAVR1,SCID,SCVAL,SEGNO,SNMBR,SRCHFL
+        EXTERN  SRCHRC,STBKFG,STEPFG,STRTNM,STTADR,SVVBP,SYMPOS
+        EXTERN  TOFFLG,TRCIDX,TRCPTR,TRCT,TRCTN,TRDON,TRHALF,TRID,TRIDX2
+        EXTERN  TRNFLG,TRPTR2,TRVIDX,TRVN,TRVPTR,TRVT,TWBUF,UOPNMS,V
+        EXTERN  VARCT,VARFND,VARID,VARLFT,VLFT,VNAM,VTRBP,WRKCMP,XQTFLG,.JBVER
+
+     EXTERN  %CKEND,%DSTPSW,%EXIT,%MOVBIN,%THREAD,%XCMN1,%XCMND2,%XTPARS,UPBUF, ESCCHK, CXER2
+        EXTERN  %EDMDCK,.LNDRY,.OPEN,NOD,DEBUG
+        EXTERN  CKRNG,NXTLIN
+        EXTERN  FLTOUT
+        EXTERN  MODULE,NOMDL,LIBRAR,NOLIBR,XGET,SAVE,LSTMOD,LSTLIB
+        EXTERN  SXWORK,.GARYS,RENREC,XJOBNO
+;
+        EXTERN  P.MOD
+        EXTERN  BUFBIN,BUFSYM,DECBF,DELRNG,ERROR,FSTLN,GETC9,UOBCB
+        EXTERN  GETP18,GETP27,GETP9,IISC,IZGETC,LOHIGH,LRTNMB,LSTRNG
+        EXTERN  MOVEC,MSGOUT,MSTATE,NDEC,NOCT,NXTLN,PTRDF9,PTRIZE
+        EXTERN  UEXIT,WINBIN,WLC1,WLC9,SYMBOL,PRTPST,RUNINT
+        EXTERN  NAMBUF,GETP36,BIISC,MAPWRT,RENERR,SKPNUM,WBLNKS
+        EXTERN  MARK,PTRDF7,WRTCHR,RESET,PRTDAT,WINSYM,BKDLT,BK1ST
+        EXTERN  TRC1ST,TRDLT,NOV1ST,NOVDLT,IZTRC,XERROR,GETC18,TXVNM
+        EXTERN  GETOPN,GETREP,ENDPAG
+        EXTERN  EATBLK,WRSYM,CLOSEF,LOOKMD
+        EXTERN  CXMO,NXTENT,BKTRNM,TDO,CXTDO
+        EXTERN  GDIRST
+;
+;
+       EXTERN   TOPN,VOPN,TNEW,TLOC,TPOP,TRLS,VRLS
+        EXTERN  VPUT,VPOP,VGET,VRPL,TSTART,TNEXT
+        EXTERN  VSTART,VNEXT,LALOC,LFREE,RFRE
+        EXTERN   .ECHO, NOECHO, MAP
+;
+;
+; contents of PARSE3
+;
+;	1.5.4.14 	CKEND  checks for properly ended line
+;	1.5.4.17 	EDMDCK terminates an edit or modify
+;
+;	1.5.6	 The entire Command Processor
+;
+;	1.5.7 	MOVBIN  rearranges PMC packets
+;	1.5.10 	XCMND1  direct statement to be handeled in the parser
+;	1.5.11 	DSTPSW  direct statement not to
+;	1.5.12 	THREAD  thread line into LRT, save text and PMC
+;	1.5.14 	EXIT
+;	1.5.14 	XTPARS  set segno from PSW to exit the parser
+
+		 SUBTTL  CKEND 1.5.4.14 Check the end of a line for proper termination
+        BDCL    CKEND
+;
+;CKEND 00
+        BCALL   KILLF
+;
+;CKEND 01
+        MOVE    1,C
+        CAIE    1,3
+        JRST    CKEN02
+        MOVE    2,V
+        CAIGE   2,2
+        JRST    CKEN05
+        CAIN    2,2
+        JRST    CKEN03
+;
+;CKEND 02
+CKEN02:  CALL   ERROR,<8>
+;
+;CKEND 03
+CKEN03: BCALL   IFOFF
+;
+;CKEND 04-4A
+        MOVEI   1,1
+        MOVEM   1,RPTSW
+        CALL    SYMBOL
+        JRST    CKEN$$
+;
+;CKEND 05
+CKEN05:  BCALL   CKIF
+;
+;CKEND 06
+        SETZM   RPTSW
+;
+CKEN$$: BRETURN  CKEND
+;
+;
+				 SUBTTL  KILLF 1.5.4.14.0
+        BDCL    KILLF
+;
+;KILLF 01
+        SKIPN   KILFLG
+        JRST    KILF$$
+;
+;KILLF 02
+         CALL   WLC9,<35>
+;
+KILF$$: BRETURN  KILLF
+;
+;
+				 SUBTTL  IFOFF 1.5.4.14.3
+        BDCL    IFOFF
+;
+;IFOFF 01
+        MOVE    1,ELSECT
+        CAMGE   1,IFCT
+        JRST    IFOF03
+;
+;IFOFF 02
+         CALL   ERROR,<42>
+;
+;IFOFF 03
+IFOF03: BCALL   WRTEND
+;
+;IFOFF 04
+        AOS     ELSECT
+;
+;IFOFF 05
+         CALL   WLC1,<0>
+;
+        BRETURN  IFOFF
+;
+;
+				 SUBTTL   WRTEND  1.5.4.14.3.3
+         BDCL     WRTEND
+;
+;  WRTEND1
+WRTND1: MOVE     1,IFPTR
+        MOVE     2,-1(1)
+        CAIN     2,1
+        JRST     WRTND5
+;
+;  WRTEND2
+        CALL     WLC9,<1>
+;
+;  WRTEND3
+        AOS      ENDCT
+;
+;  WRTEND4
+        SOS      IFPTR
+        JRST     WRTND1
+;
+;  WRTEND5
+WRTND5: MOVEI    2,2
+        MOVE     1,IFPTR
+        MOVEM    2,-1(1)
+        BRETURN  WRTEND
+;
+;
+				 SUBTTL  CKIF 1.5.4.14.5
+        BDCL    CKIF
+;
+;CKIF 01
+CKIF01: MOVE    1,IFCT
+        CAMG    1,ENDCT
+        JRST    CKIF$$
+;
+;CKIF 02
+CKIF02:  CALL   WLC1,<1>
+;
+;CKIF 03
+        AOS     ENDCT
+        JRST    CKIF01
+;
+CKIF$$: BRETURN  CKIF
+;
+;
+		 SUBTTL  EDMDCK CHART 1.5.4.17  Terminate editing
+        BDCL    EDMDCK
+;
+;                       EDMDCK 1
+        SKIPN   0,EDMOD
+        J       EDMD$$
+;
+;                       EDMDCK 2
+        M       1,NUMB
+        CAMN    1,[-1]
+        J       EDMD3
+        SKIPE   0,SCID
+        J       EDMD$$
+;
+;                       EDMDCK 3
+EDMD3:  CALL    CXMO,<[ASCIZ/Editing terminated/],MOCR>
+;
+;                       EDMDCK 4
+        CALL    CXMO,<0,MOCR>
+;
+;                       EDMDCK 5
+        SETZM   0,EDMOD
+;
+;                       EXIT EDMDCK
+EDMD$$: BRETURN EDMDCK
+;
+;
+
+
+;{}{}{}{}{}{}{}{}{}{}{}{}{}{} COMMAND PROCESSOR {}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}
+
+			 SUBTTL  XCMN1 1.5.6  DO A TBA COMMAND
+        BDCL    XCMN1
+;
+;XCMN1 00
+         CALL   IZGETC
+;
+;XCMN1 01
+        MOVE    1,SCVAL
+        JRST    .+1(1)
+        JRST    XCD102
+        JRST    XCD103
+        JRST    XCD104
+        JRST    XCD105
+        JRST    XCD106
+        JRST    XCD107
+        JRST    XCD108
+        JRST    XCD109
+        JRST    XCD110
+        JRST    XCD111
+        JRST    XCD112
+        JRST    XCD113
+        JRST    XCD114
+        JRST    XCD115
+        JRST    XCD116
+        JRST    XCD117
+        JRST    XCD118
+        JRST    XCD119
+        JRST    XCD120
+        JRST    XCD121
+        JRST    XCD122
+        JRST    XCD123
+        JRST    XCD124
+        JRST    XCD125
+        JRST    XCD126
+        JRST    XCD127
+        JRST    XCD128
+        JRST    XCD129
+        JRST    XCD130
+        JRST     XCD131
+        JRST     XCD132
+        JRST     XCD133
+        JRST     XCD134
+        JRST    XCD135
+        JRST    XCD136
+        JRST    XCD137
+        JRST    XCD138
+        JRST    XCD139
+        JRST    XCD140
+        JRST    XCD141
+        JRST    XCD142
+;
+;XCMN1 02
+XCD102: BCALL   XCLR1
+        JRST    XCD1$$
+;
+;XCMN1 03
+XCD103: BCALL   XTENTR
+        JRST    XCD1$$
+;
+;XCMN1 04
+XCD104: BCALL   DLETE
+        JRST    XCD1$$
+;
+;XCMN1 05
+XCD105: BCALL   ENTER
+        JRST    XCD1$$
+;
+;XCMN1 06
+XCD106: BCALL   LIST
+        JRST    XCD1$$
+;
+;XCMN1 07
+XCD107: BCALL   DLIST
+        JRST    XCD1$$
+;
+;XCMN1 08
+XCD108: BCALL   MERGE
+        JRST    XCD1$$
+;
+;XCMN1 09
+XCD109: CALL    XGET
+        JRST    XCD1$$
+;
+;XCMN1 10
+XCD110: CALL    SAVE
+        JRST    XCD1$$
+;
+;XCMN1 11
+XCD111: BCALL   EDIT
+        JRST    XCD1$$
+;
+;XCMN1 12
+XCD112: BCALL   MODIFY
+        JRST    XCD1$$
+;
+;XCMN1 13
+XCD113: BCALL   VERSON
+        JRST    XCD1$$
+;
+;XCMN1 14
+XCD114: BCALL   RENMBR
+        JRST    XCD1$$
+;
+;XCMN1 15
+XCD115: CALL    TOUT
+        JRST    XCD1$$
+;
+;XCMN1 16
+XCD116: CALL   TABS
+        JRST    XCD1$$
+;
+;XCMN1 17
+XCD117: BCALL   RUN
+        JRST    XCD1$$
+;
+;XCMN1 18
+XCD118: BCALL   START
+        JRST    XCD1$$
+;
+;XCMN1 19
+XCD119: BCALL   GO
+        JRST    XCD1$$
+;
+;XCMN1 20
+XCD120: BCALL   XSTEP
+        JRST    XCD1$$
+;
+;XCMN1 21
+XCD121: BCALL   PMCX
+        JRST    XCD1$$
+;
+;XCMN1 22
+XCD122: BCALL   BREAK
+        JRST    XCD1$$
+;
+;XCMN1 23
+XCD123: BCALL   TRACE
+        JRST     XCD1$$
+;
+;XCMN1 24
+XCD124: CALL    DO
+        JRST    XCD1$$
+;
+;XCMN1 25
+XCD125: CALL    NOD
+        JRST    XCD1$$
+;
+;XCMN1 26
+XCD126: BCALL   NOB
+        JRST    XCD1$$
+;
+;XCMN1 27
+XCD127: BCALL   NOTR
+        JRST    XCD1$$
+;
+;XCMN1 28
+XCD128: BCALL   CDE
+        JRST    XCD1$$
+;
+;XCMN1 29
+XCD129: BCALL   SYMD
+        JRST    XCD1$$
+;
+;XCMN1 30
+XCD130: BCALL   DUMP
+        JRST    XCD1$$
+;
+;  XCMN1 31
+XCD131: CALL     DEBUG
+        JRST     XCD1$$
+;
+;  XCMN1 32
+XCD132: BCALL    INITLZ
+        JRST     XCD1$$
+;
+;  XCMN1 33
+XCD133: CALL     .ECHO
+        JRST     XCD1$$
+;
+;  XCMN1 34
+XCD134: CALL     NOECHO
+        JRST     XCD1$$
+;
+;   XCMN1 35
+XCD135: BCALL   STARPT
+        JRST    XCD1$$
+;
+;   XCMN1 36
+XCD136: CALL    MODULE
+        JRST    XCD1$$
+;
+;   XCMN1 37
+XCD137: CALL    NOMDL
+        JRST    XCD1$$
+;
+;   XCMN1 38
+XCD138: CALL    LIBRAR
+        JRST    XCD1$$
+;
+;   XCMN1 39
+XCD139: CALL    NOLIBR
+        JRST    XCD1$$
+;
+;
+;   XCMN1 40
+XCD140: CALL    MAP
+        JRST    XCD1$$
+;
+;   XCMN1 41
+XCD141: BCALL   TOF
+        JRST    XCD1$$
+
+XCD142: BCALL   NOSTPT
+;
+;
+XCD1$$: BRETURN  XCMN1
+;
+		 SUBTTL  XCLR1 1.5.6.2  line number (cr)   delete a line
+        BDCL    XCLR1
+;
+;XCLR1 01
+        SETO     1,0
+        CAMN     1,NUMB
+        JRST    XCR1$$
+;
+;                       XCLR1 2
+        SKIPE   0,ENTR
+        J       XCR15
+;XCLR1 03
+        MOVE    1,NUMB
+        MOVEM   1,LOWLN
+        MOVEM   1,HIGHLN
+;
+;XCLR1 04
+        extern  ckrng,dellin,svnxln
+        call    ckrng,<0,0>
+xclr1a: move    1,snmbr
+        caml    1,numb
+        jrst    xclr1b
+        call    rfre,<$,lpoint>
+        call    svnxln
+        call    lrtnmb
+        jrst    xclr1a
+xclr1b: came    1,numb
+        jrst    xclr1c
+        call    dellin
+        jrst    xcr1$$
+xclr1c: call    rfre,<$,lpoint>
+        JRST    XCR1$$
+;
+;                       XCLR1 5
+XCR15:  CALL    NXTENT
+;
+XCR1$$: BRETURN  XCLR1
+		 SUBTTL  XTENTR 1.5.6.3  Terminate enter mode
+        BDCL    XTENTR
+;
+;XTENTR 01
+        SETZM   ENTR
+;
+        BRETURN  XTENTR
+;
+;
+				 SUBTTL  DLETE 1.5.6.4
+        BDCL    DLETE
+;
+;DLETE 01
+         CALL   DELRNG
+;
+        BRETURN  DLETE
+;
+;
+				 SUBTTL  ENTER 1.5.6.5
+        BDCL    ENTER
+;
+;ENTER 01
+        CALL    FSTLN
+;
+;ENTER 2
+ENTER2: CALL    NXTLN
+;
+;ENTER 3
+        CALL    LRTNMB
+;
+; ENTER 4
+        M       1,SNMBR
+        CAMGE   1,LNMB
+        J       ENTER2
+;
+; ENTER 4A
+        CALL    RFRE,<$,LPOINT>
+;
+; ENTER 5
+        M       1,SNMBR
+        CAME    1,LNMB
+        J       ENTER7
+; ENTER 6
+        CALL    ERROR,<95>
+;
+; ENTER 7
+ENTER7: M       1,SNMBR
+        MM      1,NXTNON
+        M       1,LNMB
+        MM      1,NXTNUM
+        MI      1,1
+        MM      1,ENTR
+
+; ENTER8
+; ENTER GIVES THE FIRST LINE TO BE ENTERED AS NULL
+; SO ZERO OUT OLD LINE IMAGE
+        SETZM   UOBCB+2         ;NO CHARS TO THE LEFT
+        SETZM   UOBCB+3         ;NO CHARS TO THE RIGHT
+        SETZM   UOBCB+4         ;NO CHARACTER INDEX
+
+;
+        BRETURN  ENTER
+;
+;
+				 SUBTTL  LIST 1.5.6.6
+        BDCL    LIST
+;
+;                       LIST 1
+        M       1,LISTYP
+        CAIN    1,4
+        J       LIST6
+        CAIN    1,3
+        J       LIST5
+        CAIN    1,2
+        J       LIST4
+        CAIN    1,1
+        J       LIST3
+;
+;                       LIST 2
+        MOVEI   0,63
+        SKIPG   NLINES
+        PUSHJ   P,XERROR        ;DO ERROR 63 IF NO PROG
+        CALL    LSTRNG,<0>
+        J       LIST$$
+;
+;                       LIST 3
+LIST3:  CALL    LSTMOD
+        J       LIST$$
+;
+;                       LIST 4
+LIST4:  CALL    LSTLIB
+        J       LIST$$
+;
+;                       LIST 5
+LIST5:  BCALL   LSTBRK
+        J       LIST$$
+;
+;                       LIST 6
+LIST6:  BCALL   LSTTRC
+;
+;                       EXIT LIST
+LIST$$: BRETURN LIST
+;
+;
+				 SUBTTL  LSTBRK CHART 1.5.6.6.5
+        BDCL    LSTBRK
+;
+;                       LSTBRK 1
+        M       1,BRKN
+        MM      1,LSTCT
+        MI      1,BRKT-1
+        MM      1,LSTPTR
+;
+;                       LSTBRK 2-3
+LSTB2:  SKIPE   0,ESCFLG
+        CALL    ESCCHK          ;Escape flag set - check and see
+        SOSG    0,LSTCT
+        J       LSTB$$
+;
+;                       LSTBRK 4
+        AOS     1,LSTPTR
+        M       2,0(1)
+        MM      2,LSTRG
+;
+;                       LSTBRK 5
+        CALL    BKTRNM
+        J       LSTB2
+;
+;                       EXIT
+LSTB$$: BRETURN LSTBRK
+;
+;
+				 SUBTTL  LSTTRC CHART 1.5.6.6.6
+        BDCL    LSTTRC
+;
+;                       LSTTRC 1
+        M       1,NOVTN
+        MM      1,LSTCT
+        MI      1,NOVTR-1
+        MM      1,LSTPTR
+;
+;                       LSTTRC 2-3
+LSTT2:  SKIPE   0,ESCFLG
+        J       LSTT6
+        SOSG    0,LSTCT
+        J       LSTT6
+;
+;                       LSTTRC 4
+        AOS     1,LSTPTR
+        M       2,0(1)
+        MM      2,LSTRG
+;
+;                       LSTTRC 5
+        CALL    BKTRNM
+        J       LSTT2
+;
+;                       LSTTRC 6
+LSTT6:  M       1,TRCTN
+        MM      1,LSTCT
+        MI      1,TRCT-TRCTR
+        MM      1,LSTPTR
+        SETOM   0,LSTVAR
+;
+;                       LSTTRC 7-8
+LSTT7:  SKIPE   0,ESCFLG
+        CALL    ESCCHK          ;Escape flag set - check and see
+        SOSG    0,LSTCT
+        J       LSTT$$
+;
+;                       LSTTRC 9-10
+        MI      1,TRCTR
+        ADDB    1,LSTPTR
+        FGET    2,1,TCL1
+        HRLM    2,LSTRG
+        FGET    2,1,TCL2
+        HRRM    2,LSTRG
+        FGET    2,1,TCVL
+        MM      2,NWTVAR
+        CAMN    2,LSTVAR
+        J       LSTT12
+;
+;                       LSTTRC 11
+        BCALL   WRTTRV
+;
+;                       LSTTRC 12
+LSTT12: CALL    BKTRNM
+        J       LSTT7
+;
+;                       EXIT
+LSTT$$: BRETURN LSTTRC
+;
+;
+				 SUBTTL  WRTTRV CHART 1.5.6.6.6.11
+        BDCL    WRTTRV
+;                       WRTTRV 1
+        M       0,NWTVAR
+        IMULI   0,TRVTR
+        ADDI    0,TRVT+1
+        MI      1,1
+        CALL    TDO
+;
+;                       WRTTRV 2
+        MI      0,[ASCII '  ']
+        MI      1,2
+        CALL    TDO
+;
+;                       WRTTRV 3
+        M       1,NWTVAR
+        MM      1,LSTVAR
+;
+;                       EXIT
+        BRETURN WRTTRV
+;
+;
+				 SUBTTL  DLIST   1.5.6.7
+        BDCL    DLIST
+;
+;DLIST 01
+;
+;                       DLIST 02
+        MOVEI   0,63
+        SKIPG   NLINES  ;IF NO PROGRAM
+        PUSHJ   P,XERROR        ;THEN GIVE ERROR 63
+
+        SKIPN   SXWORK
+        JRST    DLIST2
+        CALL    .GARYS,<SXWORK,0>
+        CALL    TDO,<$,R1,1>
+DLIST2:
+
+        CALL    PRTDAT
+
+        CALL    LSTRNG,<0>
+;
+        BRETURN  DLIST
+;
+;
+				 SUBTTL  MERGE 1.5.6.8
+        BDCL    MERGE
+;
+;                       MERGE 1
+        SKIPN   0,FILV
+        J       MERGE2
+        SKIPE   0,FILV1
+        J       MERG2A
+;
+;                       MERGE 2
+MERGE2: CALL    XERROR,<108>
+;
+;                       MERGE 2A
+MERG2A: CALL    MSTATE
+;
+;                       MERGE 3
+        CALL    GETOPN
+;
+;                       MERGE 4
+        MI      1,1
+        MM      1,LDFLG
+        PUSHJ   P,XCHG.I##
+        SETZM   0,GETSW
+
+        BRETURN MERGE
+;
+;
+;
+				 SUBTTL   EDIT  1.5.6.11
+         BDCL     EDIT
+;
+;  EDIT01
+        call    rdrng
+        call    ckrng,<0,-1,0>
+;
+; EDIT 1A
+        CALL    MSTATE
+;
+; EDIT 2
+        MI      1,1
+        MM      1,EDMOD
+;
+        BRETURN  EDIT
+;
+;
+				 SUBTTL   MODIFY  1.5.6.12
+         BDCL     MODIFY
+;
+;  MODIFY 01
+        call    rdrng
+        call    ckrng,<0,-1,0>
+;
+; MODIFY 1A
+        CALL    MSTATE
+;
+; MODIFY 2
+        MI      1,2
+        MM      1,EDMOD
+;
+        BRETURN  MODIFY
+;
+;
+				 SUBTTL  VERSON 1.5.6.13
+        BDCL    VERSON
+;
+;VERSON 01
+        CALL    CXMO,<[ASCIZ/Tymbasic version /],MONOCR>
+        CALL    PRNVER
+
+        BRETURN VERSON
+
+
+                SUBTTL  GETVER
+        DCL     GETVER
+
+        MOVE    R2,[POINT 7,TWBUF]
+        LDB     0,[POINT 9,.JBVER,17]   ;Get tymshare specification no.
+        CALL    OCTPRT                  ;output octal number
+        MOVEI   R0,"."
+        IDPB    R0,R2
+        LDB     0,[POINT 9,.JBVER,35]   ;Get tymshare release no.
+        CALL    OCTPRT
+        LDB     0,[POINT 9,.JBVER,8]    ;Get Update number
+        JUMPE   0,PRNVR3                ;If 0 then don't print one
+        MOVEI   R0,"-"
+        IDPB    R0,R2
+        LDB     0,[POINT 9,.JBVER,8]
+        CALL    OCTPRT
+        MOVEI   R0,"."
+        IDPB    R0,R2
+        LDB     0,[POINT 9,.JBVER,26]   ;Get NIS release
+        CALL    OCTPRT
+
+PRNVR3: MOVEI   0,DEBMOD                ;Debugging sw
+        JUMPE   0,PRNVR4                ;If it is 0, no debugging
+        MOVEI   R0," "
+        IDPB    R0,R2
+        MOVEI   R0,"/"                  ;where N is DEBMOD
+        IDPB    R0,R2
+        MOVEI   0,DEBMOD
+        CALL    OCTPRT                  ;as so
+
+PRNVR4: MOVEI   R0,0
+        IDPB    R0,R2
+        RETURN   GETVER
+
+
+        DCL     PRNVER
+        CALL    GETVER
+        TYPE    ,TWBUF
+        RETURN  PRNVER
+
+;+
+; OCTPRT
+;  arguments  '0' is register containing number to print
+;  output the number in octal radix
+;-
+        DCLNE   OCTPRT
+
+
+OCTPR0: IDIVI   R0,^D8          ;To octal
+        PUSH    R17,R1          ;Save remainder
+        SKIPE   R0              ;All digits formed
+        PUSHJ   R17,OCTPRT      ;No, compute another one
+        POP     R17,R1          ;Yes, take out of stack in opposite order
+        MOVEI   R0,"0"(R1)
+        IDPB    R0,R2
+        RETURN  OCTPRT          ;Loop out..
+				 SUBTTL   R  1.5.6.14
+
+; The renumber command makes a renumbered copy of the program and puts it in
+; RTXT. Then it sets up PSW to take us to SYSIZL and then to LDREN in
+; PARSE 1.5.2.6 where the line is removed from RTXT. THREAD (parse 1.5.12) is
+; the guy who makes the new LRT.  jah
+
+; RENMBR  the renumber command
+;   REWSYM  re-write the symbolics
+;     RENMAP  construct LINMAP table mapping old #s to new #s
+;       RNMP1  entrys before LOWLN
+;       RNMP2  entrys between LOWLN and HIGHLN
+;         GTNWNM  compute and verify new line number
+;       RNMP3  entries after HIGHLN
+;       INTL1  look for interleaving in low lines
+;       INTL2  look for interleaving in high lines
+;     CHGNUM  update each line number and line number reference
+;       CHGLIN  change one line
+;         GTOLD  get the old line
+;         TRNLNM  write new line number
+;         TRNRST  write rest of old line
+;           TRNGO  translate the line number reference
+;             TRNSL  translate the old line # to the new line #
+;               NOLIN  print 'line not found'
+;           WROTHR  write a symbol
+;         NEWOUT  put new line into RTXT
+;   REGPMC  set flags to cause reparsing of new symbolic
+
+         BDCL     RENMBR
+;
+;                       RENUMBER -1
+        MOVEI   0,63
+        SKIPG   NLINES  ;IF NO PROG
+        PUSHJ   P,XERROR        ;THEN GIVE ERROR 63
+
+;                       RENMBR 0
+        CALL    MSTATE
+;
+;                               RENMBR1
+        BCALL   REWSYM
+;
+;                               RENMBR 2
+        BCALL   REGPMC
+;
+;                               EXIT RENMBR
+        BRETURN RENMBR
+		SUBTTL REWSYM 1.5.6.14.1  re-write the symbolics
+         BDCL    REWSYM
+;
+;                               REWSYM1
+        BCALL   RENMAP
+;
+;                               REWSYM2
+        BCALL CHGNUM
+;
+;                               EXIT REWSYM
+        BRETURN REWSYM
+	 SUBTTL  RENMAP 1.5.6.14.1.1   Construct line map
+         BDCL    RENMAP
+;
+;                               RENMAP1
+        CALL    TRLS,<$,LINMAP>
+;
+;                               RENMAP2
+        M       1,NEWLN
+        S       1,RINC
+        MM      1,NEWNMB
+        SETZM   0,LSTREC
+;
+;                               RENMAP3
+        BCALL    RNMP1
+;
+;                               RENMAP4
+        BCALL   RNMP2
+;
+;                               RENMP5
+        BCALL   RNMP3
+;
+;                       RENMAP 6
+        SKIPN   0,GTFLG
+        J       RENM$$
+;
+;                       RENMAP 7
+        BCALL   INTL1
+;
+;                       RENMAP 8
+        BCALL   INTL2
+;
+;                               EXIT RENMAP
+RENM$$: BRETURN RENMAP
+
+
+		 SUBTTL  RNMP1 1.5.6.14.1.1.3 make LINMAP entries for lines before LOWLN
+         BDCL    RNMP1
+;
+;                               RNMP1 1
+        CALL    FSTLN
+;
+;                               RNMP1 2
+        CALL    LRTNMB
+;
+;                               RNMP1 3-4
+RNMP14:CALL     MAPWRT,<$,SNMBR,$,SNMBR>
+;
+;                               RNMP1 5-6
+        CALL    NXTLN
+;
+;                               RNMP1 7
+        CALL    LRTNMB
+;
+;                               RNMP1 8
+        M       1,SNMBR
+        CAMGE   1,LOWLN
+        J       RNMP14
+;
+;                       RNMP1 9
+        M       1,LSTREC
+        MM      1,REAREC
+;
+;                               EXIT RNMP1
+        BRETURN RNMP1
+
+
+		 SUBTTL  RNMP2 1.5.6.14.1.1.4 make LINMAP entries for lines between LOWLN and HIGHLN
+         BDCL    RNMP2
+;
+;                               RNMP2 1
+        SETZM   0,GTFLG
+;
+;                               RNMP2 2
+RNMP22: M       1,HIGHLN
+        CAMGE   1,SNMBR
+        J       RNMP28
+;
+;                               RNMP2 3
+        BCALL   GTNWNM
+;
+;                               RNMP2 4
+        CALL    MAPWRT,<$,SNMBR,$,NEWNMB>
+;
+;                               RNMP2 5-6
+        CALL    NXTLN
+;
+;                               RNMP2 7
+        CALL    LRTNMB
+        J       RNMP22
+;
+;                               RNMP2 8
+RNMP28: M       1,NEWNMB
+        MM      1,LSTNEW
+;
+;                       EXIT RNMP2
+        BRETURN  RNMP2
+
+
+		 SUBTTL  GTNWNM 1.5.6.14.1.1.4.3  compute and verify new line number
+         BDCL    GTNWNM
+;
+;                               GTNWNM1
+        SKIPE   0,RADFLG
+        J       GTWNM3
+;
+;                               GTNWNM2
+        M       1,NEWNMB
+        ADD     1,RINC
+        MM      1,NEWNMB
+        J       GTWNM4
+;
+;                               GTNWNM3
+GTWNM3:M        1,SNMBR
+        ADD     1,ADDAMT
+        MM      1,NEWNMB
+;
+;                               GTNWNM4
+GTWNM4:SKIPGE   0,NEWNMB
+        J       GTWNM5
+        M       1,NEWNMB
+        CAIG    1,99999
+        J       GTWNM6
+;
+;                               GTNWNM5
+GTWNM5:CALL     RENERR,<86>
+;
+;                               GTNWNM6
+GTWNM6: SKIPE   0,GTFLG
+        J       GWNM$$
+;
+;                               GTNWNM7-8
+        M       1,NEWNMB
+        MM      1,FSTNEW
+;
+;                               GTNWNM9
+GTWNM9:MI       1,1
+        MM      1,GTFLG
+;
+;                               EXIT GTNWNM
+GWNM$$: BRETURN GTNWNM
+;
+
+
+		 SUBTTL  RNMP3 1.5.6.14.1.1.5 make LINMAP entries for lines above HIGHLN
+         BDCL    RNMP3
+;
+;                       RNMP3 0
+        M       1,LSTREC
+        ADDI    1,1
+        MM      1,FWDREC
+;
+;                               RNMP3 1
+RNMP31: MI      1,100001
+        CAMN    1,SNMBR
+        J       RNMP35
+;
+;                               RNMP3 2
+        CALL    MAPWRT,<$,SNMBR,$,SNMBR>
+;
+;                               RNMP3 3
+        CALL    NXTLN
+;
+;                               RNMP3 4
+        CALL    LRTNMB
+        J       RNMP31
+;
+;                               RNMP3 5
+RNMP35:CALL     MAPWRT,<$,SNMBR,$,SNMBR>
+;
+;                       RNMP3 6
+        CALL    RFRE,<$,LPOINT>
+;
+;                               EXIT RNMP3
+        BRETURN RNMP3
+;
+;
+
+
+		 SUBTTL INTL1 1.5.6.14.1.1.7 look for interleaving in low lines
+        BDCL    INTL1
+;
+;                       INTL1 1
+        MI      1,1
+        MM      1,INTREC
+;
+;                       INTL1 2
+INTL12: CALL    TLOC,<$,LINMAP,$,INTREC>
+;
+;                       INTL1 3
+        FGET    2,1,NEWN
+        MM      2,SNMBR
+;
+;                       INTL1 4
+        CAMGE   2,FSTNEW      ;R2 SET ABOVE
+        J       INTL17
+        CAMLE   2,LSTNEW
+        J       INTL17
+;
+;                       INTL1 5
+        CALL    RFRE,<$,1>
+;
+;                       INTL1 6
+        CALL    RENERR,<85>
+;
+;                       INTL1 7
+INTL17: CALL    RFRE,<$,1>
+;
+;                       INTL1 8
+        AOS     1,INTREC
+;
+;                       INTL1 9
+        CAMLE   1,REAREC        ;R2 SET ABOVE
+        J       INT1$$
+        M       1,SNMBR
+        CAMGE   1,FSTNEW
+        J       INTL12
+        CAILE   1,99999
+        J       INTL12
+;
+;                       EXIT INTL1
+INT1$$: BRETURN INTL1
+;
+;
+
+
+		 SUBTTL   INTL2 1.5.6.14.1.1.8 look for interleaving in high lines
+        BDCL    INTL2
+;
+;                       INTL2 1
+        M       1,FWDREC
+        MM      1,INTREC
+;
+;                       INTL2 2
+INTL22: CALL    TLOC,<$,LINMAP,$,INTREC>
+;
+;                       INTL2 3
+        FGET    2,1,NEWN
+        MM      2,SNMBR
+;
+;                       INTL2 4
+        CAMGE   2,FSTNEW      ;R2 SET ABOVE
+        J       INTL27
+        CAMLE   2,LSTNEW
+        J       INTL27
+;
+;                       INTL2 5
+        CALL    RFRE,<$,1>
+;
+;                       INTL2 6
+        CALL    RENERR,<85>
+;
+;                       INTL2 7
+INTL27: CALL    RFRE,<$,1>
+;
+;                       INTL2 8
+        AOS     1,INTREC
+;
+;                       INTL2 9
+        CAMLE   1,LSTREC         ;R1 SET ABOVE
+        J       INT2$$
+        M       1,SNMBR
+        CAMGE   1,FSTNEW
+        J       INTL22
+;
+;                       EXIT INTL2
+INT2$$: BRETURN INTL2
+;
+;
+		 SUBTTL CHGNUM 1.5.6.14.1.2 update each line number and line number reference
+         BDCL    CHGNUM
+;
+;                               CHGNUM1
+        MI      1,2
+        MM      1,LINREC
+;
+;                               CHGNUM2
+        CALL    VSTART,<$,RTXT>
+;
+;                               CHGNUM3
+        CALL    FSTLN
+;
+;                               CHGNUM4
+        CALL    NXTLN
+;
+;                               CHGNUM5
+        CALL    LRTNMB
+;
+;                               CHGNUM6
+CHGNM6:MI       1,100001
+        CAMN    1,SNMBR
+        J       CGNM10
+        SKIPE   0,ESCFLG
+        J       CGNM10
+;
+;                               CHGNUM7
+        BCALL   CHGLIN
+;
+;                               CHGNUM8
+        CALL    NXTLN
+;
+;                               CHGNUM9
+        CALL    LRTNMB
+        J       CHGNM6
+;
+;                       CHGNUM 10
+CGNM10: CALL    RFRE,<$,LPOINT>
+        SKIPE   ESCFLG          ;Escape flag set ?
+        CALL    ESCCHK          ;Yes, check and see
+;
+;                               EXIT CHGNUM
+        BRETURN CHGNUM
+		 SUBTTL CHGLIN 1.5.6.14.1.2.7 change one line
+         BDCL    CHGLIN
+;
+;                               CHGLIN1  get old line
+        BCALL   GTOLD
+;                              CHGLIN2 write new line number
+        BCALL   TRNLNM
+;
+;                               CHGLIN3 write rest of line
+        BCALL   TRNRST
+;
+;                               CHGLIN4 put new line into RTXT
+        BCALL   NEWOUT
+;
+;                               EXIT CHGLIN
+        BRETURN CHGLIN
+
+
+		 SUBTTL GTOLD 1.5.6.14.1.2.7.1  get old line
+         BDCL    GTOLD
+;
+;                               GTOLD 0
+        SETZM   INPBUF          
+        MOVE    1,LPOINT
+        FGET    2,1,LTOFFG              ;SEE IF FORM FEED FLAG SET
+        SKIPE   2
+        SETOM   INPBUF                  ;IF IT IS ,SET BIT 35 OF INPBUF
+;
+;                               GTOLD1
+        CALL   WINSYM,<$,LPOINT>
+;
+;                               GTOLD2
+        MM      2,RLINLN
+        MM      1,LINPTR
+;
+;                               GTOLD 3
+        M       1,[POINT 7,INPBUF]
+        MM      1,NEWPTR
+        SETZM   0,CHRNEW
+;
+;                               EXIT GTOLD
+        BRETURN GTOLD
+
+
+		 SUBTTL  TRNLNM 1.5.6.14.1.2.7.2  write new line number
+         BDCL    TRNLNM
+;
+;                               TRNLNM1
+        CALL    TLOC,<$,LINMAP,$,LINREC>
+;
+;                               TRNLNM2
+        FGET    0,1,NEWN
+        MOVEM   0,NEWNM
+        AOS     0,LINREC
+;
+;                               TRNLNM3
+        CALL    RFRE,<$,1>
+;
+;                               TRNLNM4
+        CALL    IISC,<$,NEWNM,$,NEWPTR>
+;
+;                       TRNLNM 5
+        MM      2,NEWPTR
+;
+;                               TRNLNM6
+        ADDM    1,CHRNEW
+;
+;                       EXIT TRNLNM
+        BRETURN TRNLNM
+		 SUBTTL  TRNRST 1.5.6.14.1.2.7.3 write the rest of the old line
+
+; we read the line symbol by symbol watching for gotos,gosubs, or
+; anything that might involve a line number. We stop looking after we have
+; seen a !, REM, or cr
+
+         BDCL    TRNRST
+;
+;                       TRNRST0 RNFLG zero means we havent seen a !,REM, or cr
+        SETZM   0,RNFLG
+;
+;                        TRNRST1 go past line number
+        CALL    SKPNUM
+;
+;                          TRNRST2 mark current place in line
+        CALL    MARK
+;
+;                         TRNRST3 copy blanks from old line to new
+        CALL    WBLNKS
+;
+;                        TRNRST4  are we done?
+TNRST4:SKIPE   0,RNFLG
+        J       TRST11
+;
+;                        TRNRST5  mark place in line
+        CALL    MARK
+;
+;                        TRNRST6  get next symbol (returns a Class and a Value)
+        CALL    SYMBOL
+;
+;                    TRNRST7 look for line number references, watch for !,REM,cr
+        M       1,C
+        M       2,V
+        CAIE    1,2
+        J       TNRSTA
+        CAIN    2,13
+        J       TNRST9
+        CAIN    2,14
+        J       TNRST9
+        CAIN    2,43    ; RESUME?
+        JRST    TNRST9
+        JRST    TRST10
+TNRSTA:CAIE    1,3
+        J       TNRSTB
+        JUMPE   2,TNRST8
+        CAIN    2,2
+        J       TNRST9
+        CAIN    2,1
+        J       TNRST8
+        JRST    TRST10
+TNRSTB: CAIE    1,1
+        J       TNRSTC
+        JUMPE   2,TNRST8
+        JRST    TRST10
+TNRSTC: CAIE    1,4
+        J       TRST10
+        CAIN    2,1
+        J       TNRST9
+        CAIN    2,31
+        J       TNRST9
+        J       TRST10
+;
+;                    TRNRST8 we have seen !,REM,cr  tell RNFLG that we are done
+TNRST8: MI      1,1
+        MM      1,RNFLG
+        J       TNRST4
+;
+;                    TRNRST9 we have seen a line number reference
+TNRST9: BCALL   TRNGO
+        J       TNRST4
+;
+;                    TRNRST10 copy this symbol to new line and continue
+TRST10: BCALL   WROTHR
+        J       TNRST4
+;
+;                    TRNRST11  get the number of remaining chars in the old line . . 
+TRST11: M       0,[POINT 7,TWBUF]
+        M       1,MKLNPT
+        CALL    PTRDF7
+;
+;                    TRNRST12 . . and copy them to the new line
+        MOVN    1,1
+        ADD     1,RLINLN
+        ADDI    1,1
+        CALL    WRTCHR,<$,MKLNPT>
+;
+;                               EXIT TRNRST
+        BRETURN TRNRST
+		 SUBTTL TRNGO 1.5.6.14.1.2.7.3.9  translate a line number reference
+         BDCL    TRNGO
+
+; At this point we are expecting a line number. There may be more than one
+; like in a multi line goto or gosub. There may be commas and equal signs to
+; ignore (the commas for the gotos and gosubs, the = from an ERR=line #
+; clause in an open statement). A linefeed indicates a line continuation.
+; Any symbol other than an integer, a comma , equal sign , or linefeed tells
+; us that we may stop looking for line numbers.
+
+;
+;                               TRNGO1
+        SETZM   0,TRNFLG
+;
+;                               TRNGO1A
+        CALL    PTRDF7,<$,MKLNPT,$,LINPTR>
+;
+;                               TRNGO2
+        CALL    WRTCHR,<$,MKLNPT>
+;
+;                               TRNGO3
+TRNGO3: SKIPE   0,TRNFLG
+        J       TNGO$$
+;
+;                               TRNGO4
+        CALL    WBLNKS
+;
+;                               TRNGO5
+        CALL    MARK
+;
+;                               TRNGO6
+        CALL    SYMBOL
+;
+;                               TRNGO7
+        M       1,C
+        M       2,V
+        CAIE    1,5
+        J       TRNGOA
+        CAIN    2,1
+        J       TNGO12
+TRNGOA: CAIN    1,11
+        J       TRNGO8
+        CAIE    1,8
+        J       TNGO13
+        CAIE    2,10
+        J       TNGO13
+        J       TNGO12
+;
+;                               TRNGO8
+TRNGO8: BCALL   TRANSL
+;
+;                               TRNGO9
+        CALL    IISC,<$,1,$,NEWPTR>
+;
+;                               TRNGO10
+        ADDM    1,CHRNEW
+        MM      2,NEWPTR
+;
+;                               TRNGO10A
+        M       1,CHRNEW
+        CAIG    1,LINMAX+1
+        J       TRNGO3
+;
+;                               TRNGO11
+        CALL    RENERR,<87>
+;
+;                               TRNGO12
+TNGO12: CALL    PTRDF7,<$,MKLNPT,$,LINPTR>
+        CALL    WRTCHR,<$,MKLNPT>
+        J       TRNGO3
+;
+;                               TRNGO13
+TNGO13: CALL    RESET
+;
+;                               TRNGO14
+        MI      1,1
+        MM      1,TRNFLG
+        J       TRNGO3
+;
+;                               EXIT TRNGO
+TNGO$$: BRETURN TRNGO
+		 SUBTTL  TRANSL 1.5.6.14.1.2.7.3.9.8 translate the line number
+         BDCL    TRANSL
+;
+;                               TRANSL1
+        M       1,LINREC
+        MM      1,SRCHRC
+        SETZM   0,SRCHFL
+;
+;                               TRANSL2
+TRNSL2: SKIPE   0,SRCHFL
+        J       TNSL$$
+;
+;                               TRANSL3
+        CALL    TLOC,<$,LINMAP,$,SRCHRC>
+;
+;                               TRANSL4
+        FGET    0,1,OLDN
+        CAMN    0,V
+        J       TNSL11
+;
+;                               TRANSL4A
+        CALL    RFRE,<$,1>
+;
+;                               TRANSL5
+        M       1,SRCHRC
+        CAMN    1,LSTREC
+        J       TRNSL7
+;
+;                               TRANSL6
+        AOS     0,SRCHRC
+        J       TRNSL8
+;
+;                               TRANSL7
+TRNSL7:MI       1,2
+        MM      1,SRCHRC
+;
+;                               TRANSL8
+TRNSL8: M       1,SRCHRC
+        CAME    1,LINREC
+        J       TRNSL2
+;
+;                               TRANSL9
+        BCALL   NOLIN
+;
+;                               TRANSL10
+        M       1,V
+        SETOM   0,SRCHFL
+        J       TRNSL2
+;
+;                               TRANSL11
+TNSL11: SETOM   0,SRCHFL
+        FGET    0,1,NEWN
+        MM      0,SAVR1
+;
+;                               TRANSL12
+        CALL    RFRE,<$,1>
+;
+;                               TRANSL13
+        M       1,SAVR1
+        J       TRNSL2
+;
+;                               EXIT TRANSL
+TNSL$$: BRETURN TRANSL
+
+
+		 SUBTTL NOLIN 1.5.6.14.1.2.7.3.9.8.9(whew)  print 'line not found'
+         BDCL    NOLIN
+;
+;                       NOLIN 1
+        CALL    CXMO,<[ASCIZ/Reference by old line /],MOCR>
+;
+;                       NOLIN 2
+        M       0,LINMAP
+        M       1,LINREC
+        SUBI    1,1
+        CALL    TLOC
+;
+;                       NOLIN 3
+        MM      1,SAVR1
+;
+;                       NOLiN 4
+        FGET    0,1,OLDN
+        M       1,[POINT 7,NOLM1]
+        CALL    IISC
+        MOVEI   0,0
+        IDPB    0,2             ; STUFF TERMINATING ZERO AFTER DIGITS
+;
+;                       NOLIN 5
+        CALL    RFRE,<$,SAVR1>
+;
+;                       NOLIN 6
+        CALL    CXMO,<NOLM1,MONOCR>
+;
+;                       NOLIN 7
+        CALL    CXMO,<[ASCIZ/ to nonexistent line /],MONOCR>
+;
+;                       NOLIN 8
+        M       0,V
+        M       1,[POINT 7,NOLM1]
+        CALL    IISC
+        MOVEI   0,0
+        IDPB    0,2             ; STUFF TERMINATING ZERO AFTER DIGITS
+;
+;                       NOLIN 9
+        CALL    CXMO,<NOLM1,MONOCR>
+;
+;                       NOLIN 10
+        CALL    CXMO,<[ASCIZ/ unchanged - renumbering continues/],MONOCR>
+;
+;                       EXIT NOLIN
+        BRETURN NOLIN
+;
+;
+		 SUBTTL  WROTHR 1.5.6.14.1.2.7.3.10 write a symbol into the new line
+         BDCL    WROTHR
+;
+;                               WROTHR1
+        CALL   PTRDF7,<$,MKLNPT,$,LINPTR>
+;
+;                               WROTHR2
+        CALL    WRTCHR,<$,MKLNPT>
+;
+;                               WROTHR3
+        CALL    WBLNKS
+;
+;                               EXIT WROTHR
+        BRETURN WROTHR
+
+
+		SUBTTL NEWOUT 1.5.6.14.1.2.7.4  put the new line into RTXT
+         BDCL    NEWOUT
+;
+;                               NEWOUT1
+        M       1,CHRNEW
+        HRLM    1,BUFTCL
+;
+;                               NEWOUT2
+        CALL    VPUT,<BUFTXT,$,RTXT>
+;
+;                               EXIT NEWOUT
+        BRETURN NEWOUT
+
+
+		 SUBTTL  REGPMC 1.5.6.14.2  set flags to cause re-parsing of the new symbolic
+         BDCL    REGPMC
+;
+;                               REGPMC1
+        CALL    TRLS,<$,LINMAP>
+;
+;                               REGPMC2
+        SKIPN   0,ESCFLG
+        J       RGPM4
+;
+;                       REGPMC 3
+        CALL    VRLS,<$,RTXT>
+        J       RGPM$$
+;
+;                       REGPMC 4
+RGPM4:  MI      1,2
+        MM      1,LDFLG
+        SOS     0,LSTREC
+        SOS     0,LSTREC
+        MI      1,1
+        MM      1,RENREC
+        MI      1,10
+        MM      1,PSW
+
+        SKIPE   ESCFLG          ;Escape flag set ?
+        CALL    ESCCHK          ;Yes, check and see
+;
+;                               EXIT REGPMC
+RGPM$$: BRETURN REGPMC
+;
+;
+;<><><><><><><><><><><><><> END OF RENUMBER COMMAND <><><><><><><><><><><><><><>
+		 SUBTTL  RUN 1.5.6.17 the RUN command
+        BDCL    RUN
+;
+;                       RUN -1
+        setzm   savbnm          ;keep SAVSEG from doing SAVE BINARY
+        SKIPE   FILV1
+        JRST    RUN0B
+        SKIPE   MDUFG           ;IF NO MODULE LIST
+        SKIPN   STRTNM          ;OR NO STARTPOINT GIVEN
+        jrst    .+2
+        jrst    run0b
+        CALL    CKRNG,<0,0>
+
+;                       RUN 0A-0B
+        SKIPE   0,FILV1
+RUN0B:  CALL    MSTATE
+;
+;
+;                       RUN 1
+        MI      1,3
+        MM      1,GCOMSW
+        SETOM   0,EXECSW
+;
+;                       RUN 2
+        CALL    RUNINT
+;
+;                       EXIT RUN
+        BRETURN RUN
+;
+;
+				 SUBTTL  START 1.5.6.18
+        BDCL    START
+;
+;START 01
+        SKIPN   0,P.MOD
+        J       STRT3
+;
+;                       2
+        CALL    XERROR,<139>
+;
+;                       3
+STRT3:  MI      1,6
+        MM      1,PSW
+        M       1,STTADR
+        MM      1,CXLOC
+;
+        BRETURN  START
+;
+;
+				 SUBTTL  GO 1.5.6.19
+        BDCL    GO
+;
+;GO 01
+        SKIPE   0,PGCNFG
+        J       GO3
+;
+;                       2
+        CALL    XERROR,<107>
+;
+;                       3
+GO3:    MI      1,7
+        MM      1,PSW
+;
+        BRETURN  GO
+;
+;
+				 SUBTTL   XSTEP  1.5.6.20
+        BDCL    XSTEP
+;
+;XSTEP 01
+        SKIPE   0,PGCNFG
+        JRST    XSTP1
+;
+;                       2
+        CALL    XERROR,<107>
+;
+;                       3
+XSTP1:  SKIPE   DEBGSW
+        JRST    XSTP2
+        CALL    XERROR,<^D140>
+
+XSTP2:  MI      1,16
+        MM      1,PSW
+        M       1,LNMB
+        ADD     1,STBKFG
+        MM      1,STEPFG
+        H.ON    1,H.STP         ; 'STEP' PENDING
+;
+        BRETURN  XSTEP
+;
+;
+        subttl  PMCX
+         BDCL     PMCX
+;
+;       PMCX0
+        call    rdrng
+        call    ckrng,<-1,-1,0>
+LSTP3:  CALL    NXTLIN
+        jumpe   r1,lstp$$
+        skipe   escflg
+        jrst    lstp10
+        BCALL    PMCLIN
+        jrst    LSTP3
+;
+;                       LSTPMC 10
+LSTP10: CALL    RFRE,<$,LPOINT>
+        CALL    RFRE,<$,LPONT1>
+        CALL    ESCCHK          ;Yes, check and see
+;
+lstp$$: BRETURN PMCX
+;
+;
+				 SUBTTL   PMCLIN
+         BDCL     PMCLIN
+;
+;  PMCLIN 1
+        CALL     WINBIN,<$,LPOINT>
+;
+;  PMCLIN 2-2A
+        MOVE     0,1
+        MOVEI    1,9
+        SETO     2,0
+        CALL     PTRIZE
+        MOVEM    1,PMCPTR
+;
+;  PMCLIN 3
+        BCALL    PRTNMB
+;
+;  PMCLIN 4-5
+PMCL5:  CALL     GETP9
+;
+;  PMCLIN 6
+        MOVE     1,PBYT9
+        MOVEM    1,PMCID
+;
+; PMCLIN 7
+        BCALL    PRTPMC
+;
+;  PMCLIN 8
+        SKIPE   0,ESCFLG
+        CALL    ESCCHK          ;Escape flag set - check and see
+        MOVE     1,PMCID
+        CAIE     1,254
+        JRST     PMCL5
+;
+PMCL$$: BRETURN  PMCLIN
+;
+;
+				 SUBTTL   PRTNMB  1.5.6.21.6.7.3
+         BDCL     PRTNMB
+;
+;  PRTNMB1
+      MOVE     1,[^O251245225124]
+        MOVEM    1,BINCDE
+;
+;  PRTNMB2
+        MOVE     1,[POINT 7,BINCDE+1]
+        CALL     IISC,<$,SNMBR>
+;
+;  PRTNMB3
+        ADDI     1,5
+        MOVE     0,[POINT 7,BINCDE]
+        CALL     MSGOUT
+        BRETURN  PRTNMB
+;
+;
+				 SUBTTL   PRTPMC  1.5.6.21.6.7.7
+         BDCL     PRTPMC
+;
+;  PRTPMC0
+        MOVE     1,[POINT 7,BINCDE]
+        MOVEM    1,PMCWRT
+;
+;  PRTPMC1
+        BCALL   PRTNAM
+;
+;  PRTPMC2
+        MOVEM    1,NCHR
+;
+;  PRTPMC3
+        MOVE     1,PBYT9
+        CAIN     1,62
+        JRST     PRTPM4
+        CAIN    1,74
+        JRST    PRTPM6
+        CAIN     1,80
+        JRST     PRTPM5
+        CAIN     1,81
+        JRST     PRTPM5
+        CAIN    1,99
+        JRST    PPM5A
+        CAIN    1,116
+        J       PRTPM4
+        CAIN    1,240
+        JRST    PPM5B
+        CAIE    1,^D257         ;AKA TREAT LIKE SCON
+        CAIN     1,243
+        JRST     PRTPM6
+        JRST     PRTPM7
+;
+;  PRTPMC4
+PRTPM4: BCALL    PRTEXC
+        JRST     PRTPM8
+;
+;  PRTPMC5
+PRTPM5: BCALL    PRTON
+        JRST     PRTPM8
+;
+;                       PRTPMC 5A
+PPM5A:  BCALL   PRTDEF
+        JRST    PRTPM8
+;
+;                       PRTPMC 5B
+PPM5B:  BCALL   PRTIC
+        JRST    PRTPM8
+;
+;  PRTPMC6
+PRTPM6: BCALL    PRTSC
+        JRST     PRTPM8
+;
+;  PRTPMC7
+PRTPM7: BCALL    PRTOTH
+;
+;  PRTPMC8
+PRTPM8: MOVE     0,[POINT 7,BINCDE]
+        CALL     MSGOUT,<,$,NCHR>
+        BRETURN  PRTPMC
+;
+				 SUBTTL  PRTNAM CHART 1.5.6.21.6.7.7.1
+         BDCL    PRTNAM
+;
+;                       PRTNAM 1
+        MOVE    1,PBYT9
+        CAIGE   1,235
+        JRST    PRTN3
+;
+;                       PRTNAM 2
+        MOVE    1,PBYT9
+        SUBI    1,110
+        MOVE    0,PMCNMS(1)
+        JRST    PRTN4
+;
+;                       PRTNAM 3
+PRTN3:  MOVE    1,PBYT9
+        MOVE    0,PMCNMS(1)
+;
+;                       PRTNAM 4
+PRTN4:  CALL    PRTPST
+;
+;                       PRTNAM 5
+PRTN5:  MOVEI   2," "
+        IDPB    2,PMCWRT
+        ADDI    1,1
+;
+;                       PRTNAM 6
+        CAIGE   1,6
+        JRST    PRTN5
+;
+;                       EXIT PRTNAM
+        BRETURN PRTNAM
+;
+;
+				 SUBTTL   PRTEXC  1.5.6.21.6.7.7.4
+         BDCL     PRTEXC
+;
+;  PRTEXC 0
+        M       1,PBYT9
+        MM      1,PXFG
+;  PRTEXC1
+        CALL     NAMBUF
+;
+;  PRTEXC2
+        MOVEI   1,","
+        IDPB    1,PMCWRT
+        AOS     0,NCHR
+;
+;  PRTEXC3
+        CALL     NAMBUF
+;
+;
+;  PRTEXC 4
+        M       1,PXFG
+        CAIE    1,116
+        J       PRTX$$
+;
+;  PRTEXC 5
+        CALL    NDEC,<1>
+;
+;                       EXIT NAMBUF
+PRTX$$: BRETURN  PRTEXC
+;
+;
+				 SUBTTL   PRTON  1.5.6.21.6.7.7.5
+         BDCL     PRTON
+;
+;  PRTON1
+        CALL     GETP9
+;
+;  PRTON2
+        MOVE     1,PBYT9
+        MOVEM    1,PMCNO
+;
+;  PRTON3
+        CALL     DECBF,<$,PBYT9>
+;
+;  PRTON4
+PRTO4:  SKIPN    0,PMCNO
+        JRST     PRTO$$
+;
+;  PRTON5
+        CALL     GETP27
+;
+;  PRTON6
+        CALL     DECBF,<$,PBYT27>
+;
+;  PRTON7
+        SOS      PMCNO
+        JRST     PRTO4
+PRTO$$: BRETURN  PRTON
+;
+;
+				 SUBTTL PRTDEF CHART 1.5.6.21.7.7.5A
+         BDCL    PRTDEF
+;
+;                       PRTDEF 1
+        CALL    NAMBUF
+;
+;                       PRTDEF 2
+        CALL    NDEC,<1>
+;
+;                       PRTDEF 3
+        CALL    NDEC,<1>
+;
+;                       PRTDEF 4
+        CALL    NOCT,<1>
+;
+;                       PRTDEF 5
+        CALL    NDEC,<1>
+;
+;                       EXIT PRTDEF
+        BRETURN PRTDEF
+;
+;
+				 SUBTTL  PRTIC  CHART 1.5.6.21.7.7.5B
+         BDCL    PRTIC
+;
+;                       PRTIC 1
+        CALL    GETP36
+;
+;                       PRTIC 2
+        CALL    BIISC,<$,PBYT36,$,PMCWRT>
+;
+;                       PRTIC 3
+        ADDM    1,NCHR
+        MOVEM   2,PMCWRT
+;
+;                       EXIT PRTIC
+        BRETURN PRTIC
+;
+;
+				 SUBTTL   PRTSC  1.5.6.21.6.7.7.6
+         BDCL     PRTSC
+;
+;  PRTSC1
+        CALL     GETP9
+;
+;  PRTSC2
+        
+        MOVE     1,PBYT9
+        MOVEM    1,PMCNO
+;
+;  PRTSC3
+        CALL     DECBF,<$,PBYT9>
+;
+;  PRTSC4
+PRTSC4: SKIPN    PMCNO
+        JRST     PRTS$$
+;
+;  PRTSC5
+        CALL     GETP9
+;
+;  PRTSC6
+        MOVE     0,PBYT9
+        IDPB     0,PMCWRT
+        AOS      0,NCHR
+        SOS       0,PMCNO
+        JRST     PRTSC4
+PRTS$$: BRETURN  PRTSC
+;
+;
+				 SUBTTL   PRTOTH  1.5.6.21.6.7.7.7
+         BDCL     PRTOTH
+;
+;  PRTOTH1
+        MOVE     1,PBYT9
+        CAIGE    1,235
+        JRST     PRTOT3
+;
+;  PRTOTH2
+        MOVE     1,PBYT9
+        SUBI     1,110
+        MOVEM    1,PBYT9
+;
+;  PRTOTH3
+PRTOT3: ADDI     1,PMCTBL
+        MOVE     2,(1)
+        MOVEM    2,PMCFLG
+;
+;
+;                       PRTOTH 3A
+
+        TRNN    2,1B28
+        JRST    PRTT3A
+        CALL    NOCT,<2>
+        MOVE    2,PMCFLG
+
+PRTT3A: TRNN    2,64
+        JRST    PRTOT4
+;
+;                       PRTOTH 3B
+        BCALL   FNAMP
+;
+;
+;  PRTOTH4
+PRTOT4: MOVE    2,PMCFLG
+        TRNN     2,32
+        JRST     PRTOT6
+;
+;  PRTOTH5
+        CALL     NAMBUF
+        MOVE     2,PMCFLG
+;
+;  PRTOTH6
+PRTOT6: TRNN     2,16
+        JRST     PRTOT8
+;
+;  PRTOTH7
+        CALL     NOCT,<1>
+        MOVE     2,PMCFLG
+;
+;  PRTOTH8
+PRTOT8: TRNN     2,8
+        JRST     PRTOTT
+;
+;  PRTOT9
+        CALL     NDEC,<1>
+        MOVE     2,PMCFLG
+;
+;  PRTOT10
+PRTOTT: TRNN     2,4
+        JRST     PRTOTW
+;
+;  PRTOT11
+        CALL     NDEC,<3>
+        MOVE     2,PMCFLG
+;
+;  PRTOT12
+PRTOTW: TRNN     2,2
+        JRST     PRTOTE 
+;
+;  PRTOT13
+        CALL     NOCT,<4>
+        MOVE     2,PMCFLG
+;
+;  PRTOT14
+PRTOTE: TRNN     2,1
+        JRST    PRTT$$
+;
+;  PRTOT15
+        CALL     NOCT,<4>
+;
+;  PRTOTH$$
+PRTT$$: BRETURN  PRTOTH
+;
+;
+				 SUBTTL  FNAMP CHART 1.5.6.21.6.7.7.7.3B
+         BDCL    FNAMP
+;
+;                       FNAMP 1
+        MOVE    1,PBYT9
+        ADDI    1,110
+        MOVEM   1,PMCNO
+;
+;                       FNAMP 2
+        CALL    GETP9
+;
+;                       FNAMP 3
+        MOVE    1,PMCNO
+        CAIN    1,236
+        JRST    FNMP5
+        CAIE    1,235
+        JRST    FNMP6
+;
+;                       FNAMP 4
+        MOVE    1,PBYT9
+        MOVE    0,UOPNMS-4(1)
+        JRST    FNMP7
+;
+;                       FNAMP 5
+FNMP5:  MOVE    1,PBYT9
+        MOVE    0,BOPNMS-4(1)
+        JRST    FNMP7
+;
+;                       FNAMP 6
+FNMP6:  MOVE    1,PMCNO
+        SUBI    1,245
+        MOVE    2,FNAMS(1)
+        ADD     2,PBYT9
+        MOVE    0,0(2)
+;
+;                       FNAMP 7
+FNMP7:  CALL    PRTPST
+;
+;                       FNAMP 8
+        ADDM    1,NCHR
+;
+;                       EXIT FNAMP
+        BRETURN FNAMP
+;
+;
+;
+				 SUBTTL   BREAK  1.5.6.22
+         BDCL     BREAK
+;
+;                       BREAK -1
+        MOVEI   0,63
+        SKIPG   NLINES          ; IF NO PROGRAM
+        PUSHJ   P,XERROR        ;  GIVE ERROR 63
+
+;                       BREAK 0
+        MOVEI   0,^D140
+        SKIPN   DEBGSW
+        PUSHJ   P,XERROR
+;
+;                               BREAK 1
+        CALL    GETC9
+;
+;                               BREAK 2
+BREAK2: M       1,CBYT9
+        CAIE    1,255
+        J       BREAK4
+;
+;                               BREAK 3
+        SETZM   0,LOWLN
+        MI      1,99999
+        MM      1,HIGHLN
+        J       BREAK5
+;
+;                               BREAK 4
+BREAK4: CALL    LOHIGH
+;
+;                               BREAK 5
+BREAK5: BCALL   BRKLNS
+;
+;                               BREAK 6
+        M       1,CBYT9
+        CAIE    1,255
+        J       BREAK2
+;
+;                               EXIT BREAK
+        BRETURN BREAK
+;
+;
+				 SUBTTL BRKLNS 1.5.6.22.5
+        BDCL BRKLNS
+;
+;                               BRKLNS 1
+        CALL    BK1ST
+;
+;                               BRKLNS 2
+        CALL    BKDLT
+;
+;                               BRKLNS 3
+        M       1,BKHALF
+        CAIE    1,1
+        J       BKLNS5
+;
+;                               BRKLNS 4
+        BCALL   BKFX1
+        J       BLNS$$
+;
+;                               BRKLNS 5
+BKLNS5: BCALL   BKFX2
+;
+;                               EXIT BRKLNS
+BLNS$$: BRETURN BRKLNS
+;
+;
+				 SUBTTL BKFX1 1.5.6.22.5.4
+        BDCL BKFX1
+;
+;                               BKFX1 1
+        M       1,BRKIDX
+        MI      2,BRKT(1)
+        FGET    3,2,BKL1
+        CAMLE   3,HIGHLN
+        J       BKFX15
+; R1 AND R2 RETAINED FROM LAST BOX
+;                               BKFX1 2
+        FGET    3,2,BKL2
+        CAMLE   3,HIGHLN
+        J       BKFX14
+; R1 AND R2 RETAINED FROM LAST BOX
+;                               BKFX1 3
+        M       3,LOWLN
+        FPUT     3,2,BKL1
+        M       3,HIGHLN
+        FPUT    3,2,BKL2
+        J       BFX1$$
+; R1 AND R2 RETAINED FROM BOX 2
+;                               BKFX1 4
+BKFX14: M       3,LOWLN
+        FPUT    3,2,BKL1
+        J       BFX1$$
+;
+;                               BKFX1 5
+BKFX15: M       1,BRKN
+        CAIGE   1,BRKLX
+        J       BKFX17
+;
+;                               BKFX1 6
+        CALL    XERROR,<76>
+;
+;                               BKFX1 7
+BKFX17: M       1,BRKN
+        SUB     1,BRKIDX
+        M       2,BRKN
+BKFX1A: M       3,BRKT-1(2)
+        MM      3,BRKT(2)
+        SUBI    2,1
+        SOJG    1,BKFX1A
+;
+;                               BKFX1 8
+        M       1,BRKIDX
+        MI      2,BRKT(1)
+        M       3,LOWLN
+        FPUT    3,2,BKL1
+        M       3,HIGHLN
+        FPUT    3,2,BKL2
+        AOS     0,BRKN
+        CALL    SETBRK##        ; SET/RESET H.BRK FLAG
+;
+;                               EXIT BKFX1
+BFX1$$: BRETURN BKFX1
+;
+;                               
+				 SUBTTL BKFX2 1.5.6.22.5.5
+        BDCL BKFX2
+;
+;                               BKFX2 1
+        M       1,BRKIDX
+        MI      2,BRKT(1) ;R2 GETS @BRKT[BRKIDX]
+        FGET    3,2,BKL2
+        CAMLE   3,HIGHLN
+        J       BFX2$$
+; R2 RETAINED FROM LAST BOX
+;                               BKFX2 2
+        MI     4,1(2) ;R4 GETS @BRKT[BRKIDX+1]
+        FGET    3,4,BKL1
+        CAMLE   3,HIGHLN
+        J       BKFX26
+;                               BKFX2 3
+; R4 AND R2 RETAINED FROM LAST BOX
+        FGET    3,4,BKL2
+        FPUT    3,2,BKL2
+;
+;                               BKFX2 4
+        M       2,BRKIDX
+        HRLI    3,BRKT+2(2)
+        HRRI    3,BRKT+1(2)
+        M       1,BRKN
+        BLT     3,BRKT-2(1)
+;
+;                               BKFX2 5
+        SOS     0,BRKN
+        CALL    SETBRK##        ; SET/RESET H.BRK FLAG
+        J       BFX2$$
+;                               BKFX2 6
+; R2 RETAINED FROM BOX 2
+BKFX26: M       3,HIGHLN
+        FPUT    3,2,BKL2
+;
+;                               EXIT BKFX2
+BFX2$$: BRETURN BKFX2
+;
+;
+				 SUBTTL   TRACE  1.5.6.23
+         BDCL     TRACE
+;
+;                       TRACE -1
+        MOVEI   0,63
+        SKIPG   NLINES          ; IF NO PROGRAM
+        PUSHJ   P,XERROR        ;  GIVE ERROR 63
+
+;                       TRACE 0
+        MOVEI   0,^D140
+        SKIPN   DEBGSW
+        PUSHJ   P,XERROR
+;
+;                               TRACE 1
+        SKIPE   0,VARCT
+        J       TRACE3
+;
+;                               TRACE 2
+        BCALL   NVTRC
+        J       TRCE$$
+;
+;                               TRACE 3
+TRACE3: BCALL VTRC
+;
+;                               EXIT TRACE
+TRCE$$: BRETURN TRACE
+;
+;
+				 SUBTTL NVTRC 1.5.6.23.2
+        BDCL NVTRC
+;
+;                       NVTRC 0
+        CALL    GETC9
+;
+;                               NVTRC 1
+        CALL    GETC9
+;
+;                               NVTRC 2
+NVTRC2: M       1,CBYT9
+        CAIE    1,255
+        J       NVTRC4
+;
+;                               NVTRC 3
+        SETZM   0,LOWLN
+        MI      1,99999
+        MM      1,HIGHLN
+        J       NVTRC5
+;
+;                               NVTRC 4
+NVTRC4: CALL LOHIGH
+;
+;                               NVTRC 5
+NVTRC5: BCALL NOVLNS
+;
+;                               NVTRC 6
+        M       1,CBYT9
+        CAIE    1,255
+        J       NVTRC2
+;
+;                               EXIT NVTRC
+        BRETURN NVTRC
+;
+;
+				 SUBTTL NOVLNS 1.5.6.23.2.5
+        BDCL NOVLNS
+;
+;                               NOVLNS 1
+        CALL    NOV1ST
+;
+;                               NOVLNS 2
+        CALL    NOVDLT
+;
+;                               NOVLNS 3
+        M       1,TRHALF
+        CAIE    1,1
+        J       NVLNS5
+;
+;                               NOVLNS 4
+        BCALL   NOVF1
+        J       NVNS$$
+;
+;                               NOVLNS 5
+NVLNS5: BCALL   NOVF2
+;
+;                               EXIT NOVLNS
+NVNS$$: BRETURN NOVLNS
+;
+;
+				 SUBTTL NOVF1 1.5.6.23.2.5.4
+        BDCL NOVF1
+;
+;                               NOVF1 1
+        M       1,TRCIDX
+        MI      2,NOVTR(1) ;R2 HAS @NOVTR[TRCIDX]
+        FGET    3,2,NOVL1
+        CAMLE   3,HIGHLN
+        J       NOVF15
+;                               NOVF1 2
+; R1 AND R2 RETAINED FROM LAST BOX
+        FGET    3,2,NOVL2
+        CAMLE   3,HIGHLN
+        J       NOVF14
+;                               NOVF1 3
+; R1 AND R2 RETAINED FROM LAST BOX
+        M       0,LOWLN
+        FPUT    0,2,NOVL1
+        M       0,HIGHLN
+        FPUT    0,2,NOVL2
+        J       NVF1$$
+;                               NOVF1 4
+; R1 AND R2 RETAINED FROM BOX 2
+NOVF14: M       3,LOWLN
+        FPUT    3,2,NOVL1
+        J       NVF1$$
+;
+;                               NOVF1 5
+NOVF15: M       1,NOVTN
+        CAIGE   1,TRCLX
+        J       NOVF17
+;
+;                               NOVF1 6
+        CALL    XERROR,<77>
+;
+;                               NOVF1 7
+NOVF17: M       1,NOVTN
+        SUB     1,TRCIDX
+        M       2,NOVTN
+NOVF1A: M       3,NOVTR-1(2)
+        MM      3,NOVTR(2)
+        SUBI    2,1
+        SOJG    1,NOVF1A
+;
+;                               NOVF1 8
+        M       1,TRCIDX
+        MI      2,NOVTR(1)
+        M       3,LOWLN
+        FPUT    3,2,NOVL1
+        M       3,HIGHLN
+        FPUT    3,2,NOVL2
+        AOS     0,NOVTN
+        CALL    SETTRC##        ; SET/RESET H.TRC FLAG
+;
+;                               EXIT NOVF1
+NVF1$$: BRETURN NOVF1
+;
+;
+				 SUBTTL NOVF2 1.5.6.23.2.5.5
+        BDCL NOVF2
+;
+;                               NOVF2 1
+        M       1,TRCIDX
+        MI      2,NOVTR(1) ; R2 GETS @NOVTR[TRCIDX]
+        FGET    3,2,NOVL2
+        CAMLE   3,HIGHLN
+        J       NVF2$$
+;                               NOVF2 2
+; R1 AND R2 RETAINED FROM LAST BOX
+        MI      4,NOVTR+1(1) ;R4 GETS @NOVTR[TRCIDX]
+        FGET    3,4,NOVL1
+        CAMLE   3,HIGHLN
+        J       NOVF26
+;                               NOVF2 3
+; R1,R2,AND R4 RETAINED FROM LAST BOX
+        FGET    3,4,NOVL2
+        FPUT    3,2,NOVL2
+;                               NOVF2 4
+; R1,R2,AND R4 RETAINED FROM LAST BOX
+        HRLI    2,1(4)
+        HRRI    2,0(4)
+        M       3,NOVTN
+        BLT     2,NOVTR-2(3)
+;
+;                               NOVF2 5
+        SOS     0,NOVTN
+        J       NVF2$$
+;                               NOVF2 6
+; R1 AND R2 RETAINED FROM LAST BOX
+NOVF26: M       3,HIGHLN
+        FPUT    3,2,NOVL2
+;
+;                               EXIT NOVF2
+NVF2$$: BRETURN NOVF2
+;
+;
+				 SUBTTL VTRC 1.5.6.23.3
+        BDCL VTRC
+;
+;                               VTRC 1
+        M       1,[POINT 18,0]
+        HRR     1,NXTLC
+        MM      1,SVVBP
+;
+;                               VTRC 2
+        BCALL   GTRNG
+;
+;                               VTRC 3
+VTRC3: M        1,CBYT9
+        CAIE    1,255
+        J       VTRC5
+;
+;                               VTRC 4
+        SETZM   0,LOWLN
+        MI      1,99999
+        MM      1,HIGHLN
+        J       VTRC6
+;
+;                               VTRC 5
+VTRC5: CALL LOHIGH
+;
+;                               VTRC 6
+VTRC6: BCALL    VTRLNS
+;
+;                               VTRC 7
+        M       1,CBYT9
+        CAIE    1,255
+        J       VTRC3
+;
+;                               EXIT VTRC
+        BRETURN VTRC
+;
+;
+				 SUBTTL GTRNG 1.5.6.23.3.2
+         BDCL GTRNG
+;
+;                               GTRNG 1
+        M       1,VARCT
+        MM      1,VLFT
+;
+;                               GTRNG 2
+GTRNG2: CALL    GETC18
+;
+;                               GTRNG 3-4
+        SOS     1,VLFT
+        JG      1,GTRNG2
+;
+;                               GTRNG 5-6
+        CALL    GETC9
+        CALL    GETC9
+;
+;                               EXIT GTRNG
+        BRETURN GTRNG
+;
+;
+				 SUBTTL VTRLNS 1.5.6.23.3.6
+        BDCL VTRLNS
+;
+;                               VTRLNS 1
+        M       1,VARCT
+        MM      1,VLFT
+        M       1,SVVBP
+        MM      1,VTRBP
+;
+;                               VTRLNS 2
+VRLNS2: ILDB    1,VTRBP
+        MM      1,VARID
+;
+;                               VTRLNS 3
+        BCALL   VTRAV
+;
+;                               VTRLNS 4-5
+        SOS     1,VLFT
+        JG      1,VRLNS2
+;
+;                               EXIT VTRLNS
+        BRETURN VTRLNS
+;
+;
+				 SUBTTL VTRAV 1.5.6.23.3.6.3
+        BDCL VTRAV
+;
+;                               VTRAV 1
+        BCALL   TRVLOC
+;
+;                               VTRAV 2
+        BCALL   TRCLOC
+;
+;                               VTRAV 3
+        BCALL   TRCADJ
+;
+;                               EXIT VTRAV
+        BRETURN VTRAV
+;
+;
+				 SUBTTL TRVLOC 1.5.6.23.3.6.3.1
+        BDCL TRVLOC
+;
+;                               TRVLOC 1
+        SETZM   0,TRVIDX
+        SETZM   0,TRDON
+        MI      1,TRVT
+        MM      1,TRVPTR
+;
+;                               TRVLOC 2
+TRVLC2: M       1,TRVIDX
+        CAMGE   1,TRVN
+        J       TRVLC5
+;
+;                               TRVLOC 3
+        BCALL   NWTRV
+;
+;                               TRVLOC 4
+        SETOM   0,TRDON
+        J       TRVLC8
+;
+;                               TRVLOC 5
+TRVLC5: M       1,TRVPTR
+        FGET    2,1,TRVID
+        CAME    2,VARID
+        J       TRVLC7
+;
+;                               TRVLOC 6
+        SETOM   0,TRDON
+        J       TRVLC8
+;
+;                               TRVLOC 7
+TRVLC7: AOS     0,TRVIDX
+        MI      1,TRVTR
+        ADDM    1,TRVPTR
+;
+;                               TRVLOC 8
+TRVLC8: SKIPN   0,TRDON
+        J       TRVLC2
+;
+;                       TRVLOC 9
+        M       1,TRVIDX
+        MM      1,TRID
+;                               EXIT TRVLOC
+        BRETURN TRVLOC
+;
+;
+				 SUBTTL NWTRV 1.5.6.23.3.6.3.1.3
+        BDCL NWTRV
+;
+;                               NWTRV 1
+        M       1,TRVN
+        CAIGE   1,TRVLX
+        J       NWTR3
+;
+;                               NWTRV 2
+        CALL   XERROR,<78>
+;
+;                               NWTRV 3
+NWTR3:  AOS     0,TRVN
+        M       1,TRVPTR
+        M       0,VARID
+        FPUT    0,1,TRVID
+;
+;                               NWTRV 4
+        SETZM   0,VNAM
+        SETZM   0,VNAM+1
+        SETZM   0,VNAM+2
+;
+;                               NWTRV 5
+        M       1,[POINT 7,VNAM]
+        CALL    TXVNM,<$,VARID>
+;
+;                               NWTRV 6
+        M       1,VNAM
+        M       2,TRVPTR
+        FPUT    1,2,TRVSP1
+        M       1,VNAM+1
+        FPUT    1,2,TRVSP2
+        M       1,VNAM+2
+        FPUT    1,2,TRVSP3
+;
+;                               EXIT NWTRV
+        BRETURN NWTRV
+;
+;
+				 SUBTTL TRCLOC 1.5.6.23.3.6.3.2
+        BDCL TRCLOC
+;
+;                               TRCLOC 1
+        SETZM   0,TRCIDX
+        MI      1,TRCT
+        MM      1,TRCPTR
+;
+;                               TRCLOC 2
+TRCLC2: M       2,TRCPTR
+        FGET    1,2,TCVL
+        CAML    1,TRID
+        J       TRLC$$
+;
+;                               TRCLOC 3
+        AOS     0,TRCIDX
+        MI      1,TRCTR
+        ADDM    1,TRCPTR
+        J       TRCLC2
+;
+;                               EXIT TRCLOC
+TRLC$$: BRETURN TRCLOC
+;
+;
+				 SUBTTL TRCADJ 1.5.6.23.3.6.3.3
+        BDCL TRCADJ
+;
+;                               TRCADJ 1
+        M       2,TRCPTR
+        FGET    1,2,TCVL
+        CAME    1,TRID
+        J       TRCDJ6
+;
+;                               TRCADJ 2
+        CALL    TRC1ST
+;
+;                               TRCADJ 3
+        M       1,TRHALF
+        CAIN    1,1
+        J       TRCDJ4
+        CAIE    1,3
+        J       TRCDJ5
+;
+;                               TRCADJ 4
+TRCDJ4: BCALL TRFX1
+        J       TCDJ$$
+;
+;                               TRCADJ 5
+TRCDJ5: BCALL TRFX2
+        J       TCDJ$$
+;
+;                               TRCADJ 6
+TRCDJ6: M       1,TRCTN
+        CAIGE   1,TRCLX
+        J       TRCDJ8
+;
+;                               TRCADJ 7
+        CALL    XERROR,<77>
+;
+;                               TRCADJ 8
+TRCDJ8: M       1,TRCTN
+        SUB     1,TRCIDX
+        IMULI    1,TRCTR
+        M       2,TRCTN
+        IMULI   2,TRCTR
+TRCDJA: M       3,TRCT-1(2)
+        MM      3,TRCT+TRCTR-1(2)
+        SUBI    2,1
+        SOJG    1,TRCDJA
+;
+;                               TRCADJ 9
+        M       1,LOWLN
+        M       2,TRCPTR
+        FPUT    1,2,TCL1
+        M       1,HIGHLN
+        FPUT    1,2,TCL2
+        M       1,TRID
+        FPUT    1,2,TCVL
+        AOS     0,TRCTN
+;
+;                               EXIT TRCADJ
+TCDJ$$: BRETURN TRCADJ
+;
+;
+				 SUBTTL TRFX1 1.5.6.23.3.6.3.3.4
+        BDCL TRFX1
+;
+;                               TRFX1 1
+        CALL    TRDLT
+;
+;                               TRFX1 2
+        M       2,TRCPTR ;R2 HAS TRCPTR
+        FGET    1,2,TCL1
+        CAMLE   1,HIGHLN
+        J       TRFX16
+        M       1,TRHALF
+        CAIN    1,3
+        J       TRFX16
+;                               TRFX1 3
+; R2 RETAINED FROM BOX 2
+        FGET    1,2,TCL2
+        CAMLE   1,HIGHLN
+        J       TRFX15
+;                               TRFX1 4
+; R2 RETAINED FROM BOX 2
+        M       1,LOWLN
+        FPUT    1,2,TCL1
+        M       1,HIGHLN
+        FPUT    1,2,TCL2
+        J       TFX1$$
+;
+;                               TRFX1 5
+TRFX15: M       1,LOWLN ; R2 SET ABOVE
+        FPUT    1,2,TCL1
+        J       TFX1$$
+;
+;                               TRFX1 6
+TRFX16: M       1,TRCTN
+        CAIGE   1,TRCLX
+        J       TRFX18
+;
+;                               TRFX1 7
+        CALL    XERROR,<77>
+;
+;                               TRFX1 8
+TRFX18: M       1,TRCTN
+        SUB     1,TRCIDX
+        IMULI    1,TRCTR
+        M       2,TRCTN
+        IMULI   2,TRCTR
+TRFX1A: M       3,TRCT-1(2)
+        MM      3,TRCT+TRCTR-1(2)
+        SUBI    2,1
+        SOJG    1,TRFX1A
+;
+;                               TRFX1 9
+        M       2,TRCPTR
+        M       1,LOWLN
+        FPUT    1,2,TCL1
+        M       1,HIGHLN
+        FPUT    1,2,TCL2
+        M       1,TRID
+        FPUT    1,2,TCVL
+        AOS     0,TRCTN
+;
+;                               EXIT TRFX1
+TFX1$$: BRETURN TRFX1
+;
+;
+				 SUBTTL TRFX2 1.5.6.23.3.6.3.3.5
+        BDCL TRFX2
+;
+;                               TRFX2 1
+        CALL    TRDLT
+;
+;                               TRFX2 2
+        M       2,TRCPTR
+        FGET    1,2,TCL2
+        CAMLE   1,HIGHLN
+        J       TFX2$$
+;                               TRFX2 3
+; R2 RETAINED FROM LAST BOX
+        ADDI    2,TRCTR ; R2 GETS TRCPTR+TRCTR#
+        M       3,TRCPTR ; R3 GETS TRCPTR
+        FGET    1,2,TCVL
+        CAME    1,TRID
+        J       TRFX29
+;                               TRFX2 4
+; R2 AND R3 RETAINED FROM LAST BOX
+        FGET    1,2,BKL1
+        CAMLE   1,HIGHLN
+        J       TRFX28
+;                               TRFX2 5
+
+; R2 AND R3 RETAINED FROM LAST BOX
+        FGET    1,2,TCL2
+        FPUT    1,3,TCL2
+; CLARITY SACRIFICED FOR ECONOMY, R2 RETAINED FROM LAST BOX
+;                               TRFX2 6
+        HRR     4,2
+        M       3,TRCTN
+        SUB     3,TRCIDX
+        SUBI    3,2
+        IMULI    3,TRCTR
+        ADD     3,2
+        ADDI    2,TRCTR
+        HRL     4,2
+        BLT     4,-1(3)
+;
+;                               TRFX2 7
+        SOS     0,TRCTN
+        J       TFX2$$
+;                               TRFXX2 8
+; R3 RETAINED FROM BOX 4
+TRFX28: M       1,HIGHLN
+        FPUT    1,3,TCL2
+        J       TFX2$$
+;                               TRFX2 9
+; R3 RETAINED FROM BOX 3
+TRFX29: M       1,HIGHLN
+        FPUT    1,3,TCL2
+;
+;                               EXIT TRFX2
+TFX2$$: BRETURN TRFX2
+;
+;
+;
+;
+;
+;
+				 SUBTTL   NOB   1.5.6.26
+         BDCL     NOB
+;
+;                               NOB 1
+        CALL    GETC9
+;
+;                               NOB 2
+NOB2:   M        1,CBYT9
+        CAIE    1,255
+        J       NOB4
+;
+;                               NOB 3
+        SETZM   0,LOWLN
+        MI      1,99999
+        MM      1,HIGHLN
+        J       NOB5
+;
+;                               NOB 4
+NOB4: CALL      LOHIGH
+;
+;                               NOB 5
+NOB5: BCALL NOBLNS
+;
+;                               NOB 6
+        M       1,CBYT9
+        CAIE    1,255
+        J       NOB2
+;
+;                               EXIT NOB
+        BRETURN NOB
+;
+;
+				 SUBTTL NOBLNS 1.5.6.26.5
+        BDCL NOBLNS
+;
+;                               NOBLNS 1
+        CALL    BK1ST
+;
+;                               NOBLNS 2
+        CALL    BKDLT
+;
+;                               NOBLNS 3
+        M       1,BKHALF
+        CAIE    1,1
+        J       NBLNS5
+;
+;                               NOBLNS 4
+        BCALL   NBFX1
+        J       NLNS$$
+;
+;                               NOBLNS 5
+NBLNS5: BCALL   NBFX2
+;
+;                               EXIT NOBLNS
+NLNS$$: BRETURN NOBLNS
+;
+;
+				 SUBTTL NBFX1 1.5.6.26.5.4
+        BDCL NBFX1
+;
+;                               NBFX1 1
+        M       1,BRKIDX
+        MI      2,BRKT(1) ;SET R2 TO @BRKT[BRKIDX]
+        FGET    3,2,BKL1
+        CAMLE   3,HIGHLN
+        J       NFX1$$
+;                               NBFX1 2
+; R1 AND R2 RETAINED FROM LAST BOX
+        FGET    3,2,BKL2
+        CAMLE   3,HIGHLN
+        J       NBFX15
+;                               NBFX1 3
+; R1 AND R2 RETAINED FROM LAST BOX
+        HRR     4,2
+        HRLI    4,1(2)
+        M       3,BRKN
+        BLT     4,BRKT-2(3)
+;
+;                               NBFX1 4
+        SOS     0,BRKN
+        CALL    SETBRK##        ; SET/RESET H.BRK FLAG
+        J       NFX1$$
+;                               NBFX1 5
+; R1 AND R2 RETAINED FROM BOX 1
+NBFX15: M       3,HIGHLN
+        ADDI    3,1
+        FPUT    3,2,BKL1
+;
+;                               EXIT NBFX1
+NFX1$$: BRETURN NBFX1
+;
+;
+				 SUBTTL NBFX2 1.5.6.26.5.5
+        BDCL NBFX2
+;
+;                               NBFX2 1
+        M       1,BRKIDX
+        MI      2,BRKT(1) ; SET R2 AT @BRKT[BRKIDX]
+        MI      4,1(2) ; SET R4 AT @BRKT[BRKIDX+1]
+        FGET    3,2,BKL2
+        CAMLE   3,HIGHLN
+        J       NBFX25
+;                               NBFX2 2
+; R1,R2,AND R4  RETAINED FROM LAST BOX
+        FGET    3,4,BKL1
+        CAMLE   3,HIGHLN
+        J       NBFX24
+;                               NBFX2 3
+; R1,R2, AND R4  RETAINED FROM LAST BOX
+        M       3,LOWLN
+        SUBI    3,1
+        FPUT    3,2,BKL2
+        M       3,HIGHLN
+        ADDI    3,1
+        FPUT    3,4,BKL1
+        J       NFX2$$
+;                               NBFX2 4
+; R1 AND R2 RETAINED FROM LAST BOX
+NBFX24: M       3,LOWLN
+        SUBI    3,1
+        FPUT    3,2,BKL2
+        J       NFX2$$
+;
+;                               NBFX2 5
+NBFX25: M       3,BRKN
+        CAIGE   3,BRKLX
+        J       NBFX27
+;
+;                               NBFX2 6
+        CALL    XERROR,<76>
+;                               NBFX2 7
+; R1,R2, AND R4 RETAINED FROM BOX 1
+NBFX27: M       0,BRKN
+        SUB     0,BRKIDX
+        M       1,BRKN
+NBFX2A: M       3,BRKT-1(1)
+        MM      3,BRKT(1)
+        SUBI    1,1
+        SOJG    0,NBFX2A
+;
+;                               NBFX2 8
+        M       1,BRKIDX
+        MI      2,BRKT(1)
+        M       3,LOWLN
+        SUBI    3,1
+        FPUT    3,2,BKL2
+        M       3,HIGHLN
+        ADDI    3,1
+        ADDI    2,1
+        FPUT    3,2,BKL1
+        AOS     0,BRKN
+        CALL    SETBRK##        ; SET/RESET H.BRK FLAG
+;
+;                               EXIT NBFX2
+NFX2$$: BRETURN NBFX2
+;
+;
+				 SUBTTL   NOTR  1.5.6.27
+         BDCL     NOTR
+;
+;                               NOTR 1
+        SKIPE   0,VARCT
+        J       NOTR5
+;
+;                               NOTR 2
+        SKIPE   0,FLRNG
+        J       NOTR4
+;
+;                               NOTR 3
+        CALL    IZTRC
+        J       NOTR$$
+;
+;                               NOTR 4
+NOTR4: BCALL    NOTLR
+        J       NOTR$$
+;
+;                               NOTR 5
+NOTR5: BCALL NOTVR
+;
+;                               EXIT NOTR
+NOTR$$: BRETURN NOTR
+;
+;
+				 SUBTTL NOTLR 1.5.6.27.4
+        BDCL NOTLR
+;
+;                               NOTLR 1
+        CALL    GETC9
+;
+;                               NOTLR 2
+NOTLR2: M       1,CBYT9
+        CAIE    1,255
+        J       NOTLR4
+;
+;                               NOTLR 3
+        SETZM   0,LOWLN
+        MI      1,99999
+        MM      1,HIGHLN
+        J       NOTLR5
+;
+;                               NOTLR 4
+NOTLR4: CALL    LOHIGH
+;
+;                               NOTLR 5
+NOTLR5: BCALL NOTLNS
+;
+;                               NOTLR 6
+        M       1,CBYT9
+        CAIE    1,255
+        J       NOTLR2
+;
+;                               EXIT NOTLR
+        BRETURN NOTLR
+;
+;
+				 SUBTTL NOTLNS 1.5.6.27.4.5
+        BDCL NOTLNS
+;
+;                               NOTLNS 1
+        BCALL   NOTNOV
+;
+;                               NOTLNS 2
+        BCALL   NOTTRC
+;
+;                               EXIT NOTLNS
+        BRETURN NOTLNS
+;
+;
+				 SUBTTL NOTNOV 1.5.6.27.4.5.1
+        BDCL NOTNOV
+;
+;                               NOTNOV 1
+        CALL    NOV1ST
+;
+;                               NOTNOV 2
+        CALL    NOVDLT
+;
+;                               NOTNOV 3
+        M       1,TRHALF
+        CAIE    1,1
+        J       NTNOV5
+;
+;                               NOTNOV 4
+        BCALL   NNVF1
+        J       NTNV$$
+;
+;                               NOTNOV 5
+NTNOV5: BCALL   NNVF2
+;
+;                               EXIT NOTNOV
+NTNV$$: BRETURN NOTNOV
+;
+;
+				 SUBTTL NNVF1 1.5.6.27.4.5.1.4
+        BDCL NNVF1
+;
+;                               NNVF1 1
+        M       1,TRCIDX ; R1 GETS TRCIDX
+        MI      2,NOVTR(1) ; R2 GETS @NOVTR[TRCIDX]
+        FGET    3,2,NOVL1
+        CAMLE   3,HIGHLN
+        J       NNV1$$
+;                               NNVF1 2
+;R2 RETAINED FROM LAST BOX
+        FGET    3,2,NOVL2
+        CAMLE   3,HIGHLN
+        J       NNVF15
+;                               NNVF1 3
+; R2 RETAINED FROM LAST BOX
+        HRLI    3,1(2)
+        HRR     3,2
+        M       1,NOVTN
+        BLT     3,NOVTR-2(1)
+;
+;                               NNVF1 4
+        SOS     0,NOVTN
+        CALL    SETTRC##        ; SET/RESET H.TRC FLAG
+        J       NNV1$$
+;                               NNVF1 5
+; R1 AND R2 RETAINED FROM BOX 1
+NNVF15: M       3,HIGHLN
+        ADDI    3,1
+        FPUT    3,2,NOVL1
+;
+;                               EXIT NNVF1
+NNV1$$: BRETURN NNVF1
+;
+;
+				 SUBTTL NNVF2 1.5.6.27.4.5.1.5
+        BDCL NNVF2
+;
+;                               NNVF2 1
+        M       1,TRCIDX
+        MI      2,NOVTR(1) ;R2 GETS @NOVTR[TRCIDX]
+        MI      4,1(2) ;R4 GETS @NOVTR[TRCIDX+1]
+        FGET    3,2,NOVL2
+        CAMLE   3,HIGHLN
+        J       NNVF25
+;                               NNVF2 2
+; R1,R2,AND R4 RETAINED FROM LAST BOX
+        FGET    3,4,NOVL1
+        CAMLE   3,HIGHLN
+        J       NNVF24
+;                               NNVF2 3
+; R1,R2, AND R4 RETAINED FROM BOX 1
+        M       3,LOWLN
+        SUBI    3,1
+        FPUT    3,2,NOVL2
+        M       3,HIGHLN
+        ADDI    3,1
+        FPUT    3,4,NOVL1
+        J       NNV2$$
+;                               NNVF2 4
+; R2 RETAINED FROM BOX 1
+NNVF24:M       3,LOWLN
+        SUBI    3,1
+        FPUT    3,2,NOVL2
+        J       NNV2$$
+;
+;                               NNVF2 5
+NNVF25: M       3,NOVTN
+        CAIGE   3,TRCLX
+        J       NNVF27
+;
+;                               NNVF2 6
+        CALL    XERROR,<77>
+;                               NNVF2 7
+; R1 AND R2 RETAINED FROM BOX 1
+NNVF27: M       0,NOVTN
+        SUB     0,TRCIDX
+        M       1,NOVTN
+NNVF2A: M       3,NOVTR-1(1)
+        MM      3,NOVTR(1)
+        SUBI    1,1
+        SOJG    0,NNVF2A
+;
+;                               NNVF2 8
+        M       1,TRCIDX
+        MI      2,NOVTR(1)
+        M       3,LOWLN
+        SUBI    3,1
+        FPUT    3,2,NOVL2
+        M       3,HIGHLN
+        ADDI    3,1
+        ADDI    2,1
+        FPUT    3,2,NOVL1
+        AOS     0,NOVTN
+        CALL    SETTRC##        ; SET/RESET H.TRC FLAG
+;
+;                               EXIT NNVF2
+NNV2$$: BRETURN NNVF2
+;
+;
+				 SUBTTL NOTTRC 1.5.6.27.4.5.2
+        BDCL NOTTRC
+;
+;                               NOTTRC 1
+        SETZM   0,TRCIDX
+        MI      1,TRCT
+        MM      1,TRCPTR
+;
+;                               NOTTRC 2
+NTTRC2: M       2,TRCPTR ;  R2 GETS TRCPTR
+        FGET    1,2,TCVL
+        CAIN    1,999
+        J       NTRC$$
+;                               NOTTRC 3
+; R1 RETAINED FROM LAST BOX
+        MM      1,TRID
+;
+;                               NOTTRC 4
+        CALL    TRC1ST
+;
+;                               NOTTRC 5
+        M       1,TRHALF
+        CAIN    1,1
+        J       NTTRC6
+        CAIE    1,3
+        J       NTTRC7
+;
+;                               NOTTRC 6
+NTTRC6: BCALL NTRF1
+        J       NTTRC8
+;
+;                               NOTTRC 7
+NTTRC7: BCALL NTRF2
+;
+;                               NOTTRC 8
+NTTRC8: BCALL NXTID
+        J       NTTRC2
+;
+;                               EXIT NOTTRC
+NTRC$$: BRETURN NOTTRC
+;
+;
+				 SUBTTL NTRF1 1.5.6.27.4.5.2.6
+        BDCL NTRF1
+;
+;                               NTRF1 1
+        M       1,TRHALF
+        CAIN    1,3
+        J       NRF1$$
+;
+;                               NTRF1 2
+        CALL    TRDLT
+;
+;                               NTRF1 3
+        M       2,TRCPTR ; R2 GETS TRCPTR
+        FGET    1,2,TCL1
+        CAMLE   1,HIGHLN
+        J       NRF1$$
+;                               NTRF1 4
+; R2 RETAINED FROM LAST BOX
+        FGET    1,2,TCL2
+        CAMLE   1,HIGHLN
+        J       NTRF17
+;                               NTRF1 5
+; R2 RETAINED FROM BOX 3
+        M       1,TRCTN
+        SUB     1,TRCIDX
+        SUBI    1,1
+        IMULI    1,TRCTR
+        ADD     1,2
+        HRR     3,2
+        ADDI    2,TRCTR
+        HRL     3,2
+        BLT     3,-1(1)
+;
+;                               NTRF1 6
+        SOS     0,TRCTN
+        J       NRF1$$
+;                               NTRF1 7
+; R2 RETAINED FROM BOX 3
+NTRF17: M       3,HIGHLN
+        ADDI    3,1
+        FPUT    3,2,TCL1
+;
+;                               EXIT NTRF1
+NRF1$$: BRETURN NTRF1
+;
+;
+				 SUBTTL NTRF2 1.5.6.27.4.5.2.7
+        BDCL NTRF2
+;
+;                               NTRF2 1
+        CALL    TRDLT
+;
+;                               NTRF2 2
+        M       2,TRCPTR ; SET R2 AT TRCPTR
+        MI      4,TRCTR(2) ; R4 GETS TRCPTR+TRCTR#
+        FGET    1,2,TCL2
+        CAMLE   1,HIGHLN
+        J       NTRF26
+;                               NTRRF2 3
+; R2 RETAINED FROM BOX 2
+        FGET    3,4,TCL1
+        CAMLE   3,HIGHLN
+        J       NTRF25
+        FGET    3,4,TCVL
+        CAME    3,TRID
+        J       NTRF25
+;                               NTRF2 4
+; R4 RETAINED FROM BOX 3, R2 RETAINED FROM BOX 2
+        M       3,HIGHLN
+        ADDI    3,1
+        FPUT    3,4,TCL1
+        M       3,LOWLN
+        SUBI    3,1
+        FPUT    3,2,TCL2
+        J       NRF2$$
+;                               NTRF2 5
+; R2 RETAINED FROM BOX 2
+NTRF25: M       3,LOWLN
+        SUBI    3,1
+        FPUT    3,2,TCL2
+        J       NRF2$$
+;
+;                               NTRF2 6
+NTRF26: M       1,TRCTN
+        CAIGE   1,TRCLX
+        J       NTRF28
+;
+;                               NTRF2 7
+        CALL    XERROR,<77>
+;                               NTRF2 8
+; R2 AND R4 RETAINED FROM BOX 2
+NTRF28: M       0,TRCTN
+        SUB     0,TRCIDX
+        IMULI    0,TRCTR
+        ADD     2,0
+NTRF2A: M       3,-1(2)
+        MM      3,TRCTR-1(2)
+        SUBI    2,1
+        SOJG   0,NTRF2A
+;
+;                               NTRF2 9
+        M       2,TRCPTR
+        M       3,LOWLN
+        SUBI    3,1
+        FPUT    3,2,TCL2
+        ADDI    2,TRCTR
+        M       3,HIGHLN
+        ADDI    3,1
+        FPUT    3,2,TCL1
+        AOS     0,TRCTN
+;
+;                               EXIT NTRF2
+NRF2$$: BRETURN NTRF2
+;
+;
+				 SUBTTL NXTID 1.5.6.27.4.5.2.8
+        BDCL    NXTID
+;
+;                               NXTID 1
+NXTID1: M       2,TRCPTR
+        FGET    1,2,TCVL
+        CAME    1,TRID
+        J       NTID$$
+;
+;                               NXTID 2
+        AOS     0,TRCIDX
+        MI      1,TRCTR
+        ADDM    1,TRCPTR
+        J       NXTID1
+;
+;                               EXIT NXTID
+NTID$$: BRETURN NXTID
+;
+;
+				 SUBTTL NOTVR 1.5.6.27.5
+        BDCL NOTVR
+;
+;                               NOTVR 1
+        M       1,VARCT
+        MM      1,VARLFT
+;
+;                               NOTVR 2
+NOTVR2: SKIPN   0,VARLFT
+        J       NTVR$$
+;
+;                               NOTVR 3
+        CALL    GETC18
+;
+;                               NOTVR 4
+        M       1,CBYT18
+        MM      1,VARID
+;
+;                               NOTVR 5
+        BCALL   NOTVAR
+;
+;                               NOTVR 6
+        SOS     0,VARLFT
+        J       NOTVR2
+;
+;                               EXIT NOTVR
+NTVR$$: BRETURN NOTVR
+;
+;
+				 SUBTTL NOTVAR 1.5.6.27.5.5
+        BDCL NOTVAR
+;
+;                               NOTVAR 1
+        SETZM   0,VARFND
+;
+;                               NOTVAR 2
+        BCALL   TRVFIX
+;
+;                               NOTVAR 3
+        SKIPN   0,VARFND
+        J       NOTV$$
+;
+;                               NOTVAR 4
+        BCALL   TRCTFX
+;
+;                               EXIT NOTVAR
+NOTV$$: BRETURN NOTVAR
+;
+;
+				 SUBTTL TRVFIX 1.5.6.27.5.5.2
+        BDCL TRVFIX
+;
+;                               TRVFIX 1
+        SETZM   0,TRVIDX
+        MI      1,TRVT
+        MM      1,TRVPTR
+        SETZM   0,TRDON
+;
+;                               TRVFIX 2
+TRVFX2: M       1,TRVIDX
+        CAMGE   1,TRVN
+        J       TRVFX4
+;
+;                               TRVFIX 3
+        SETOM   0,TRDON
+        J       TRVX10
+;
+;                               TRVFIX 4
+TRVFX4: M       2,TRVPTR ; R2 GETS TRVPTR
+        FGET    1,2,TRVID
+        CAME    1,VARID
+        J       TRVFX9
+;
+;                               TRVFIX 5
+        M       1,TRVIDX
+        MM      1,TRID
+        SETOM   0,VARFND
+        SETOM   0,TRDON
+;
+;                               TRVFIX 6
+        M       1,TRVN
+        SUBI    1,1
+        CAMG    1,TRID
+        J       TRVFX8
+;                               TRVFIX 7
+; R2 RETAINED FROM BOX 4
+        HRR     3,TRVPTR
+        ADDI    2,TRVTR
+        HRL     3,2
+        M       1,TRVN
+        SUB     1,TRID
+        SUBI    1,1
+        IMULI    1,TRVTR
+        ADD     1,TRVPTR
+        BLT     3,-1(1)
+;
+;                               TRVFIX 8
+TRVFX8: SOS     0,TRVN
+        J       TRVX10
+;
+;                               TRVFIX 9
+TRVFX9: AOS     0,TRVIDX
+        MI      1,TRVTR
+        ADDM    1,TRVPTR
+;
+;                               TRVFIX 10
+TRVX10: SKIPN   0,TRDON
+        J       TRVFX2
+;
+;                               EXIT TRVFIX
+        BRETURN TRVFIX
+;
+;                               
+				 SUBTTL TRCTFX 1.5.6.27.5.5.4
+        BDCL TRCTFX
+;
+;                               TRCTFX 1
+        SETZM   0,TRCIDX
+        MI      1,TRCT
+        MM      1,TRCPTR
+;
+;                               TRCTFX 2
+        BCALL   TV1ST
+;
+;                               TRCTFX 3
+        BCALL   TVEQ
+;
+;                               TRCTFX 4
+        BCALL   TVHIGH
+;
+;                               EXIT TRCTFX
+        BRETURN TRCTFX
+;
+;
+				 SUBTTL TV1ST 1.5.6.27.5.5.4.2
+        BDCL TV1ST
+;
+;                               TV1ST 1
+TV1ST1: M       2,TRCPTR
+        FGET    1,2,TCVL
+        CAML    1,TRID
+        J       T1ST$$
+;
+;                               TV1ST 2
+        AOS     0,TRCIDX
+        MI      1,TRCTR
+        ADDM    1,TRCPTR
+        J       TV1ST1
+;
+;                               EXIT TV1ST
+T1ST$$: BRETURN TV1ST
+;
+;
+				 SUBTTL TVEQ 1.5.6.27.5.5.4.3
+        BDCL TVEQ
+;
+;                               TVEQ 1
+        M       1,TRCIDX
+        MM      1,TRIDX2
+        M       1,TRCPTR
+        MM      1,TRPTR2
+;
+;                               TVEQ 2
+TVEQ2: M        2,TRPTR2
+        FGET    1,2,TCVL
+        CAMLE   1,TRID
+        J       TVEQ4
+;
+;                               TVEQ 3
+        AOS     0,TRIDX2
+        MI      1,TRCTR
+        ADDM    1,TRPTR2
+        J       TVEQ2
+;
+;                               TVEQ 4
+TVEQ4: M        1,TRIDX2
+        CAMN    1,TRCIDX
+        J       TVEQ$$
+;
+;                               TVEQ 5
+        HRL     1,TRPTR2
+        HRR     1,TRCPTR
+        M       2,TRCTN
+        SUB     2,TRIDX2
+        IMULI    2,TRCTR
+        ADD     2,TRCPTR
+        BLT     1,-1(2)
+;
+;                               TVEQ 6
+        M       1,TRCTN
+        SUB     1,TRIDX2
+        ADD     1,TRCIDX
+        MM      1,TRCTN
+;
+;                               EXIT TVEQ
+TVEQ$$: BRETURN TVEQ
+;
+;
+				 SUBTTL TVHIGH 1.5.6.27.5.5.4.4
+        BDCL TVHIGH
+;
+;                               TVHIGH 1
+TVHGH1: M       2,TRCPTR ; R2 GETS TRCPTR
+        FGET    1,2,TCVL
+        CAIN    1,999
+        J       THGH$$
+;                               TVHIGH 2
+; R2 RETAINED FROM LAST BOX
+        FGET    1,2,TCVL
+        SUBI    1,1
+        FPUT    1,2,TCVL
+;
+;                               TVHIGH 3
+        MI      1,TRCTR
+        ADDM    1,TRCPTR
+        J       TVHGH1
+;
+;                               EXIT TVHIGH
+THGH$$: BRETURN TVHIGH
+;
+;
+				 SUBTTL   CDE  1.5.6.28
+         BDCL     CDE
+;
+;                       CDE 0
+        MOVEI   0,63
+        SKIPG   NLINES          ;IF NO PROGRAM
+        PUSHJ   P,XERROR        ; THEN GIVE ERROR 63
+
+;                       CDE 1
+        SKIPE   0,FNUM
+        J       CDE3
+;
+;                       CDE 2
+        SETZM   0,CDELN1
+        MI      1,99999
+        MM      1,CDELN2
+        J       CDE4
+;
+;                       CDE 3
+CDE3:   M       1,LNMB
+        MM      1,CDELN1
+        M       1,LNMB1
+        MM      1,CDELN2
+;
+;                       CDE 4
+CDE4:   MOVEI   R1,12
+        SKIPN   P.MOD
+        ADDI    R1,1
+        MOVEM   R1,PSW
+;
+;                       CDE 7
+        SETOM   WRKCMP
+        EXTERN  SETWRL
+        CALL    SETWRL
+;
+;                       EXIT CDE
+        BRETURN  CDE
+;
+;
+				 SUBTTL   SYMD  1.5.6.29
+        BDCL    SYMD
+;
+;                       SYMD 1
+        M       1,VARID
+        MM      1,CDEID
+;
+;                       SYMD 2
+        SKIPE   0,FNUM
+        J       SYMD4
+;
+;                       SYMD 3
+        SETOM   0,CDELN1
+        J       SYMD5
+;
+;                       SYMD 4
+SYMD4:  M       1,LNMB
+        MM      1,CDELN1
+;
+;                       SYMD 5
+SYMD5:  MOVEI   R1,14
+        SKIPN   P.MOD
+        ADDI    R1,1
+        MOVEM   R1,PSW
+;
+;                       SYMD 8
+        SETOM   WRKCMP
+        CALL    SETWRL
+;
+;                       EXIT SYMD
+        BRETURN SYMD
+;
+;
+				 SUBTTL   DUMP  1.5.6.30
+         BDCL     DUMP
+;
+;                               DUMP 0
+        MOVEI   0,63
+        SKIPG   NLINES          ;IF NO PROG
+        PUSHJ   P,XERROR        ; GIVE ERROR 63
+
+;                               DUMP 1
+        CALL    OPDMP
+;
+;                               DUMP 2
+        CALL    FSTLN
+;
+;                               DUMP 3
+        CALL    NXTLN
+;
+;                               DUMP 4
+        CALL    LRTNMB
+;
+;                               DUMP 5
+DUMP5:  M       1,SNMBR
+        CAIN    1,100001
+        J       DUMP9
+        SKIPE   0,ESCFLG
+        J       DUMP9
+;
+;                               DUMP 6
+        BCALL   DMPLIN
+;
+;                               DUMP 7
+        CALL    NXTLN
+;
+;                               DUMP 8
+        CALL    LRTNMB
+        J       DUMP5
+;
+;                               DUMP 9
+DUMP9:  BCALL   CLSDMP
+        SKIPE   ESCFLG          ;Escape flag set ?
+        CALL    ESCCHK          ;Yes, check and see
+;
+;                               EXIT DUMP
+        BRETURN DUMP
+
+        subttl  opdmp
+;
+;       OPDMP - Open file for DUMP REFS
+;
+; This routine opens an output file for the DUMP REFS command and
+; appends the appropriate command sequence to xxxcrf.tmp for later
+; use by a CROSS REF program. Virtual address zero of the output file
+; is left lying around in the global variable DMPAD and a character
+; cursor is left in DMPTR. Two chars (177, 102 octal) are writen
+; to the first of the file.
+;
+; The steps we are going to use to accomplish this are:
+;  1) Get a file name (either default or explicit)
+;  2) Launder the file name with ".crf" default extension
+;     and save in DNAM.
+;  3) Open DNAM in supercede mode and write 177, 102.
+;  4) Open xxxcrf.tmp in update mode
+;  5) Position xxxcrf.tmp to virtual address zero (which also reads in a page).
+;  6) If there is a 'crf' tmpcor file then
+;       if its size <= psize then       ! this actually does the read...
+;         a) copy tmpcor file to page zero of xxxcrf.tmp
+;         b) set TEOF to tmpcor length
+;         c) delete tmpcor file
+;       else
+;         a) re-read page zero of xxxcrf.tmp
+;         b) set TEOF to xxxcrf.tmp(end-of-file)
+;     else set TEOF to xxxcrf.tmp(end-of-file)
+;  7) Get a character cursor for xxxcrf.tmp(TEOF).
+;  8) If DNAM(username) = 0 then write(_DNAM.ext)
+;     else write(DNAM.LST[ppn1,ppn2]_DNAM.ext[ppn1,ppn2])
+;  9) Write(<crlf>)
+; 10) Close xxxcrf.tmp
+;
+        extern  resume,unload
+        dclne   opdmp,,<<DNAM,sxsiz>,<TNAM,sxsiz>,TEOF,TFCB,TADR>
+        reloc
+TCUR:   0
+DFCB:   0
+        reloc
+; DNAM - buffer for actual output file name
+; TNAM - buffer for xxxcrf.tmp file name
+; TEOF - assumed EOF for xxxcrf.tmp
+; DFCB - address of FCB for DNAM (so we can extract PPN later)
+; TFCB - address of FCB for xxxcrf.tmp (so we can extract length later)
+; TADR - virtual address zero for xxxcrf.tmp
+; TCUR - cursor for xxxcrf.tmp
+
+
+
+; Find a file name (either default or explicit)
+        skipe   filv1           ; Do we have an explicit name?
+        jrst    opdmp2          ; yes...
+
+        skipe   sxwork          ; Do we have a default name?
+        jrst    opdmp1          ; yes...
+
+        call    xerror,<^d108>  ; No file name...
+
+opdmp1: copyfn  sxwork,DNAM     ; Move default name (adding .CRF ext) into DNAM
+        hrlzi   r0,'CRF'
+        movem   r0,sxext+DNAM
+        jrst    opdm3a
+
+opdmp2: move    0,[point 7,twbuf]
+        call    movec,<,$,filv,$,filv1>
+
+opdmp3: setz    r0,             ; Terminate file name
+        idpb    r0,r1
+
+; Launder file name with ".crf" extension and save in DNAM.
+        lndry   twbuf,[asciz/CRF/],<messages,no.ter>
+        hrl     r2,r2           ; Move file name into DNAM
+        hrri    r2,DNAM
+        blt     r2,sxsiz-1+DNAM
+
+; Open DNAM in supercede mode and write 177, 102.
+opdm3a: open    DNAM,,supercede,,<messages,ret.zero,ret.fcb>
+        movem   r2,DMPAD        ; save virtual address zero
+        movem   r3,DFCB         ; Save fcb for later data extraction
+        readcr  r2,7
+        movem   r2,DMPTR
+        movei   r0,^o177
+        outcr   r0,dmptr
+        movei   r0,^o102
+        outcr   r0,dmptr
+
+        call    dmptit;         ;output title
+
+; Open xxxcrf.tmp
+        setzm   TNAM            ; zero TNAM
+        hrli    r0,TNAM
+        hrri    r0,1+TNAM
+        blt     r0,sxsiz-1+TNAM
+
+        hrl     r0,xjobno       ; build file name
+        hrri    r0,'CRE'
+        movem   r0,sxnam+TNAM
+        hrlzi   r0,'TMP'
+        movem   r0,sxext+TNAM
+
+        open    TNAM,,update,,<messages,no.ter,ret.fcb,ret.zero,no>
+        jumpg   r1,opdmp4       ; Sucessfull open??
+        call    closef,<$,DMPAD>
+        jrst    resume
+opdmp4: movem   r2,TADR         ; save virtual address zero
+        movem   r3,TFCB         ; save fcb for later data extraction
+
+; Position xxxcrf.tmp to virtual address zero
+        read    r2
+        movem   r2,TCUR
+
+; If there is a 'CRF' tmpcor file then
+;   if its size <= psize then           ! this actually does the read...
+;     a) copy tmpcor file to page zero of xxxcrf.tmp
+;     b) set TEOF to tmpcor length
+;     c) delete tmpcor file
+;   else
+;     a) re-read page zero of xxxcrf.tmp
+;     b) set TEOF to xxxcrf.tmp(end-of-file)
+; else set TEOF to xxxcrf.tmp(end-of-file)
+        dmove   r3,tmpblk       ; set up tmpcor read
+        hrr     r4,TCUR         ; with address of page zero of xxxcrf.tmp
+        move    r1,[xwd 1,r3]
+        tmpcor  1,
+        jrst    opdmp6          ; non-skip = no tmpcor file
+        caile   r1,psize        ; is it too big?
+        jrst    opdmp5
+
+        movem   r1,TEOF
+
+        move    r1,[xwd 2,r3]   ; delete tmpcor file
+        tmpcor  1,
+        skip                    ; ignore errors...
+        jrst    opdmp7
+
+opdmp5: call    unload,<$,TADR> ; Get a new page zero...
+        move    r2,TADR
+        read    r2
+        movem   r2,TCUR
+
+opdmp6: move    r1,TFCB         ; pick up xxxcrf.tmp length
+        move    r0,len(r1)
+        movem   r0,TEOF
+opdmp7:
+
+; Get a character cursor
+        free    TCUR            ; Free current page
+
+        move    r1,TEOF         ; get char cursor
+        imuli   r1,5
+        add     r1,TADR
+        readcr  r1,7
+        movem   r1,TCUR
+
+; If DNAM(username) = 0 then write(_DNAM.ext)
+; else write(DNAM.LST[ppn1,ppn2]_DNAM.ext[ppn1,ppn2])
+        skipn   sxun+DNAM
+        jrst    opdmp8
+
+        move    r0,sxnam+DNAM
+        hrlzi   r1,'LST'
+        call    wfnam
+        call    wppn
+        movei   r0,"_"
+        outcr   r0,TCUR
+        move    r0,sxnam+DNAM
+        hllz    r1,sxext+DNAM
+        call    wfnam
+        call    wppn
+        jrst    opdmp9
+
+opdmp8: movei   r0,"_"
+        outcr   r0,TCUR
+        move    r0,sxnam+DNAM
+        hllz    r1,sxext+DNAM
+        call    wfnam
+opdmp9:
+
+; Write(<crlf>)
+        movei   r0,^o15
+        outcr   r0,TCUR
+        movei   r0,^o12
+        outcr   r0,TCUR
+
+; Close xxxcrf.tmp
+        writcr  TCUR
+        call    closef,<$,TCUR>
+
+; pack it up and go home, we're finally done.....
+        return  opdmp
+
+; Control block for tmpcor file...
+tmpblk: xwd     'CRE',0
+        iowd    psize,0
+
+        dclne   wfnam,<fnm,fxt>
+; Write filename and extension
+        call    write6,<$,fnm>
+        movei   r0,"."
+        outcr   r0,TCUR
+        call    write6,<$,fxt>
+        return  wfnam
+
+        dclne   wppn
+; write "[ppn1,ppn2]"
+        movei   r0,"["
+        outcr   r0,TCUR
+        move    r1,DFCB
+        hllz    r1,ptr(r1)
+        call    hlfppn
+        movei   r0,","
+        outcr   r0,TCUR
+        move    r1,DFCB
+        hrlz    r1,ptr(r1)
+        call    hlfppn
+        movei   r0,"]"
+        outcr   r0,TCUR
+        return  wppn
+
+
+        dclne   hlfppn
+        movei   r2,6
+        lsh     r0,3
+        lshc    r0,3
+        addi    r0,'0'
+        sojg    r2,.-3
+        call    write6
+        return  hlfppn
+
+        dclne   write6,<word6>
+; Write 6-bit word as 7 bit
+write1: setz    r0,
+        move    r1,word6
+        lshc    r0,6
+        jumpe   r0,write2
+        movem   r1,word6
+        addi    r0,"A"-'A'
+        outcr   r0,TCUR
+        jrst    write1
+write2:
+        return  write6
+
+        subttl  DMPMSG write a message to crf file
+
+        DCLNE   DMPMSG,,<MSGADR>
+
+;Write the ASCIZ message to the dump refs file.
+
+        HRLI    R0,(POINT 7,)
+        MOVEM   R0,MSGADR               ;make a pointer
+
+DMPMS1: ILDB    R2,MSGADR
+        JUMPE   R2,DMPMS$
+        IDPBV   R2,DMPTR
+        JRST    DMPMS1
+
+DMPMS$: RETURN  DMPMSG
+        SUBTTL  DMPTIT  write the title to crf file
+
+        DCLNE   DMPTIT
+
+;dump title to crf file.
+;Format:
+;NAME date time Tymbasic Version X.Y CRLF
+
+        MOVEI   R2,^O20         ;"start title"
+        IDPBV   R2,DMPTR
+
+        MOVE    R3,[POINT 7,TWBUF]
+        MOVEI   R0,6            ;count for file name
+        MOVE    R1,[POINT 6,-1+DNAM]
+DMPTT1: ILDB    R2,R1
+        ADDI    R2,^O40
+        IDPB    R2,R3
+        SOJG    R0,DMPTT1
+
+        MOVEI   R0," "
+        IDPB    R0,R3
+        IDPB    R0,R3
+        MOVEI   R0,0
+        IDPB    R0,R3
+
+        CALL    DMPMSG,<TWBUF>; ;dump the file name
+
+        EXTERN  TXPDAT, DATFLD
+        CALL    TXPDAT,<$,<[POINT 7,DATFLD]>>;put date in DATFLD
+        CALL    DMPMSG,<DATFLD>
+
+        CALL    DMPMSG,<[ASCIZ /  Tymbasic Version  /]>
+
+        CALL    GETVER          ;put version number into TWBUF
+        CALL    DMPMSG,<TWBUF>
+        MOVEI   R2,^O15
+        IDPBV   R2,DMPTR
+        MOVEI   R2,^O12
+        IDPBV   R2,DMPTR
+        MOVEI   R2,^O177
+        IDPBV   R2,DMPTR
+        MOVEI   R2,^O104                ;"end cref"
+        IDPBV   R2,DMPTR
+        MOVEI   R2,^O177
+        IDPBV   R2,DMPTR
+        MOVEI   R2,^O102
+        IDPBV   R2,DMPTR                ;"begin cref" again
+
+        RETURN  DMPTIT
+				 SUBTTL  DMPLIN  1.5.6.30.6
+				 SUBTTL  DMPLIN  1.5.6.30.6
+        BDCL    DMPLIN
+;
+;                               DMPLIN 1
+        BCALL   GTDLIN
+;
+;                               DMPLIN 2
+        BCALL   DMPLNM
+;
+;                               DMPLIN 3
+        BCALL   DMPSYM
+;
+;                               EXIT DMPLIN
+        BRETURN DMPLIN
+;
+;
+				 SUBTTL  GTDLIN  1.5.6.30.6.1
+        BDCL    GTDLIN
+;
+;                               GTDLIN 1
+        CALL    WINSYM,<$,LPOINT>
+;
+;                               GTDLIN 2
+        MM      1,LINPTR
+;
+;                               EXIT GTDLIN
+        BRETURN GTDLIN
+;
+;
+				 SUBTTL  DMPLNM  1.5.6.30.6.2
+        BDCL    DMPLNM
+;
+;                               DMPLNM 1
+        M       1,DMPTR
+        MI      2,^O177
+        IDPBV   2,1
+        MI      2,^O110
+        IDPBV   2,1
+;
+;                               DMPLNM 2
+        HRL     3,SNMBR         ; GET LINE NO. IN R3
+        SETZ    2,0
+        LSHC    2,4             ; GET 1ST BYTE IN R2
+        IDPBV   2,1
+        LSHC    2,7             ; GET 2ND BYTE 
+        IDPBV   2,1
+        LSHC    2,7             ; GET 3RD BYTE
+        IDPBV   2,1
+;
+;                       DMPLNM 3
+        MI      2,^O177
+        IDPBV   2,1
+        MI      2,^O102
+        IDPBV   2,1
+        MM      1,DMPTR
+;
+;                               EXIT DMPLNM
+        BRETURN DMPLNM
+;
+;
+				 SUBTTL  DMPSYM  1.5.6.30.6.3
+        BDCL    DMPSYM
+
+;Go through the current line, symbol by symbol, and emit cross
+;reference info as follows:
+;1. "symbol seen" for all user and system-defined variables
+;2. "symbol defined" for user variables appearing in a DEF or declarative stmt
+;3. "symbol external" for DEF EXTERNAL procedure name and AKA clause
+;4. "symbol defined" for AKA in non-EXTERNAL DEF
+;5. "symbol seen" for the line numbers referenced by GOTO, GOSUB, THEN, or ELSE
+
+
+        SETZM   DMPFLG          ;#0 implies finished with this line
+        SETZM   DMPDCL          ;-1 if we're processing a declaration or NAME stmt
+                                ;-2 if DEF
+                                ;-3 if DEF EXTERNAL
+                                ;-4 if DEF ENTRY
+        EXTERN  DMPPAR
+        SETZM   DMPPAR          ;level of parens nesting. Used to determine
+                                ;if a symbol in a declarative stmt is being
+                                ;defined or referenced; and in a DEF EXTERNAL,
+                                ;whether a symbol is external or defined.
+
+        CALL    SKPNUM;         ;skip over line number
+
+DMPSM1: CALL    EATBLK;         ;(loop point). Eat blanks.
+        CALL    MARK;           ;remember where current LINPTR is
+        CALL    SYMBOL;         ;get next symbol, set C and V
+        MOVE    R1,C            ;class
+        MOVE    R2,V            ;value
+
+        CAIE    R1,10           ;user variable?
+        CAIN    R1,9            ;or system-defined variable? (like EPS)
+        JRST    DMPVAR          ;yes, emit it
+
+        CAIN    R1,3            ;terminator?
+        JRST    DMPSM4
+
+        CAIN    R1,2            ;statement?
+        JRST    DMPSM5
+
+        CAIN    R1,4            ;special word (like AKA, etc)?
+        JRST    DMPSM9
+
+        CAIN    R1,1
+        CAIE    R2,0            ;REM?
+        JRST    DMPSMD          ;no
+
+;REM:
+        SETOM   DMPFLG          ;ignore rest of line
+        JRST    DPSMLP          ;loop
+
+DMPSMD: CAIE    R1,8            ;binary operator?
+        JRST    DPSMD1
+
+;Binary operator:
+        CAIE    R2,10           ; = sign?
+        JRST    DPSMLP          ;no
+        EXTERN  DMPDCL
+        MOVE    R1,DMPDCL
+        SETZM   DMPDCL          ;yes, turns off declaration mode
+        CAMN    R1,[-2]         ;are we in a DEF statement?
+        JRST    DPSMEQ          ;yes - process the = sign
+        CAME    R1,[-4]         ;or in a DEF ENTRY?
+        JRST    DPSMLP          ;no
+        EXTERN  DMPLPT
+DPSMEQ: MOVE    R1,DMPLPT       ;restore previously saved line pointers to
+        EXCH    R1,LINPTR       ;point to the name of the procedure...
+        MOVEM   R1,DMPLPT
+        EXTERN  DMPMPT
+        MOVE    R1,DMPMPT
+        EXCH    R1,MKLNPT
+        MOVEM   R1,DMPMPT
+        MOVEI   R2,^O16         ;"end block"
+        IDPBV   R2,DMPTR
+        CALL    WRTSYM
+        MOVE    R1,DMPLPT       ;and restore ptrs
+        MOVEM   R1,LINPTR
+        MOVE    R1,DMPMPT
+        MOVEM   R1,MKLNPT
+        JRST    DPSMLP          ;loop
+
+DPSMD1: CAIE    R1,7            ;perhaps a paren?
+        JRST    DPSMLP          ;no, loop
+        CAIN    R2,1            ;right paren?
+        SOS     DMPPAR
+        CAIN    R2,2            ;left paren?
+        AOS     DMPPAR
+        JRST    DPSMLP          ;loop
+
+;terminators:
+DMPSM4: CAIN    R2,2
+        JRST    DPSM10          ;ELSE - find line numbers
+
+        CAIE    R2,0            ;CR?
+        CAIN    R2,1            ;or exclamation point?
+        SETOM   DMPFLG          ;yes, done with this line
+        JRST    DPSMLP
+
+;statements:
+DMPSM5: CAIE    R2,13           ;GOTO
+        CAIN    R2,14           ;or GOSUB
+        JRST    DPSM10          ;yes, fine line numbers
+        CAIE    R2,7            ;DATA?
+        JRST    DMPSM6
+
+;DATA:
+        SETOM   DMPFLG          ;ignore rest of line
+        JRST    DPSMLP          ;loop
+
+DMPSM6: CAIN    R2,53           ;NAME stmt?
+        JRST    DMPSM7
+        CAIL    R2,21
+        CAILE   R2,28           ;a declaration stmt?
+        JRST    DMPSM8          ;no
+
+;NAME or declaration stmt:
+DMPSM7: SKIPL   DMPDCL          ;already in some sort of declaration (like DEF)?
+        SETOM   DMPDCL          ;no, so set declaration mode
+        JRST    DPSMLP          ;loop
+
+DMPSM8: CAIE    R2,3            ;DEF?
+        JRST    DPSM81          ;no
+
+;DEF:
+        HRREI   R0,-2
+        MOVEM   R0,DMPDCL       ;indicate DEF
+        JRST    DPSMLP          ;loop
+DPSM81: CAIE    R2,4            ;ENDF?
+        JRST    DPSMLP          ;no, loop
+        CALL    EATBLK
+        CALL    MARK
+        CALL    SYMBOL;         ;get name of procedure
+        MOVEI   R2,1            ;"symbol"
+        IDPBV   R2,DMPTR
+        CALL    WRTSYM
+        MOVEI   R2,^O16         ;"end block"
+        IDPBV   R2,DMPTR
+        CALL    WRTSYM
+        JRST    DPSMLP          ;loop
+
+;Special words:
+DMPSM9: CAIN    R2,1            ;THEN?
+        JRST    DPSM10          ;yes, find line numbers
+        CAIN    R2,42           ;AKA?
+        JRST    DMPAKA
+        CAIN    R2,45           ;EXTERNAL?
+        JRST    DMPEXT
+        CAIE    R2,44           ;ENTRY?
+        JRST    DPSMLP          ;no, loop
+        HRREI   R0,-4           ;indicate DEF ENTRY
+        MOVEM   R0,DMPDCL
+        JRST    DPSMLP          ;loop
+
+;EXTERNAL:
+DMPEXT: HRREI   R0,-3
+        MOVEM   R0,DMPDCL       ;indicate DEF EXTERNAL
+        JRST    DPSMLP          ;loop
+
+;AKA:
+DMPAKA: CALL    EATBLK
+        CALL    MARK
+        CALL    SYMBOL
+        MOVE    R1,C
+        CAIE    R1,15           ;should be string constant
+        JRST    DPSMLP          ;oh well...
+
+        IBP     MKLNPT          ;past the quote
+        MOVE    R1,MKLNPT
+        MOVEM   R1,LINPTR
+        EXTERN  VEE1
+        MOVE    R1,VEE1
+DMPAK1: IBP     LINPTR
+        SOJG    R1,DMPAK1
+        MOVEI   R2,1            ;"symbol"
+        IDPBV   R2,DMPTR
+        CALL    WRTSYM
+        IBP     LINPTR          ;past the quote
+        MOVE    R3,DMPDCL
+        MOVEI   R2,^O17         ;"external"
+        CAME    R3,[-3]         ;EXTERNAL?
+        MOVEI   R2,2            ;"defined"
+        IDPBV   R2,DMPTR
+        JRST    DPSMLP          ;loop
+
+;Symbols:
+DMPVAR: CALL    WRCAP;          ;emit the symbol
+        JRST    DPSMLP          ;loop
+
+;Find line numbers:
+DPSM10: BCALL   WRLNM
+
+DPSMLP: SKIPN   DMPFLG
+        JRST    DMPSM1          ;continue loop
+
+DPSM$$: BRETURN DMPSYM
+;
+;  This routines writes a user defined symbol the same way that
+;   WRSYM (p133) does, only it changes lower case letters to caps
+
+        DCLNE   WRTSYM
+
+;This routine writes a user defined symbol onto the Dump Refs output line.
+;The symbol is preceeded by a 7-bit byte containing the length of the symbol.
+;All linefeeds are stripped out of the symbol before it is written.
+
+;                       WRCAP 1
+;Get the length of the symbol:
+        CALL    PTRDF7,<$,MKLNPT,$,LINPTR>;get # chars diff between the 2 ptrs into R1
+
+;Go through the line segment containing the symbol, removing
+;all linefeeds and replacing lower by upper case, and keeping a
+;count of the number of characters in this new symbol.
+
+        MOVE    5,MKLNPT        ;new pointer
+        MOVE    2,MKLNPT        ;old pointer
+        SETZ    3,              ;new count
+
+WRCLP1: LDB     4,2
+        CAIN    4,^O12          ;linefeed?
+        JRST    WRCP2           ;yes, do not add to new line segment
+        CAIL    4,"a"
+        CAILE   4,"z"
+        SKIPA
+        SUBI    4,^O40          ;convert lower to upper
+        DPB     4,5
+        AOJ     3,
+        IBP     5
+WRCP2:  IBP     2
+        SOJG    1,WRCLP1
+
+        JUMPE   3,WRCP$$
+
+        IDPBV   3,DMPTR;    ;deposit length of symbol
+
+        MOVE    R5,MKLNPT
+WRCLP2: LDB     2,5
+        IDPBV   2,DMPTR
+        IBP     R5
+        SOJG    3,WRCLP2
+
+WRTS$$: RETURN  WRTSYM
+
+
+        DCLNE   WRCAP
+
+;Emit a symbol and appropriate codes. Convert symbol to upper case.
+;Emit "defined in", "external", "begin block", "end block" codes.
+
+        MOVEI   R2,1            ;code for "symbol"
+        IDPBV   R2,DMPTR;       ;emit to file
+        CALL    WRTSYM;         ;write the symbol
+
+        SKIPL   R2,DMPDCL       ;in a declaration of sorts?
+        JRST    WRCP$$          ;no
+        CAME    R2,[-1]         ;normal decl or NAME?
+        JRST    WRCDEF          ;no, must be DEF
+        SKIPE   DMPPAR          ;are we inside parens now?
+        JRST    WRCP$$          ;yes, do not emit "defined"
+        MOVEI   R2,2            ;"defined"
+        IDPBV   R2,DMPTR
+        JRST    WRCP$$
+WRCDEF: CAME    R2,[-3]         ;DEF EXTERNAL?
+        JRST    WRCDF1          ;no
+        SKIPE   DMPPAR          ;are we inside parens now?
+        JRST    WRCPAR          ;handle a parameter symbol
+        MOVEI   R2,^O17         ;"external"
+        IDPBV   R2,DMPTR
+        MOVEI   R2,^O15         ;"begin block"
+        IDPBV   R2,DMPTR
+        CALL    WRTSYM
+        MOVEI   R2,^O16         ;"end block"
+        IDPBV   R2,DMPTR
+        CALL    WRTSYM
+        JRST    WRCP$$
+
+WRCDF1: SKIPE   DMPPAR          ;are we inside parens now?
+        JRST    WRCPAR          ;handle a parameter symbol
+        MOVEI   R2,2            ;"defined"
+        MOVE    R1,DMPDCL
+        CAMN    R1,[-4]         ;DEF ENTRY?
+        MOVEI   R2,^O14         ;yes, emit "global"
+        IDPBV   R2,DMPTR
+        MOVEI   R2,^O15         ;"begin block"
+        IDPBV   R2,DMPTR
+        CALL    WRTSYM
+        MOVE    R1,LINPTR       ;save pointers to name of procedure
+        MOVEM   R1,DMPLPT
+        MOVE    R1,MKLNPT
+        MOVEM   R1,DMPMPT
+        JRST    WRCP$$
+
+WRCPAR: MOVEI   R2,2            ;"defined"
+        IDPBV   R2,DMPTR
+
+WRCP$$: RETURN  WRCAP
+;
+;
+
+;
+				 SUBTTL  WRLNM   1.5.6.30.6.3.10
+        BDCL    WRLNM
+;Write out the line nubbers referenced in a GOTO, GOSUB, THEN or ELSE as symbols, if any found:
+;
+;                               WRLNM 1
+        SETZM   0,TRNFLG
+;
+;                               WRLNM 2
+WRLNM2: SKIPE    0,TRNFLG
+        J       WLNM$$
+;
+;                               WRLNM 3
+        CALL    EATBLK
+;
+;                               WRLNM 4
+        CALL    MARK
+;
+;                               WRLNM 5
+        CALL    SYMBOL
+;
+;                               WRLNM 6
+        M       1,C
+        CAIE    1,5             ;punctuation (looking for comma)?
+        J       WRLNMA
+        M       2,V
+        CAIN    2,1
+        J       WRLNM2
+WRLNMA: CAIE    1,11            ;integer constant
+        J       WRLNM8
+;
+;                               WRLNM 7
+        CALL    WRSYM
+        J       WRLNM2
+;
+;                               WRLNM 8
+WRLNM8: CALL    RESET
+;
+;                               WRLNM 9
+        SETOM   0,TRNFLG
+        J       WRLNM2
+;
+;                               EXIT WRLNM
+WLNM$$: BRETURN WRLNM
+;
+;
+				 SUBTTL  CLSDMP  1.5.6.30.9
+        BDCL    CLSDMP
+;
+;                               CLSDMP 1
+        M       1,DMPTR
+        MI      2,^O177
+        IDPBV   2,1
+        MI      2,^O104
+        IDPBV   2,1
+        MM      1,DMPTR
+;
+;                               CLSDMP 2
+        HRRZ    1,DMPTR
+        WRITCR  1
+;
+;                               CLSDMP 3
+        CALL    CLOSEF,<$,DMPAD>
+;
+;                               CLSDMP 4
+        CALL    RFRE,<$,LPOINT>
+;
+;                               EXIT CLSDMP
+        BRETURN CLSDMP
+;
+;
+				 SUBTTL   INITLZ  1.5.6.32
+         BDCL     INITLZ
+;
+;                       INITLZ -1
+        setzm   savbnm          ;keep SAVSEG from doing SAVE BINARY
+        SKIPE   FILV1           ; IF NO FILENAME
+        JRST    INTZ0B
+        SKIPE   MDUFG           ; THEN IF NO MODULES
+        SKIPN   STRTNM          ; OR NO STARTPOINT
+        jrst    .+2
+        jrst    intz0a
+        CALL    CKRNG,<0,0>;    ;  THEN CHECK FOR A PROGRAM
+
+;                       INITLZ 0A-0B
+intz0a: SKIPE   0,FILV1
+INTZ0B: CALL    MSTATE
+;
+;                       INITLZ 1
+        MI      1,8
+        MM      1,GCOMSW
+        SETZM   0,EXECSW
+;
+;                       INITLZ 2
+        CALL    RUNINT
+;
+;                       EXIT INITLZ
+        BRETURN INITLZ
+;
+;
+				 SUBTTL  STARPT  1.5.6.35
+        BDCL    STARPT
+;
+;                               STARPT 1
+        M       0,[POINT 7,TWBUF]
+        M       1,FILV
+        M       2,FILV1
+        CALL    MOVEC
+;
+;                       STARPT 2
+        MI      2,0
+        IDPB    2,1
+;
+;                       STARPT 3
+
+        LNDRY   TWBUF,[ASCIZ/TBA/],<MESSAGES,NO.TER>
+        HLLZ    R1,SXEXT(R2)
+        MOVEM   R1,SXEXT(R2)
+        COPYFN  <(R2)>,STRTNM
+
+        BRETURN STARPT
+
+
+				 SUBTTL  NOSTPT
+        BDCL    NOSTPT
+
+        CLRFN   STRTNM
+
+        BRETURN NOSTPT
+;
+;
+        subttl  TOF
+        BDCL    TOF
+;
+        call    rdrng
+        call    ckrng,<0,-1,0>
+tofl2:  call    nxtlin
+        jumpe   r1,tofl$$
+        MOVE    1,LPOINT
+        MOVEI   2,1
+        FPUT    2,1,LTOFFG
+        jrst    tofl2
+
+tofl$$: breturn tof
+        dclne     DO
+
+        EXTERN  TABTBL, TWBUF, MOVC, CXER2, OPNTOT, OPNCMD
+        EXTERN  CBYT18, CXMO, FILV, FILV1, GETC18, LEVEL, NTABS
+
+        reloc
+        reloc
+
+        MOVE    R2,LEVEL
+        CAIGE   R2,^D10
+        JRST    DO30
+
+        CALL    CXER2,<[ASCIZ /
+Maximum number of command sources exceeded/]>
+        JRST    DO$$
+
+DO30:   CALL    MOVC,<$,<[POINT 7,TWBUF]>,$,FILV,$,FILV1>
+        SETZ    R2,
+        IDPB    R2,R1
+        LNDRY   TWBUF,[ASCIZ /CMD/],<MESSAGES>
+        JUMPG   R1,DO$$
+        MOVE    R0,R2
+        CALL    OPNCMD
+
+DO$$:   RETURN  DO
+        dclne     TOUT
+        CALL    MOVC,<$,<[POINT 7,TWBUF]>,$,FILV,$,FILV1>
+        SETZ    R2,
+        IDPB    R2,R1
+        LNDRY   TWBUF,[""],<MESSAGES>
+        JUMPG   R1,TOT$$
+        MOVE    R0,R2
+        CALL    OPNTOT
+TOT$$:  RETURN  TOUT
+        dclne     TABS
+TAB10:  MOVE    R4,NTABS        ;R4 IS V0
+        SETZB   R5,TABTBL
+        SETZM   TABTBL+1
+TAB20:  CALL    GETC18
+TAB30:  MOVE    R1,CBYT18
+        CAMLE   R1,TABTBL(R5)
+        JRST    TAB50
+TAB40:  CALL    CXMO,<[ASCIZ /TAB OUT OF SEQUENCE - IGNORED/],1>
+        JRST    TAB60
+TAB50:  MOVEM   R1,TABTBL+1(R5)
+        AOS     R5,TABTBL
+TAB60:  SOSLE   R4
+        JRST    TAB20
+TAB70:  RETURN  TABS
+;
+;{}{}{}{}{}{}{}{}{}{}{}{}{}{} END OF COMMAND PROCESSOR {}{}{}{}{}{}{}{}{}{}{}{}{}
+		 SUBTTL   MOVBIN 1.5.7 Juggle the PMC packets
+         BDCL     MOVBIN
+
+; Remember now that PMC is generated in packets and that these packets may
+; need to be rearranged. An example is with statement modifiers. If you have
+; somthing like:
+;		10 PRINT X WHERE X=3
+; the X=3 packet should come before the PRINT X packet.
+
+;
+;  MOVBIN1
+        MOVE     1,BCBGN
+        MOVEM    1,CDEPTR
+        MOVEM    1,CDEPT1
+        MOVE     3,BPBGN
+        SUBI     3,DW
+        MOVEM    3,BPTR1
+;
+;  MOVBIN3
+MOVBI3: MOVE     1,BPTR1
+        ADDI     1,DW
+        MOVEM    1,BPTR1
+        MOVE     2,(1)
+        MOVEM    2,MOV2
+        ADDI     1,W
+        MOVE     2,(1)
+        SUBI     2,1
+        MOVEM    2,MOV3
+;
+;  MOVBIN4
+        CALL     MOVEC,<$,CDEPTR,$,MOV2,$,MOV3>
+;
+;  MOVBIN 5
+        MOVEM    1,CDEPTR
+;
+;  MOVBIN6
+        MOVE     1,BPTR1
+        CAME     1,BPTR
+        JRST     MOVBI3
+;
+;  MOVBIN7-8
+        MOVEI    0,254
+        IDPB     0,CDEPTR
+        CALL     PTRDF9,<$,CDEPT1,$,CDEPTR>
+        HRLM     1,BUFPCL
+        BRETURN  MOVBIN
+;
+;
+		 SUBTTL  XCMND2 1.5.10   do  a Class 1 direct statement
+;				  (one that is handled on the parse side)
+        BDCL    XCMND2
+;
+;XCMND2 01
+        SKIPE   XQTFLG
+        JRST    XCD202
+        SKIPE   IFSW
+        JRST    XCD202
+        SKIPN   MODSW
+        JRST    XCD203
+;
+;XCMND2 02
+XCD202: CALL    GDIRST
+        JRST    XCD2$$
+;
+;XCMND2 03
+XCD203: MOVE    1,SCVAL
+        CAIN    1,2
+        JRST    XCD205
+        CAIE    1,1
+        JRST    XCD2$$
+;
+;XCMND2 04
+         BCALL  QUIT
+        JRST    XCD2$$
+;
+;XCMND2 05
+XCD205: BCALL   LOG
+;
+XCD2$$: BRETURN  XCMND2
+;
+;
+				 SUBTTL  QUIT 1.5.10.4
+        BDCL    QUIT
+;
+;QUIT 01
+        CALL    FLTOUT          ; CLOSE/FLUSH TOUT FILE
+
+        MOVEI   1,11
+        MOVEM   1,PSW
+;
+        BRETURN  QUIT
+;
+;
+				 SUBTTL  LOG 1.5.10.5
+        BDCL    LOG
+;
+;LOG 01
+        MOVEI   1,19
+        MOVEM   1,PSW
+;
+        BRETURN  LOG
+		 SUBTTL  DSTPSW 1.5.11  do a Class 2 direct statement
+;				  (one that cant be handled on the parse side)
+        BDCL    DSTPSW
+;
+;
+;DSTPSW 01
+        CALL    GDIRST
+;
+;                       EXIT    DSTPSW
+        BRETURN  DSTPSW
+		 SUBTTL  THREAD 1.5.12  make an LRT entry, save text and PMC for this line
+        BDCL    THREAD
+;
+;  THREAD1
+;
+;  THREAD2
+        CALL     BUFSYM
+;
+;  THREAD3
+        CALL     BUFBIN
+;
+;  THREAD4
+        bcall   bldln
+        move    1,numb
+        skipe   lastnm
+        camg    1,lastnm
+        jrst    thrd4a
+        bcall   applin
+        jrst    thrd4b
+thrd4a: bcall   addln
+thrd4b:
+;
+;  THREAD5
+        SKIPN    ENTR
+        JRST     THRD$$
+;
+;  THREAD6
+        CALL   NXTENT
+;
+;                       THREAD 7
+        CAIG    1,99999
+        JRST    THRD$$
+;
+;                       THREAD 8
+        SETZM   0,ENTR
+;
+;                       THREAD 9
+        CALL    XERROR,<93>
+;
+;  THREAD$$
+THRD$$: BRETURN  THREAD
+;
+;
+subttl bldln
+        bdcl    bldln
+;
+;
+        SKIPN   GETSW
+        CALL    MSTATE
+
+;
+;
+         CALL   TNEW,<$,LRT>
+;
+;
+        MOVEM   1,NEWLRT
+        MOVEM   2,NEWLOC
+;
+;
+        MOVE    2,SYMPOS
+        MOVE    1,NEWLRT
+        FPUT    2,1,LTXT
+        MOVE    2,BINPOS
+        FPUT    2,1,LPMC
+;
+;
+        MOVE    2,DCFLGS
+        MOVE    1,NEWLRT
+        LSH     2,-1
+        FPUT    2,1,LDFG
+        LSH     2,-1
+        FPUT    2,1,LCFG
+        MOVE    2,NUMB
+        FPUT    2,1,LNUMB
+        M       2,FORCNT
+        FPUT    2,1,LFOR
+        M       2,TOFFLG
+        FPUT    2,1,LTOFFG
+        breturn bldln
+subttl applin
+        bdcl    applin
+        call    tloc,<$,lrt,$,lastlc>
+        movem   1,lastpt
+        fget    2,1,lnxt
+        move    1,newlrt
+        fput    2,1,lnxt
+        move    2,newloc
+        move    1,lastpt
+        fput    2,1,lnxt
+        aos     nlines
+        movem   2,lastlc
+        move    1,numb
+        movem   1,lastnm
+        call    rfre,<$,lastpt>
+        call    rfre,<$,newlrt>
+        move    1,newlrt
+        movem   1,lrtptr
+        move    1,newloc
+        movem   1,lrtloc
+        movei   1,1
+        movem   1,s.mod
+        breturn applin
+        bdcl    addln
+        call    tloc,<$,lrt,$,lrtloc>
+        movem   1,lrtptr
+        BCALL   LRTHRD
+;
+;
+        CALL     RFRE,<$,ADR>
+        CALL    RFRE,<$,OLDADR>
+        CALL    RFRE,<$,NEWLRT>
+;
+;
+        MOVE    1,NEWLRT
+        MOVEM   1,LRTPTR
+        MOVE    1,NEWLOC
+        MOVEM   1,LRTLOC
+        MOVEI   1,1
+        MOVEM   1,S.MOD
+;
+        BRETURN  ADDLN
+;
+;
+				 SUBTTL  LRTHRD 1.5.12.4.5
+        BDCL    LRTHRD
+;
+;LRTHRD 01
+        BCALL   THRD1
+;
+;LRTHRD 02
+        MOVE    1,NUMB
+        CAMG    1,LNB
+        JRST    LRTD03
+        SETO     1,0
+        CAME    1,LNB
+        JRST    LRTD04
+;
+;LRTHRD 03
+LRTD03: BCALL   THRD2
+;
+;LRTHRD 04
+LRTD04: SETZM    LRTSW
+;
+;  LRTHRD 05
+LRTD05: BCALL   THRD3
+;
+;LRTHRD 06
+        MOVE    1,NUMB
+        CAMLE   1,LNB
+        JRST    LRTD05
+;
+;LRTHRD 07
+        MOVE    1,LNB
+        CAME    1,NUMB
+        JRST    LRTD09
+;
+;  LRTHRD 08
+        BCALL   REPLIN
+        JRST    LRTD$$
+;
+;LRTHRD 09
+LRTD09: BCALL    INSLIN
+;
+LRTD$$: BRETURN  LRTHRD
+;
+;
+				 SUBTTL  THRD1 1.5.12.4.5.1
+        BDCL    THRD1
+;
+;THRD1 01
+        MOVE    1,LRTLOC
+        MOVEM   1,LOC
+        MOVE    1,LRTPTR
+        MOVEM   1,ADR
+;
+;THRD1 02
+        MOVE    1,ADR
+        FGET    2,1,LNUMB
+        MOVEM   2,LNB
+;
+;
+        BRETURN  THRD1
+;
+;
+				 SUBTTL  THRD2 1.5.12.4.5.3
+        BDCL    THRD2
+;
+;THRD2 01
+        CALL     RFRE,<$,LRTPTR>
+;
+;  THRD2 02
+        MOVEI   1,FSTH
+        MOVEM   1,LOC
+;
+;THRD2 03
+         CALL   TLOC,<$,LRT,$,LOC>
+;
+;THRD2 04
+        MOVEM   1,ADR
+;
+        BRETURN  THRD2
+;
+;
+				 SUBTTL  THRD3 1.5.12.4.5.4
+        BDCL    THRD3
+;
+;  THRD3 01
+        SKIPN    LRTSW
+        JRST     THRD33
+;
+;  THRD3 02
+        CALL     RFRE,<$,OLDADR>
+        JRST     THRD34
+;
+THRD33: MOVEI    1,1
+        MOVEM    1,LRTSW
+;
+;THRD3 04
+THRD34: MOVE    1,LOC
+        MOVEM   1,OLDLOC
+        MOVE    1,ADR
+        MOVEM   1,OLDADR
+;
+;THRD3 05
+        MOVE    1,OLDADR
+        FGET    2,1,LNXT
+        MOVEM   2,LOC
+;
+;THRD3 06
+         CALL   TLOC,<$,LRT,$,LOC>
+;
+;THRD3 07
+        MOVEM   1,ADR
+;
+;THRD3 08
+        MOVE    1,ADR
+        FGET    2,1,LNUMB
+        MOVEM   2,LNB
+        caig    2,^d99999
+        breturn thrd3
+        move    1,numb
+        movem   1,lastnm
+        move    1,newloc
+        movem   1,lastlc
+        BRETURN  THRD3
+;
+;
+				 SUBTTL  REPLIN 1.5.12.4.5.7
+        BDCL    REPLIN
+;
+        move    1,numb
+        camn    1,lastnm
+        setzm   lastnm
+;REPLIN 01
+        AOS     DELH
+;
+;REPLIN 02
+        MOVE    1,ADR
+        FGET    2,1,LNXT
+        MOVE    1,NEWLRT
+        FPUT    2,1,LNXT
+;
+;REPLIN 03
+        MOVE    2,NEWLOC
+        MOVE    1,OLDADR
+        FPUT    2,1,LNXT
+;
+;REPLIN 04
+        SETO     2,0
+        MOVE    1,ADR
+        FPUT    2,1,LNUMB
+;
+        BRETURN  REPLIN
+;
+;
+				 SUBTTL  INSLIN 1.5.12.4.5.8
+        BDCL    INSLIN
+;
+;INSLIN 01
+        MOVE    1,OLDADR
+        FGET    2,1,LNXT
+        MOVE    1,NEWLRT
+        FPUT    2,1,LNXT
+;
+;INSLIN 02
+        MOVE    2,NEWLOC
+        MOVE    1,OLDADR
+        FPUT    2,1,LNXT
+        AOS     0,NLINES
+;
+        BRETURN  INSLIN
+;
+;
+;<><><><><><><><><><><><><> end of THREAD <><><><><><><><><><><><><><><><><><><>
+		 SUBTTL  XTPARS 1.5.14  set SEGNO from PSW to exit the parser
+        BDCL    XTPARS
+;
+;XTPARS 01
+
+
+        MOVE    1,PSW
+        MOVE     2,XTPRTB-1(1)
+        MOVEM    2,SEGNO
+        JRST     XTPS$$
+;
+;  TABLE OF SEGNO VALUES
+;       SEGNO   PSW COMMAND             P.MOD (T=-1,F=0)  --------------------
+XTPRTB: EXP 3   ; 1 direct statement      T               | SEGNO MEANINGS   |
+        EXP 4   ; 2 direct statement      F               | 1  SYSIZL        |
+        EXP 3   ; 3 RUN                   T               | 2  PARSE         |
+        EXP 5   ; 4 RUN                   F               | 3  DECLAR        |
+        EXP 3   ; 5 START                 T               | 4  COMPIL        |
+        EXP 7   ; 6 START                 F               | 5  TRRZL (LOADER)|
+        EXP 7   ; 7 GO                    F               | 6  RUNCOM        |
+        EXP 3   ; 8 INIT                  T               | 7  COMRUN        |
+        EXP 5   ; 9 INIT                  F               | 8  ??            |
+        EXP 1   ;10 CLEAR                T,F              | 9  QUIT & LOG    |
+        EXP 9   ;11 QUIT                 T,F              --------------------
+        EXP 3   ;12 CDE                   T
+        EXP 3   ;13 CDE                   F
+        EXP 3   ;14 SYMD                  T
+        EXP 3   ;15 SYMD                  F
+        EXP 7   ;16 STEP                  F
+        EXP 3   ;17 SAVE BINARY           T
+        EXP 5   ;18 SAVE BINARY           F
+        EXP 9   ;19 LOG                  T,F
+;
+XTPS$$: BRETURN  XTPARS
+;
+;
+				 SUBTTL  EXIT 1.14
+        BDCL    EXIT
+;
+;EXIT 01
+         CALL   UEXIT
+        BRETURN  EXIT
+;
+;
+	lit
+        END
+  A J›
