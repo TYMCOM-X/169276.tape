@@ -1,0 +1,111 @@
+       TITLE   .CSIN COMPLEX SIN AND COS
+
+
+;
+        TWOSEG
+        RELOC   ^O400000
+;
+;
+;
+
+;COMPLEX SINE AND COSINE FUNCTIONS.
+
+;THESE ROUTINES CALCULATE THE SINE AND COSINE
+;OF Z., WHERE Z=X+I*Y.  THE ALGORITHM USED IS:
+;	SIN(Z)=SIN(X)COSH(Y)+I*COS(X)SINH(Y)
+;	COS(Z)=COS(X)COSH(Y)-I*SIN(X)SINH(Y)
+
+;THE ROUTINES ARE CALLED IN THE FOLLOWING MANNER:
+;       PUSHJ   P,.CSIN        OR      PUSHJ   P,.CCOS
+;       R1,R2 = COMPLEX ARGUMENT
+;THE COMPLEX ANSWER IS RETURNED R1,R2
+
+
+        ENTRY   .CSIN,.CCOS
+        EXTERN  .SINH,.COSH,.SLOG,.SEXP,.SSIN,.SCOS
+
+
+.CSIN:  SETZM   FLGWRD          ;SET FLAG FOR CSIN
+        JRST    CSIN1
+;
+.CCOS:  SETOM   FLGWRD          ;SET FLAG FOR CCOS
+CSIN1:  DMOVEM  1,XYSAV         ;SAVE ARGUMENT
+        PUSHJ   P,.SSIN       ;SIN(X)
+
+        MOVEM   1,SINX          ;SAVE AS SINX
+        MOVE    1,XYSAV
+        PUSHJ   P,.SCOS       ;COS(X)
+
+        MOVEM   1,COSX          ;SAVE AS COSX
+        SKIPN   FLGWRD          ;IF CSIN ROUTINE
+        JRST    .+4             ;JUMP AHEAD
+        MOVN    1,SINX          ;-SIN(X)
+        EXCH    1,COSX          ;  TO COSX
+        MOVEM   1,SINX          ;COS(X) TO SINX
+        SKIPN   XYSAV+1         ;IF Y=0
+        JRST    CSIN2           ;THEN Z REAL, JUMP
+        MOVM    1,XYSAV+1       ;GET ABS(Y)
+        CAMLE   1,EIGHT8        ;IF ABS(Y) TOO LARGE FOR SIMPLE SINH OR COSH
+        JRST    OVFL            ;THEN JUMP
+        CALL    .SINH,<,$,XYSAV+1,,2>   ;SINH(Y)
+        MOVEM   1,FLGWRD        ;SAVE SINH(Y)
+        CALL    .COSH,<,$,XYSAV+1,,2>   ;COSH(Y)
+        FMPR    1,SINX          ;COSH(Y)*SINX = REAL PART
+        MOVE    2,FLGWRD        
+        FMPR    2,COSX          ;SINH(Y)*COSX = IMAG. PART
+;
+OUT:    POPJ    P,            ;EXIT
+;
+CSIN2:  SETZ    2,              ;IMAG. PART = 0
+        MOVE    1,SINX          ;GET REAL PART
+        JRST    OUT             ;EXIT
+;
+OVFL:   MOVM    1,SINX          ;ABS(SINX)
+        JUMPN   1,.+3           ;ABS(SINX) = 0
+        SETZM   FLGWRD          ;THEN SET REAL PART = 0
+        JRST    IMAG            ;JUMP AHEAD
+;
+        PUSHJ   P,.SLOG       ;LOG(ABS(SINX))
+        FSBR    1,LOG2BE        ;LOG(ABS(SINX))-LOG(2)
+        MOVM    2,XYSAV+1       ;ABS(Y)
+        FADR    2,1             ;LOG(ABS(SINX))-LOG(2)+ABS(Y)
+        MOVE    1,2
+        PUSHJ   P,.SEXP       ;EXP(ABS(Y))*(ABS(SINX))/2
+        SKIPGE  SINX            ;IF SINX < 0
+        MOVN    1,1             ;THEN NEGATE ANSWER
+        MOVEM   1,FLGWRD        ;SAVE IN FLGWRD
+;
+IMAG:   MOVM    1,COSX          ;ABS(COSX)
+        JUMPN   1,.+3           ;IF ABS(COSX) = 0
+        SETZ    2,              ;THEN SET IMAG PART = 0
+        JRST    IMAG2           ;JUMP AHEAD
+        PUSHJ   P,.SLOG       ;LOG(ABS(COSX))
+        FSBR    1,LOG2BE        ;LOG(ABS(COSX))-LOG(2)
+        MOVM    2,XYSAV+1       ;ABS(Y)
+        FADR    1,2             ;LOG(ABS(COSX))-LOG(2)+ABS(Y)
+        PUSHJ   P,.SEXP       ;ABS(COSX)*(EXP(ABS(Y)))/2
+        SKIPGE  XYSAV+1         ;IF Y < 0
+        MOVN    1,1             ;THEN NEGATE ANSWER
+        SKIPGE  COSX            ;IF COSX < 0
+        MOVN    1,1             ;THEN NEGATE ANSWER
+        MOVE    2,1             ;MOVE TO IMAG POSITION
+;
+IMAG2:  MOVE    1,FLGWRD        ;GET THE REAL PART
+        JRST    OUT             ;EXIT
+;
+EIGHT8: 207540074636
+LOG2BE: 200542710300
+;
+        LIT
+;
+        RELOC   0
+;
+SINX:   BLOCK   1
+COSX:   BLOCK   1
+FLGWRD: BLOCK   1
+XYSAV:  BLOCK   2
+;
+;
+FLAG:   BLOCK   1               ;NEGATE ANSWER IF FLAG IS NEGATIVE
+
+        END
