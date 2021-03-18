@@ -1,0 +1,48 @@
+$text SYS10;TYMCOM-X systems (PDP-10 hosts) on TYMNET.
+Sorted by system number, as of 1-Jul-87
+
+Code Generation Systems:
+TYMNET   primary=D25, backup=F70, nodes 2000 to 4777
+TYM5     primary=D54, backup=F33, nodes 5000 and greater
+Private1 primary=F26, backup=D31, private networks
+Private2 primary=F22, backup=D37, private networks
+
+Sysno   OS  Site ID  Utilization
+-----  ---  -------  -----------
+F22    TYM  FREMONT  Private Net backup, primary is D37 (move to D31)
+D23    TYM  DALLAS   Profile / TBILL / NETDB
+D25    TYM  DALLAS   TYMNET 4777 primary, backup is F70
+F26    TYM  CUP-C    Private Net primary, backup is D31
+D27    TYM  DALLAS   INSD Customers / U.S. Postal Service / Europe
+F29    TYM  CUP-C    COEES, electronic MAIL interface
+F30    TYM  FREMONT  TYMNET Accounting
+D31    TYM  DALLAS   Private Net backup, primary is F26
+F33    TYM  CUP-C    TYMNET 5000 backup, primary is D54
+D34    TYM  DALLAS   TYMSHARE - internal (master OPER password)
+D35    TYM  CUP-C    U.S. Postal Service / Tymquote
+D37    TYM  DALLAS   Private Net Code (primary, C22 is backup)
+F38    TYM  FREMONT  TYMSHARE Accounting
+B39    TYM  CUP-C    NTD Network development
+D54    TYM  DALLAS   TYMNET 5000 primary, backup is F33
+D55    TYM  DALLAS   General Timesharing / Railtrack
+D56    TYM  DALLAS   TYMNET Order Entry
+F58    TYM  FREMONT  Netstat, International Accounting
+S59    TYM  ST-CLOUD CEGI
+X62    TYM  LIBERTY  TYMCOM-X applications
+D65    TYM  DALLAS   Otis Elevator (dedicated)
+F70    TYM  CUP-C    TYMNET 4777 backup, primary is D25
+F74    TYM  FREMONT  TYMSHARE Accounting / Validation DB / Tymuse
+S83    TYM  ST-CLOUD CEGI
+X95    TYM  LIBERTY  TYMCOM-XX Development
+C148   T20  CUP-VG2  Office-5  26KL ---
+M169   TYM  ST.LOUIS Mallinckrodt Chemical Co
+S264   TYM  ST-CLOUD CEGI
+H370   TYM  HOUSTON  Fayez Sarofim
+S443   TYM  ST-CLOUD CEGI
+C575   T20  CUP-VG2  Office-11
+X930   TYM  LIBERTY  TYMCOM-X Development
+W1051  TYM  SEATTLE  Rainier National Bank
+C1087  T20  CUP-C    Office-4  26KL#121 (connected to ARPANET.EDU)
+C1088  TNX  CUP-C    Office-1    F4#109 (connected to ARPANET.EDU)
+C1643  TNX  CUP-C    Office-2    F4#111
+X2300  T20  LIBERTY  Office-13 26KL#118 (Eric Dortman's 26KL test system)
