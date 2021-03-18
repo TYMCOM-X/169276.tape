@@ -1,0 +1,44 @@
+TITLE  .SROUN  SINGLE PRECISION ROUNDER
+
+        TWOSEG
+        RELOC   ^O400000
+
+; .SROUN        ROUNDS BY ADDING .5 AND CALLING .SIP
+;
+; .SIP          IPS BY TRUNCATING
+;
+; .SFP          FPS BYFINDING THE IP AND SUBTRACTING
+
+
+;       TO USE  PUT THE NUMBER IN AC 1
+;                PUSHJ P,.SROUN   (or PUSHJ P,.SIP  for ip)
+;               RESULT IS IN AC 1
+
+        ENTRY   .SROUN,.SIP,.SFP
+
+.SROUN: FAD     1,POINT5
+.SIP:   JUMPL   1,NEG
+        CAML    1,BIGNUM
+        JRST    BAIL
+        FAD     1,BIGNUM
+        FSB     1,BIGNUM
+BAIL:   POPJ    17,
+
+NEG:    CAMG    1,NEGBIG
+        JRST    BAIL
+        FAD     1,NEGBIG
+        FSB     1,NEGBIG
+        POPJ    17,
+
+
+
+.SFP:   MOVE    2,1             ;SAVE NUMBER
+        PUSHJ   17,.SIP         ;GET IP(NUMBER)
+        FSBM    2,1             ;FP(NUMBER)=NUMBER-IP(NUMBER)
+        POPJ    17,             ;EXIT
+
+BIGNUM: 233400000000
+NEGBIG: 544400000000
+POINT5: 0.5
+
+        END
