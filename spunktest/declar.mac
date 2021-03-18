@@ -1,0 +1,1958 @@
+        TITLE   DECLAR
+        ; COPYRIGHT 1978, TYMSHARE,INC.
+
+; DECLAR IS IN RADIX 8
+
+        TWOSEG
+        RELOC   0
+
+; FOLLOWING VARIABLES TO BE USED ONLY AS LOCALS AND PARAMS. THANK YOU.
+
+        DEFINE  MAC.OK(NAME)
+        < CKCOMN (NAME,<AFG,ID,LRECN,LVAR,N,NDIM,PDTP,PROP,SDTP,TYP,WW>)>
+
+        INTEGER LRTP,PMCP,PMCK,BFOR,NFOR,ALPAFG,FDIM,GOHOMR,FCPROC
+        INTEGER SDTP2,ID2,NAMFP,IFG,SFG,CNT,PARNM,PROMAX,PNO
+
+NAMF:   BLOCK   10      ; block for unresolved NAME statements
+        NFMAX=NAMF+10
+
+SUBSTK::        BLOCK   NESTLM*SUBSIZ
+SUBPTR::        0
+SUBNM:: BLOCK   SUBSIZ          ;Block to hold current SUBSTK entry
+MBUF:   BLOCK   64
+PMCBF:  BLOCK   160     ; BUFFER FOR ONE LINES PMC
+NAMBUF: BLOCK   4       ; kludgey temp for txvnm
+UDFSYM::BLOCK   1       ; NUMBER OF SDT ENTRIES
+SDTCOR: BLOCK   ^D17    ; HOLDS HIGH BITS OF CORE ADDRESSES OF SDT PAGES
+
+		SUBTTL CODGEN   The Top of the Code Generator
+
+        ENTRY   SYSUP
+        VAR
+        RELOC   ^O400000
+
+
+;  THIS IS IT.  THE TOP OF THE CODE GENERATOR
+
+; SYSUP must be the first thing in the hiseg in DECLAR because
+; PCTRAP (which preceeds DECLAR in TBACMP.CMD) jumps to one past the
+; end of its hiseg meaning to get to SYSUP.
+
+;               CODGEN  0
+SYSUP:  INISTK
+        CALL    XCHG.I
+
+;               CODGEN  1
+        SKIPL   WRKCMP          ;Workspace?
+        JRST    CDGN5           ;no
+
+        MOVE    1,PSW
+        MOVEI   2,1
+        CAIE    1,2     ;PSW=2 MEANS DIRECTSTMT, NO SOURCE MOD
+        CAIN    1,15    ;PSW=15 MEANS CDE, NO SOURCE MOD
+        MOVEM   2,SDTIN          ;SDTIN :=1 MEANS RESTORE THE OLD SDT
+
+
+CDGN3:  SKIPE   P.MOD           ;Is there a program on the runside?
+        JRST    CDGN5           ;no
+        MOVE    1,PSW
+        CAIN    1,2     ; direct statement?
+        J       CDGN5   ;  yes
+        CAIN    1,13    ; CDE?
+        J       CDGN5   ;  yes
+        CAIE    1,15    ; SYMD?
+        JRST    XTRRZL  ;  no
+                        ; so if theres a program on the runside and we are not
+                        ; doing a direct statement, CDE, or SYMD, go to TRRZL
+
+CDGN5:  SKIPN   ESCFLG  ; escape?
+        JRST    NOESC
+        CLRBFO
+        CALL    CXR2,<ESCMSG,MONOCR>
+        MOVEI   0,2
+        MOVEM   0,SEGNO
+NOESC:  MOVEM   P,GOHOMR        ;SAVE STACK IN CASE WE WANT TO ABORT
+        M       1,SEGNO
+        J       @CDGN1-2(1)
+
+CDGN1:  CDGN6   ; SEGNO=2  GO BACK TO PARSER
+        CDGN9   ; SEGNO=3  DECLAR
+        CDGN10  ; SEGNO=4  COMPIL
+        XTRRZL  ; SEGNO=5  TRRZL
+
+CDGN6:  CALL    X.CMP
+        MI      1,1
+        SKIPN   0,WRKCMP
+        MM      1,SEGNO
+        JMPTBA          ;Go     to parser
+
+CDGN9:
+        SEXTERN PRFINI
+        SKIPE   [PRFINI]
+        PUSHJ   P,PRFINI        ; INITIALIZE THE PROFILER
+        CALL DECLAR
+        J       CDGN5
+
+CDGN10: CALL    COMPIL
+        SEXTERN PRFWRT
+        SKIPE   [PRFWRT]
+        PUSHJ   P,PRFWRT        ; TURN OF PROFILER, WRITE THE PRF FILE
+;               CODGEN  11
+        MI      1,2
+        SKIPL   0,WRKCMP
+        MM      1,SEGNO
+        J       CDGN5
+
+ESCMSG: ASCIZ   "
+(ESC)
+"
+
+
+
+; ROUTINE TO GET YOU BACK TO THE PARSER
+; DONT THINK ANYBODY ACTUALLY USES THIS ROUTINE, .OPEN NEEDS THE LABEL 'RESUME'
+
+        INTERN  RESUME
+RESUME: MOVE    P,GOHOMR
+        MOVEI   0,2
+        MOVEM   0,SEGNO
+        JRST    CDGN5
+
+
+XTRRZL: CALL    X.CMP
+        JRST    TRRZL
+
+; MACRO TO GENERATE .SLCDR ROUTINE
+        SLCDSR
+
+        EXTERN  RCLN,RDTY, XCHG.I, X.CMP, NVMFPG
+        EXTERN  CXR1,CXR2,TDO,CXTDO,IISC,PRODT,PARDT,DTAV,CLRFLG
+        EXTERN  OPNM,PSW,SEGNO,LRT,NLINES,FUN,CDELN1,PMC,TRRZL
+        EXTERN  NSV2,TXVNM,CDEID,TNEW,TLOC,TRLS,VRLS,VPUT,VGET,DSFLG
+        EXTERN  TNEXT,TOPN,VOPN,TSET,WDPRPG,NAMDIC,COMPIL,ARYCNT
+        EXTERN  WRKCMP,CERCNT,P.MOD,ESCFLG,LRXSZ,LRXT,.SZDSC
+        EXTERN  PMCDP,MBUFD,LRXN,LRXRG
+        extern sixcv
+
+        INTERN  ALLOCS,CNERR,DATA,GETID,GLNUM,CMSG,LRTP
+        INTERN  MBUF,PMCBF,SETDOL,SWPSCT
+        INTERN  SUBNM,PMCP,PMCK,BFOR,NFOR,FDIM,SDTP2,LVNP7,LVNP8
+
+        REC     NAMR,<<VR1,18>,<VR2,18>,<LN,18>,<ND1,4>,<ND2,4>,<FG,1>>
+        REC     LRX,<<LRXL,18>,<LRXK,18>>
+        REC     CLFGR,<<RCFG,1>,<CCFG,1>,<DCFG,1>>
+        REC     SDR,<<SDADR,36>,<SDCL,18>,<SDML,18>>
+
+        [ASCIZ " Illegal AKA name"]     ; -2
+DSMOD:  [ASCIZ " Data structure modification pending; direct statement not allowed"]
+
+CMSG:   [ASCIZ "KIND TYPE  NPAR LOC"]
+        ; 1-5
+        [ASCIZ " DEF/ENDF Mismatch"]
+        [ASCIZ " Invalid duplicate declaration for "]
+        [ASCIZ " Feature unimplemented"]
+        [ASCIZ " Symbol not used"]
+        [ASCIZ " Invalid line number"]
+        ; 6-10
+        [ASCIZ " Wrong number of parameters or subscripts for "]
+        [ASCIZ " Operand cannot be subscripted= " ]
+        [ASCIZ " Incompatible operands"]
+        [ASCIZ " Logical value required"]
+        [ASCIZ " *IMPOSSIBLE"]
+        ; 11-15
+        [ASCIZ " String value required"]
+        [ASCIZ " Integer value required"]
+        [ASCIZ " Illegal outside procedure definition"]
+        [ASCIZ " Operand of wrong type"]
+        [ASCIZ " FOR/NEXT mismatch"]
+        ; 16-20
+        [ASCIZ " String Matrix Required"]
+        [ASCIZ " Procedure name required"]
+        [ASCIZ " Explicit constant required"]
+        [ASCIZ " ENDIF, ELSE, or ORIF not preceded by IF"]
+        [ASCIZ " Internal stack error"]
+        ; 21-25
+        [ASCIZ " Extended IF not followed by ENDIF"]
+        [ASCIZ " Operand of wrong class"]
+        [ASCIZ " Array value illegal"]
+        [ASCIZ " Operator/operand incompatibility"]
+        [ASCIZ " Too few arguments for MAX or MIN"]
+        ; 26-30
+        [ASCIZ " Wrong parameter: "]
+        [ASCIZ " Illegal use of procedure "]
+        [ASCIZ " Illegal use of array parameter "]
+        [ASCIZ " Too many NAME statements before declaration of parent"]
+        [ASCIZ " NAME statement uses undefined variable "]
+        ; 31-35
+        [ASCIZ " Wrong number of dimensions"]
+        [ASCIZ "New variable not permitted in direct statement"]
+        [ASCIZ " Null string illegal"]
+        [ASCIZ " String illegal: "]
+        [ASCIZ " 1-word scalar required: "]
+        ; 36-40
+        [ASCIZ " String array illegal: "]
+        [ASCIZ " Attempt to assign incompatible value to formal parameter "]
+        [ASCIZ " SIMPL procedure has too many parameters"]
+        [ASCIZ " Numeric/string incompatibility"]
+        [ASCIZ " Scalar/array incompatibility"]
+        ; 41-45
+        [ASCIZ " Numeric scalar expected"]
+        [ASCIZ " Global array variable required"]
+        [ASCIZ " Real or double array required"]
+        [ASCIZ " Conversion of constant from floating point to fixed point caused overflow"]
+        [ASCIZ " Internal Error: Bad operand mode"]
+        ; 46-50
+        [ASCIZ " Internal Error: PMCK mismanaged"]
+        [ASCIZ " FOR/NEXT mismatch in procedure"]
+        [ASCIZ " FOR without matching NEXT"]
+        [ASCIZ " Internal Error: Temp Cell not freed "]
+        [ASCIZ " STR of array with format string unimplemented"]
+
+        LVNP1=.-CMSG
+        [ASCIZ  " Def statements nested too deeply"]
+        LVNP2=.-CMSG
+        [ASCIZ  " Replacement or renaming of local procedure constitutes a data-structure modification"]
+        LVNP3=.-CMSG
+        [ASCIZ  " A procedure may not contain more than 1 procedure local to it"]
+        LVNP4=.-CMSG
+        [ASCIZ  " All local variable definitions must precede the local procedure definition"]
+        LVNP5=.-CMSG
+        [ASCIZ  " Insertion of a new local variable or local procedure constitutes a data-structure modification"]
+        LVNP6=.-CMSG
+        [ASCIZ " More than 511 DEF statements"]
+        LVNP7=.-CMSG
+        [ASCIZ " EXIT seen at main program level"]
+        LVNP8=.-CMSG
+        [ASCIZ "Direct statement requires too much temporary storage"]
+
+KMSG:   [ASCIZ /SCAL /]
+        [ASCIZ /ARRY /]
+        [ASCIZ /PROC /]
+TMSG:   [ASCIZ / LOG    /]
+        [ASCIZ / INT    /]
+        [ASCIZ /REAL    /]
+        [ASCIZ / DBL    /]
+        [ASCIZ /CMPLX   /]
+        [ASCIZ /STRNG   /]
+
+        DTYPS=.-8
+        EXP     -1,-1,0,0,1,1,2,2,3,3,4,4,5,5,5,5
+NREG:   EXP     2,2,0,0,4,6,4,4
+ALPAR:  EXP     1,1,0,0,-1,-1,0,0
+;       See parralell tables RZTBLO and RZTBHI in the routine RZUM which
+;       lives in CSUBS.
+;       This table is used by PDEC to read the PMCs for each line
+;       PMCs which are to be ignored have a JRST PDEC4 or a MOVNI 2,n where n is
+;       the number of bytes the PMC uses.
+
+
+        DEFINE IGNOR0
+        <
+        JRST    PDEC4
+        >
+
+        DEFINE IGNORE(N)
+        <
+        MOVNI   2,N
+        >
+
+        DEFINE PMC(NUMBER,NAME,DECLR,COMPL,SIGHZE)
+        <
+        DECLR
+        >
+
+PSTMLT: LOPMCS
+        POPLT=.-235
+        HIPMCS
+
+        SUBTTL  DECLAR 1.6    THE TOP OF DECLAR
+
+; The parser gives us a tbale of pmcs, a partially filled LRT table, and a
+; name table. We look at the pmcs for each line and do some processing of
+; variable declarations, procedure definitions, in-line data.
+
+; Some of the specific tasks we do:
+;  allocate R%VRLC space for variables
+;  make entrys in the SDT,PARDT, and PRODT for symbols,parameters and procedures
+;  create an LRXT, thats an LRT rapid lookup table
+;  create a DTAV table for in-line data
+;  check for DEF/ENDF mismatch
+;  check for bad name statements
+
+        DCL     DECLAR,,<LINES,LRECN,LMOD,TYP,SDTP,ID,NDIM,MODE,AFG,OPTYP,PROP,PDTP,LVAR,NPAR>
+
+;                       DECLAR 2
+DCLAR2: M       1,PSW
+        CAIE    1,15
+        J       DCLAR4
+
+;                       DECLAR 3
+        MI      1,2
+        MM      1,SEGNO
+        CALL    DSYMD
+        J       DCLR$$
+;                       DECLAR 4
+DCLAR4: MI      1,PMCBF
+        MM      1,PMCDP
+        MI      1,^D640
+        MM      1,PMCDP+1
+        MI      1,MBUF
+        MM      1,MBUFD
+        MI      1,256
+        MM      1,MBUFD+1
+
+;                       DECLAR 6
+DCLAR6: CALL    DRLS
+        ; set up special SDT entries
+        BCALL   SINIT
+
+;                       DECLAR 8  initialize variables for declar and set
+;                                  dummy first line for LRXT
+DCLAR8: BCALL   DINIT
+
+
+;                       DECLAR 9
+DCLAR9: SKIPE 0,ESCFLG          ; escape?
+        J       DCLR16
+        MOVE    1,LRTP          ; LRTP/LNXT = LRT record number of next line
+        FGET    0,1,LNXT
+        CAIN    0,LSTH          ;LAST LINE?
+        J       DCLR16          ;YES, WERE DONE
+
+;                       DECLAR 10 write out the old line and bring in the new
+        MOVEM   0,LRECN         ; LRECN = Lrt RECord Number of line to br processed
+        ; ac 1 has LRTP
+        CALL    RDTY
+        CALL    TLOC,<$,LRT,$,LRECN>,<LRTP>
+
+;                       DECLAR 11
+        M       1,LINES         ;MAKE AN LRXT ENTRY EVERY LMOD LINES
+        IDIV    1,LMOD
+        JN      2,DCLR13
+
+;                       DECLAR 12
+;                       ;PUT THIS LINE NUMBER IN THE LRT RAPID LOOKUP TABLE
+        CALL    LXPUT,<$,LRECN>
+
+;                       DECLAR 13
+DCLR13: MOVE    0,SUBNM         ; current procedure number, 0 for main program
+        M       1,LRTP
+        FPUT    0,1,LSUBN
+
+        MOVEI   0,0     ; LRTP/LEFG = 0  =>  addr of compiled code not yet established
+        FPUT    0,1,LEFG
+                        ; LRTP/LCOD (addr of compiled code) = 0
+        FPUT    0,1,LCOD
+
+        FGET    0,1,LFOR
+        ADDM    0,NFOR  ; get the number of for loops in this line and add it into NFOR
+        AOS     0,LINES
+
+;                       DECLAR 14
+                        ; LRTP/LDFG = 1 means we must process this line in declar
+        FGET    0,1,LDFG
+        JE      0,DCLAR9
+
+;                       DECLAR 15
+                        ;PROCESS DECLARATIONS FOR THIS LINE
+        BCALL   PDEC
+        J       DCLAR9  ;GO GET THE NEXT LINE
+
+
+;                       DECLAR 16  WEVE DONE ALL THE LINES
+                ; put dummy last line in LRXT
+DCLR16: CALL    LXPUT,<$,LRECN>
+        M       1,LRTP
+        FGET    0,1,LNUMB
+        MI      1,LRXT
+        FGET    2,1,LRXL
+        SUB     0,2     ; LRTP/LNUMB - LRXT/LRXL
+        MOVEM   0,LRXRG ; LRXRG= highest line number - lowest line number
+        MOVE    1,LRTP
+        CALL    RDTY
+
+;                       DECLAR 17
+        BCALL   DDONE
+
+;                       EXIT DECLAR
+DCLR$$: RETURN DECLAR
+        SUBTTL  DINIT 1.6.8     INITIALIZE VARIABLES FOR DECLAR
+        BDCL    DINIT
+
+;                       DINIT 1
+        SETZM   0,NFOR  ; NFOR is used to count total number of for loops in program
+        SETZM   0,PROMAX
+        MOVEI   1,NAMF  ; table for NAME statements that reference parent
+        MOVEM   1,NAMFP ; arrays that we havent seen yet.
+
+        SETZB   0,1
+        DMOVEM  0,SUBNM
+        DMOVEM  0,SUBNM+2
+
+        SETZM   0,PNO           ;Ever-growing index into PARDT
+        MI      1,SUBSTK
+        MM      1,SUBPTR
+        SETZM   0,LINES
+        SETZM   0,PARNM
+        SETZM   0,CERCNT
+
+        MI      1,1
+        MM      1,ALPAFG
+
+;                       DINIT 2
+        CALL    VRLS,<$,DTAV>
+        CALL    TLOC,<$,LRT,FSTH>,<LRTP,LRECN>
+
+;                       DINIT 3
+        M       0,NLINES
+        SUBI    0,1
+        IDIVI   0,LRXSZ         ;SIZE OF THE LRXT, LRT LOOKUP TABLE
+        AOJ     0,0
+        MM      0,LMOD
+        SETOM   0,LRXN
+
+;                       EXIT DINIT
+        BRETURN         DINIT
+        SUBTTL  SINIT 1.6.7 INITIALIZE SDT ENTRYS
+; In the old days, eps,asctable,chartable, and start.point where in the
+; loseg of the module (back when there was only one module). Now they are
+; global,but the code still wants a loseg adress. So here when we set up
+; their sdt entrys we put in some dummy loseg adrresses in the sloc field.
+; In compil, GRI notices these special adreeses and handles them.
+        BDCL    SINIT
+
+        SALL
+        EXTERN SPTADR,EPSADR,ASCADR,CHRADR,STRTUV
+
+;                       SINIT 1   EPS
+        CALL    MAKSDT
+
+        CALL    SDTGET,<,1>,<SDTP>
+        M       2,SDTP
+        MI      1,1
+        FPUT    1,2,SUSED
+        MI      1,SSCAL
+        FPUT    1,2,SKND
+        MI      1,REAL
+        FPUT    1,2,STYP
+        MI      1,EPSADR
+        FPUT    1,2,SLOC
+
+;                       SINIT 2   ASCTABLE
+        CALL    SDTGET,<,2>,<SDTP>
+        M       2,SDTP
+        MI      1,1
+        FPUT    1,2,SUSED
+        FPUT    1,2,SN
+        MI      1,SARY
+        FPUT    1,2,SKND
+        MI      1,INT
+        FPUT    1,2,STYP
+        MI      1,ASCADR
+        FPUT    1,2,SLOC
+
+;                       SINIT 3   CHARTABLE
+        CALL    SDTGET,<,3>,<SDTP>
+        M       2,SDTP
+        MI      1,1
+        FPUT    1,2,SUSED
+        FPUT    1,2,SN
+        MI      1,SARY
+        FPUT    1,2,SKND
+        MI      1,STR
+        FPUT    1,2,STYP
+        MI      1,CHRADR
+        FPUT    1,2,SLOC
+
+;                       SINIT 4   START.POINT
+        CALL    SDTGET,<,4>
+        MI      0,1
+        FPUT    0,1,SUSED
+        MI      0,SSCAL
+        FPUT    0,1,SKND
+        MI      0,INT
+        FPUT    0,1,STYP
+        MI      0,SPTADR
+        FPUT    0,1,SLOC
+        MOVEI   1,STRTUV        ; START OF USER VARIABLES
+        MM      1,r%vrlc
+        SETZM   0,ARYCNT
+
+;                       EXIT  SINIT
+        BRETURN SINIT
+        XALL
+        SUBTTL  PDEC 1.6.14        PROCESS A DECLARATION
+        BDCL    PDEC
+
+; This is where we read the PMCs for each line in the TBA program looking
+; for things for DECLAR to process
+
+;                       PDEC 1 get the PMCs for the next line
+        SETZM   0,NPAR
+        MOVE    1,LRTP  ; get the location of the PMCs from the LRT
+        FGET    2,1,LPMC
+;                       ; and get the PMC string into PMCBF
+        CALL    VGET,<PMCDP,$,PMC>
+        M       1,[POINT 9,PMCBF]
+        MM      1,PMCP
+;                       ; put the length of the PMC string into PMCK
+        MI      1,PMCDP
+        FGET    0,1,SDCL
+        MOVEM   0,PMCK  ; we count down on PMCK
+
+;                       PDEC 2   look at the OPTYP to see if this line need be processed in DECLAR
+PDEC2:  ILDB    1,PMCP    ; the first PMC in each PMC string is the OPTYP
+        MM      1,OPTYP
+        CAIG    1,^d124         ; watch out for the hole in the PMC table
+        XCT     0,PSTMLT(1)
+        CAILE   1,124
+        XCT     0,POPLT(1)
+
+;   if we get here then we were told to ignore this PMC, and r2 has been
+;   set up to tell us how many PMC bytes to skip over.
+IG:     ADDM    2,PMCK
+        IBP     0,PMCP
+        AOJL    2,.-1
+
+;   lots a people jrst here from all over DECLAR.
+PDEC4:  SOSLE   0,PMCK          ; any more PMCs to read?
+        J       PDEC2           ;  yes, go read them
+                                ;  no, return
+        BRETURN PDEC
+
+; AKA names are no longer passed as SCONs.  We convert to sixbit and stuff
+; into ldrnam for the current procedure.
+
+        SALL
+AKA:    call tloc,<$,prodt,$,subnm>,<prop>      ; prop := prodt ptr
+
+        move 0,pmcp
+        ildb 1,0
+        call sixcv              ; sixcv(pmcp+.1,fetch.byte(pmcp+.1))
+        jumpe 1,[move 1,prop    ; if sixcv(...)=0 then
+                call    rcln
+                 movni 0,2
+                 call derr      ;   derr(-2)
+                 jrst DSCON   ]
+
+        move 2,prop
+        fput 1,2,ldrnam         ; prop.ldrnam := sixcv(...)
+
+        move    1,prop
+        call    rdty
+        XALL
+
+DSCON:  ILDB    0,PMCP		; here for string constant
+        MOVN    2,0
+        SOS     PMCK
+        J       IG
+
+DDFDN:  MOVE    1,MODE          ;end of def statement
+        CAIG    1,1
+        J       PDEC4           ;not EXTERNAL-nothing to do (otherwise, we
+                                ;pretend we've seen an ENDF
+
+STFN:   CALL    SWPPOP		; her for statement function (or fall thru from above)
+        MI      1,1
+        MM      1,ALPAFG
+           PDEC4
+
+DROPT8: AOS     0,NPAR          ;here for slice star and slice colon
+        J       PDEC4
+        SUBTTL  DDEC 1.6.14.3.2
+
+;  block ddec (local to pdec)
+
+;  ! Processes a single variable declaration.
+
+;  [sdtp;id] := getid()
+
+;  typ := dtyps[optyp]  ! Variable type
+;  if typ=-1 then typ := setdol(id)  ! Do $ trip for implicit type
+
+;  eif bit(optyp,35)=0 then  ! array, set # of dims, array flag
+;    [ndim := ildb(pmcp);  dec pmck;  afg := 1;  inc arycnt]
+;  else  ! scalar
+;    [ndim := afg := 0]
+
+;  eif lprofg=0 then  ! This has to do with the "local procedure" kludge
+;    [desdt();  write sdtp]
+;  else
+;    [derr(lvnp4);  free sdtp]
+
+;  return to PDEC4
+
+;  end ddec
+        
+;                       DDEC 1
+DDEC:   CALL    GETID,,<SDTP,ID>
+        M       1,OPTYP
+        M       0,DTYPS(1)
+        MM      0,TYP
+
+;                       DDEC 2
+        SETO    1,0
+        CAME    1,TYP
+        J       DDEC4
+
+;                       DDEC 3
+        CALL    SETDOL,<$,ID>,<TYP>
+
+;                       DDEC 4
+DDEC4:  M       1,OPTYP
+        TRNE    1,1             ;Alternating PMC's from 8 to 23 mean array
+        J       DDEC6
+
+;                       DDEC 5
+        ILDB    1,PMCP
+        MM      1,NDIM
+        SOS     1,PMCK
+        MI      1,1
+        MM      1,AFG
+        AOS     0,ARYCNT
+        J       DDEC7
+
+;                       DDEC 6
+DDEC6:  SETZM    0,NDIM
+        SETZM   0,AFG
+
+;                       DDEC 7
+DDEC7:  BCALL   DESDT
+        J       PDEC4
+        SUBTTL  DESDT 1.6.14.3.2.7  11 April 1977
+
+;  block desdt (local to ddec)
+;
+;  ! Does most of the work of a declaration - all the sdt stuff.
+;
+;  register t
+;
+;  eif sdtp.sloc#0 and sdtp.sprocn=subnm[0].rh then
+;    !duplicate local declaration
+;    do
+;      if (t := sdtp.sknd)=spary then t := sary
+;      if t# afg or sdtp.sn#ndim or sdtp.styp#typ then
+;        !duplicate declaration with changes is an error
+;        cnerr(2,id)
+;    end
+;
+;  else   !new declaration
+;    do
+;      if subnm[0].rh#0 then
+;        do   !in a procedure
+;          add.lv(id,sdtp)   !add local variable
+;          if parnm#0 and afg=sary then afg := spary
+;        end
+;      if alpafg#0 then sdtp.sloc := r%vrlc
+;      eif alpafg<0 then alpale()     !SFO, CFO
+;      orif alpafg>0 then   ! =0 is a noop
+;        do   !normal
+;          eif afg=sscal then allocs(typ)
+;          else
+;            do
+;              if afg=spary then inc r%vrlc   !for descriptor pointer
+;              alloca(ndim)   !allocate descriptor
+;            end
+;        end
+;      sdtp.sused := 1
+;      sdtp.styp  := typ
+;      sdtp.sknd  := afg
+;      sdtp.sn    := ndim
+;      sdtp.sprocn:= subnm[0].rh
+;    end
+;  if parnm>0 then dec parnm
+;
+;  end desdt
+        
+        BDCL    DESDT
+
+        MOVE    R1,SDTP
+        FGET    R0,R1,SLOC
+        JUMPE   R0,DSDT5                ;We've never seen it before
+        FGET    R0,R1,SPROCN
+        CAME    R0,SUBNM                ;same context as current one?
+        JRST    DSDT5                   ;no, not really a duplicate declaration
+
+;A duplicate local declaration; ok unless he changes type or number
+;of dimensions.
+
+        FGET    R0,R1,SKND
+        CAIN    R0,SPARY                ;kind as previously declared
+        MOVEI   R0,SARY                 ;allow redec of array parameter
+        CAME    R0,AFG
+        JRST    DSDT2                   ;error
+        FGET    R0,R1,SN
+        CAME    R0,NDIM                 ;same # dims?
+        JRST    DSDT2
+        FGET    R0,R1,STYP
+        CAMN    R0,TYP
+        JRST    DSDT6                   ;ok
+
+DSDT2:  CALL    CNERR,<2,$,ID>
+        JRST    DSDT6                   ;invalid duplicate declaration
+
+;Allocate a new variable
+
+DSDT5:  SKIPN   SUBNM                   ;Within a procedure?
+        JRST    DSDT5B                  ;no
+        CALL    ADD.LV,<$,ID,$,SDTP>
+        SKIPN   PARNM                   ;a parameter?
+        JRST    DSDT5B
+        MOVEI   R1,SPARY
+        SKIPE   AFG
+        MOVEM   R1,AFG                  ;make a parameter array
+
+DSDT5B: MOVE    R1,SDTP
+        MOVE    R0,R%VRLC
+        SKIPE   ALPAFG          ; 0 in sloc for external parameters
+        FPUT    R0,R1,SLOC
+        SKIPL   ALPAFG                  ;SFO or CFO?
+        JRST    DSDT5C                  ;no
+        BCALL   ALPALE
+        JRST    DSDT5G
+
+DSDT5C: SKIPG   ALPAFG                  ;local?
+        JRST    DSDT5G                  ;no, external
+        MOVE    R0,AFG
+        CAIE    R0,SSCAL
+        JRST    DSDT5E
+        CALL    ALLOCS,<$,TYP>
+        JRST    DSDT5G
+
+DSDT5E: CAIE    R0,SARY
+        AOS     R%VRLC
+        CALL    ALLOCA,<$,NDIM>
+
+DSDT5G: MOVE    R1,SDTP
+        MOVEI   R0,1
+        FPUT    R0,R1,SUSED
+        MOVE    R0,TYP
+        FPUT    R0,R1,STYP
+        MOVE    R0,AFG
+        FPUT    R0,R1,SKND
+        MOVE    R0,NDIM
+        FPUT    R0,R1,SN
+        MOVE    R0,SUBNM
+        FPUT    R0,R1,SPROCN
+
+DSDT6:  SKIPLE  PARNM
+        SOS     PARNM
+
+        BRETURN DESDT
+        SUBTTL  ALPALE 1.6.14.32.7.21B Declare SFO or CFO parameter
+
+        BDCL    ALPALE
+
+        M       1,TYP
+        CAIE    1,STR
+        J       APLE4
+        M       1,AFG
+        CAIN    1,SSCAL
+        J       APLE4
+
+;               ALPALE 3 - String array illegal
+        CALL    CNERR,<36,$,ID>
+        JRST    ALPA$$
+
+;               ALPALE 4
+APLE4:  AOS     r%vrlc  ; MAKE A SPACE IN THE ARGUMENT LIST FOR THIS PARAMETER
+ALPA$$: BRETURN ALPALE
+        SUBTTL  DENDF 1.6.14.3.4        THE ENDF
+
+;                       DENDF 1
+DENDF:  CALL    GETID,,<SDTP,ID>
+
+;       DENDF1A
+        FGET    0,1,SKND
+        CAIE    0,SPRO
+        JRST    DENDF4
+
+;                       DENDF 2
+        M       1,SDTP
+        FGET    0,1,SN
+        CAME    0,SUBNM
+        J       DENDF4
+
+;               DENDF 3
+DENDF3: CALL    SWPPOP
+        JRST    DENDF$
+
+;                       DENDF 4
+DENDF4: CALL DERR,<1>
+
+;                       EXIT DENDF
+DENDF$: JRST    PDEC4
+        SUBTTL  DDEF 1.6.14.3.5         THE DEF
+
+;       THE DEF PMC LOOKS LIKE THIS:
+;               DDEF,FUNCTION ID(two bytes),TYPE,# OF ARGS,MODE,# OF DIMS
+;       WHERE MODE IS
+;               0-NORMAL  1-ENTRY  2-EXTERNAL(plain)  3-TBA
+;               4-SFO  5-CFO  6-SIMPL  7-BLISS
+
+; The DEF PMC type code is differnt from the standard. (a comparitivly mild atrocity)
+;  0-default  1-logical  2-integer  3-real  4-double  5-complex
+;  6-string  7-text
+
+;                       DDEF 1
+DDEF:   M 1,SUBPTR
+        CAIGE   1,SUBSTK+<NESTLM-1>*SUBSIZ
+        J       DDEF4
+;               DDEF 1
+        CALL    DERR,<LVNP1>
+        J       DCLAR9
+
+;               Read the DEF PMC
+DDEF4:  CALL    GETID,,<SDTP,ID>
+        ILDB    1,PMCP  ;TYPE
+        MM      1,TYP
+        ILDB    1,PMCP  ;NUMBER OF ARGUMENTS
+        MM      1,NDIM
+        ILDB    1,PMCP  ;MODE
+        MM      1,MODE
+        ILDB    1,PMCP  ;NUMBER OF DIMENSIONS
+        MM      1,FDIM
+        MOVNI   1,4
+        ADDM    1,PMCK
+
+;                       DDEF 5
+        MOVE    1,TYP   ; REMEMBER THIS IS THE SPECIAL DEF PMC TYPE CODE
+        CAIN    1,7     ; TYPE=TEXT?
+        SOS     ,TYP    ;  YES,CHANGE TO STRING
+        SOS     ,TYP    ; CHANGE TO STANDARD TYPE CODE
+        JUMPN   1,DDEF9J        ; DEFAULT TYPE?
+
+;                       DDEF 6   YES, CALL SETDOL (LOOK FOR A $)
+        CALL    SETDOL,<$,ID>,<TYP>
+
+;               DDEF 9J
+DDEF9J: DMOVE 0,SUBNM
+        M       2,SUBPTR
+        DMOVEM  0,0(2)
+        DMOVE   0,SUBNM+2
+        DMOVEM  0,2(2)
+        ADDI    2,SUBSIZ
+        MOVEM   R2,SUBPTR
+
+;                       DDEF 9
+DDEF9:  M       1,SDTP
+        FGET    0,1,SLOC
+        JE      0,DDEF20
+        FGET    R0,R1,SPROCN
+        CAME    R0,SUBNM                ;Duplicate local declaration?
+        JRST    DDEF20
+
+;                       DDEF 11
+DDEF11: CALL    CNERR,<2,$,ID>
+        JRST    DEFERR
+
+;                       DDEF 20
+DDEF20: M 2,PROMAX      ;DEFS ARE PROCESSED HERE
+        CAIGE   2,511
+        J       DDF20X
+                ; Error 'MORE THAN 511 DEF STATEMENTS'
+        CALL    DERR,<LVNP6>
+        JRST    DEFERR
+
+                ;GET A PRODT ENTRY FOR THIS DEF
+;Add this procedure name as a local variable to its parent:
+
+DDF20X: MOVE    R0,SUBNM        ;Get containing procedure no if any
+        MOVEM   R0,FCPROC
+        JUMPE   R0,DDF20B
+        CALL    ADD.LV,<$,ID,$,SDTP>
+DDF20B: CALL    TNEW,<$,PRODT>,<PROP,SUBNM>
+        MM      2,PROMAX
+
+;                       DDEF 21
+        M       1,SDTP
+        MI      2,1
+        FPUT    2,1,SUSED
+        MI      0,SPRO
+        FPUT    0,1,SKND
+        M       0,SUBNM
+        FPUT    0,1,SN
+        M       0,TYP
+        FPUT    0,1,STYP
+        M       0,r%vrlc
+        FPUT    0,1,SLOC
+        M       1,MODE
+        M       2,NREG(1)
+        ADDM    2,r%vrlc
+        M       2,ALPAR(1)
+        MM      2,ALPAFG
+
+        MOVE    R2,TYP
+        MOVE    R1,MODE
+        CAIGE   R1,SFO          ;External other language?
+        JRST    DDF21B
+        SKIPG   FDIM
+        CAIN    R2,STR
+        SKIPA                   ;String- or array-valued procedure illegal
+        JRST    DDF21B
+        CALL    CNERR,<^D34,$,ID>
+        JRST    DEFER1
+
+DDF21B: CAIL    R2,DBL
+        CAIE    R1,BLISS        ;BLISS procedure may not be DOUBLE or COMPLEX
+        JRST    DDEF22
+        CALL    CNERR,<^D35,$,ID>
+        JRST    DEFER1
+
+DDEF22: M       1,PROP
+        M       0,ID
+        FPUT    0,1,PNAM
+        M       0,NDIM
+        FPUT    0,1,PNP
+        SETZ    R0,
+        FPUT    0,1,PPARS
+        FPUT    R0,R1,PPFIN
+        M       0,MODE
+        FPUT    0,1,PMODD
+        M       0,FDIM
+        FPUT    0,1,PFDIM
+        MOVE    R0,FCPROC
+        FPUT    R0,R1,PFPROC
+
+;                       DDEF 24
+        M       1,PROP
+        FGET    0,1,PNP
+        MM      0,PARNM
+
+        move 0,id
+        move 1,[point 7,nambuf]
+                        ; txvnm is the routine in parse9
+        call txvnm              ; txvnm(id,point(7,nambuf))
+
+        move 0,[point 7,nambuf]
+        move 1,2
+        call sixcv              ; sixcv(point(7,nambuf),length from txvnm)
+
+        move 2,prop
+        fput 1,2,ldrnam         ; prop.ldrnam := sixcv(...)
+
+        SETZM   0,SUBNM+1
+
+;                       DDEF 27
+        MOVE    1,PROP
+        CALL    RDTY
+
+;                       EXIT DDEF
+        J       PDEC4
+
+DEFER1: MOVE    1,PROP
+        CALL    RCLN
+DEFERR:
+        MOVE    R0,SUBPTR
+        SUBI    R0,SUBSIZ
+        MOVEM   R0,SUBPTR
+        JRST    PDEC4
+        SUBTTL  DDATA   1.6.14.3.7
+
+;                       DDATA 1
+DDATA:  CALL DATA
+        CALL    VPUT,<MBUFD,$,DTAV>
+
+;                       EXIT DDATA
+        J       PDEC4
+        SUBTTL  DNAM      the NAME pmc gets you here
+
+; Somtimes we get a NAME statement that refers to a parent array we
+; havent seen yet. We cant resolve it so we make an entry in a table NAMF
+; and we resolve it in NMFXP after were done declaring everthing else.
+
+; a NAMF entry contains the following fields:
+;       VR1  variable id for the slice
+;       VR2  variable id for the parent
+;       LN   line number ( of the name statement i think)
+;       ND1  number of dimensions of the slice
+;       ND2  number of dimensions of the parent
+;       FG   0 if name statement has not been processed
+
+; also of intrest:
+;       NAMFP is the pointer into the NAMF block
+;       SDTP2 often holds the address of the parent SDT entry
+;       ID2 often holds the ID of the parent
+;       NFMAX is used to check for NAMF overflow (too many unresolved name statments)
+
+; The pmc for the NAME statement looks like this:
+;       NAME pmc, Var id for slice(2 bytes), Var id for parent(2 bytes),number
+;               of dimensions of parent
+
+        BDCL    DNAM
+;.1
+        ; get SDTP and ID for slice
+        CALL    GETID ,,<SDTP,ID>
+        ; get SDTP and ID for parent
+        CALL    GETID ,,<SDTP2,ID2>
+        ILDB    0,PMCP
+        MOVEM   0,NDIM  ; get number of dimensions of parent
+        SOS     PMCK
+;.2
+        FGET    2,1,SUSED
+        JUMPN   2,DNAM6         ; have we seen the parent yet?
+;.3
+        MOVE    1,NAMFP         ;  no, make a NAMF entry to resolve in NMFXP
+        CAIGE   1,NFMAX         ; is there room for another NAMF record?
+        JRST    DNAM5
+;.4
+        ; give error 'Too many unresolved name statements'
+        CALL    DERR,<29>
+        JRST    DNAM7
+;.5
+DNAM5:  MOVE 2,ID               ; we make a NAMF entry
+        FPUT    2,1,VR1
+        MOVE    2,ID2
+        FPUT    2,1,VR2
+        MOVE    2,LRECN
+        FPUT    2,1,LN
+        MOVE    2,NPAR
+        FPUT    2,1,ND1
+        MOVE    2,NDIM
+        FPUT    2,1,ND2
+        SETZ    2,
+        FPUT    2,1,FG
+        MOVEI   1,2
+        ADDM    1,NAMFP         ; this NAMF entry takes two words
+        JRST    DNAM7
+
+;.6                     weve seen the parent so go declare the slice
+DNAM6:  CALL NMDCL,<$,SDTP,$,ID,$,NPAR,$,NDIM>
+;.7
+DNAM7:  JRST    PDEC4
+        SUBTTL  NMFXP  RESOLVE ANY UNRESOLVED NAME STATEMENTS
+
+; resolving an unresolved name statement is complicated by the fact that its
+; parent may still be undeclared pending another unresolved name statement.
+; So we go through NAMF resolving what we can and if there are still some that
+; are unresolved then we go through it again.
+
+; SFG is used to tell us if there are unresolved NAME statements after a
+; pass throgh NAMF. we SETZM SFG at the start of a pass, and SETOM SFG
+; if we get stuck on one.
+
+; IFG is set to zero at the top of NMFXP. Then it is set to one in any pass
+; where we resolve a NAME statement and we subtract one from it at the
+; completion of a pass. So, if IFG goes negative, we know that in the
+; last pass nothing was resolved and thus all remaining unresolved NAME
+; statements either refer to each other or to undefined variables. If this
+; happens we give error messages for each one.
+
+        BDCL    NMFXP
+;.1
+        M       1,NAMFP         ;check to see if we have any unresolved NAMEs
+        CAIN    1,NAMF
+        JRST    NMFX$$
+;.2
+        SETZM   IFG     ; IFG is used to watch for bad NAME statements
+
+;.3       go through NAMF resolving the resolvable unresolved
+NMFX3:  MOVE 1,NAMFP
+        SUBI    1,NAMF
+        LSH     1,-1
+        MOVEM   1,CNT   ; (NAMFP-NAMF)/2 = number of NAMF entries
+        MOVEI   1,NAMF
+        MOVEM   1,NAMFP
+        SETZM   SFG     ; SFG is used to tell us if weve resolved them all
+
+;.4       attempt to resolve a NAMF entry
+NMFX4:  MOVE 3,NAMFP
+        FGET    1,3,LN
+        CALL    TLOC,<$,LRT>,<LRTP>
+;.5
+        MOVE    3,NAMFP
+        FGET    2,3,FG
+        JUMPN   2,NMFX13
+;.6
+        SKIPL   IFG     ; IFG<0 => all remaining unresolved are unresolvable
+        JRST    NMFX8
+;.7
+        FGET    1,3,VR2
+        ; give error 'NAME statement uses undefined variable ___'
+        CALL    CNERR,<30>
+        JRST    NMFX13
+;.8
+NMFX8:  FGET 1,3,VR2
+        CALL    SDTGET,,<SDTP2>
+;.9
+        FGET    2,1,SUSED
+        JUMPE   2,NMFX11
+;.10
+        MOVE    3,NAMFP
+        FGET    1,3,VR1
+        CALL    SDTGET,,<SDTP>
+        MOVE    4,NAMFP
+        FGET    1,4,VR1
+        FGET    3,4,VR2
+        MM      3,ID2
+        FGET    2,4,ND1
+        FGET    3,4,ND2
+        CALL    NMDCL,<$,SDTP>
+        MOVEI   2,1
+        MOVE    3,NAMFP
+        ; FG := 1 to record that weve resolved this one
+        FPUT    2,3,FG
+        MOVEM   2,IFG   ; IFG := 1 indicating progress has been made in this pass
+        SKIPA
+;.11
+NMFX11: SETOM SFG       ; SFG := -1 indicating we will need another pass
+                        ; because we still havent seen this guys parent
+;.12
+NMFX13: MOVE    1,LRTP
+        CALL    RCLN
+        MOVEI   1,2
+        ADDM    1,NAMFP         ; NAMFP := NAMFP+2
+        SOSLE   CNT             ; CNT := CNT-1
+;.14
+        JRST    NMFX4           ; if CNT > 0  then go try another NAMF entry
+;.15
+        SOS     IFG             ; IFG := IFG-1
+        SKIPE   SFG             ; if SFG=0 then quit
+        JRST    NMFX3           ;          else do another pass
+;.17  EXIT NMFXP
+NMFX$$: BRETURN NMFXP
+        SUBTTL  DDONE 1.6.16
+        BDCL    DDONE
+
+;               DDONE 0  resolve any unresolved NAME statements
+        BCALL   NMFXP
+
+;                       DDONE 1
+        SKIPE   0,SUBNM
+        JRST    DDONE2
+;               DDONE A1
+        SKIPE   0,ESCFLG
+        AOS     0,CERCNT
+        J       DDONE7
+
+;                       DDONE 2
+DDONE2: M 0,CMSG+1              ;DEF/ENDF mismatch
+        MI      1,MOCR
+        SKIPN   0,ESCFLG
+        CALL    CXR2
+        AOS     0,CERCNT
+
+;               DDONE 2A
+DDNE2A: CALL SWPPOP
+;               DDONE 2B
+        SKIPE   0,SUBNM
+        J       DDNE2A
+;                       DDONE 7
+DDONE7: SKIPN 0,CERCNT
+        J       DDONE9
+
+;                       DDONE 8
+        MI      1,2     ; WE WILL GO BACK TO THE PARSER AFTER DECLAR
+        MM      1,SEGNO
+        CALL    FRESDT
+        CALL    DRLS
+        J       DDNE12
+
+;                       DDONE 9
+DDONE9: MI      1,4
+        MM      1,SEGNO
+        M       1,r%vrlc
+        MM      1,BFOR  ; start of for loop return adrress block
+        M       1,NFOR  ; number of for loops
+        ADDM    1,r%vrlc ; allocate for loop return address block
+
+;                       DDONE 10
+        M       1,PSW
+        CAIE    1,14
+        J       DDNE12
+
+;                       DDONE 11
+        MI      1,2     ; WE WILL GO BACK TO THE PARSER AFTER DECLAR
+        MM      1,SEGNO
+        CALL    FRESDT
+        CALL    DSYMD
+
+;                       EXIT DDONE
+DDNE12: BRETURN DDONE
+        SUBTTL  ADD.LV  add local variable or parameter
+
+        DCLNE   ADD.LV,<ID,SDTP>,<PROP,PDTP>
+
+;Add a new parameter or local variable to the current procedure
+
+        CALL    TLOC,<$,PRODT,$,SUBNM>,<PROP>
+
+        FGET    R0,R1,PPFIN
+        JUMPN   R0,ADDLV1               ;procedure has at least 1 local already
+        MOVE    R0,PNO                  ;get last PARDT entry
+        AOJ     R0,
+        FPUT    R0,R1,PPFIN             ;create a "last" pointer
+        FPUT    R0,R1,PPARS             ;as well as a "first" pointer
+
+ADDLV1: MOVE    R1,R0                   ;locate to last record for this proc
+        CALL    TLOC,<$,PARDT>
+        AOS     R2,PNO                  ;inc PNO and set up link into last record
+        FPUT    R2,R1,PARLNK
+        CALL    RDTY
+        CALL    TLOC,<$,PARDT,$,R2>,<PDTP>
+        MOVE    R0,ID                   ;start to fill new record
+        FPUT    R0,R1,PANAM
+        SETZ    R0,                     ;set last link to zero
+        FPUT    R0,R1,PARLNK
+        MOVE    R2,PNO
+        MOVE    R1,PROP
+        FPUT    R2,R1,PPFIN
+        MOVE    R1,PDTP
+        MOVE    R2,SDTP
+        MOVE    R3,(R1)
+        EXCH    R3,(R2)                 ;swap new local into SDT
+        MOVEM   R3,(R1)
+        FGET    R0,R1,PROCNO
+        FGET    R3,R2,SPROCN
+        FPUT    R3,R1,PROCNO
+        FPUT    R0,R2,SPROCN
+        CALL    RDTY
+        MOVE    1,PROP
+        CALL    RDTY
+
+        RETURN  ADD.LV
+        SUBTTL  ALLOCA    ALLOCATE R%VRLC SPACE FOR AN ARRAY
+        DCL     ALLOCA,<NDIM>
+
+;                       ALLOCA 1
+        M       1,NDIM
+        MOVE    1,.SZDSC(1)
+        ADDM    1,r%vrlc
+
+;                       EXIT ALLOCA
+        RETURN  ALLOCA
+
+
+
+	SUBTTL ALLOCS    ALLOCATE R%VRLC SPACE FOR A SCALER
+        DCL     ALLOCS
+
+        CAILE   0,2
+        AOS     ,R%VRLC
+        AOS     ,R%VRLC
+        RETURN  ALLOCS
+        SUBTTL  CNERR  PRINT AN ERROR MESSAGE WITH A VARIABLE NAME
+        DCL     CNERR,<N,ID>
+
+;                       CNERR 1
+        AOS     0,CERCNT
+
+;               CNERR 1A1
+        SKIPE   0,DSFLG
+        J       CNR1A3
+
+;               CNERR 1A2
+        CALL    PREL
+
+;               CNERR 1A3
+CNR1A3: M 1,N
+        M       0,CMSG(1)
+        CALL    CXR1,<,MONOCR>
+        M       1,[POINT 7,MBUF]
+			; TXVNM lives in PARSE9
+        CALL    TXVNM,<$,ID>
+        SETZ    0,0
+        IDPB    0,1
+        CALL    CXR2,<MBUF,MONOCR>
+;                       EXIT CNERR
+CNRR$$: RETURN  CNERR
+        SUBTTL  DERR   PRINT AN ERROR MESSAGE
+        DCL     DERR,<N>
+;               DERR 1
+        CALL    PREL
+        M       1,N
+        M       0,CMSG(1)
+        CALL    CXR2,<,MONOCR>
+        AOS     0,CERCNT
+;               EXIT DERR
+        RETURN  DERR
+        SUBTTL  DRLS  RELEASE THE PARDT AND PRODT TABLES
+        DCL     DRLS
+;               DRLS 1
+
+        CALL    TRLS,<$,PARDT>
+        CALL    TRLS,<$,PRODT>
+;               EXIT DRLS
+DRLS$$: RETURN DRLS
+        SUBTTL  DSYMD   EXECUTE THE SYMD COMMAND
+        DCL     DSYMD,,<PFLG,PROP,NDIM,PDTP,AFG,TYP,LVAR,SDTP>
+
+;                       DSYMD 1
+        SETO    1,0
+        CAME    1,CDELN1
+        J       DSYMD3
+
+;                       DSYMD 2
+        SETZM   0,PFLG
+        J       DSYMD7
+
+;                       DSYMD 3
+DSYMD3: CALL    GLNUM,<$,CDELN1>,<LRTP>
+
+;                       DSYMD 4
+        M       1,LRTP
+        FGET    0,1,LNUMB
+        CAME    0,CDELN1
+        J       DSYMD6
+
+;                       DSYMD 5
+        BCALL   SORP
+        J       DSMD7A
+
+;                       DSYMD 6
+DSYMD6: CALL    TDO,<$,CMSG+5,MONOCR>
+        SETOM   0,PFLG
+
+;               DSYMD 7A
+DSMD7A: MOVE    1,LRTP
+        CALL    RCLN
+
+;                       DSYMD 7
+DSYMD7: M       1,PFLG
+        JG      1,DSMD12
+        JL      1,DSMD15
+
+;                       DSYMD 8
+        CALL    SDTGET,<,$,CDEID>,<SDTP>
+
+;                       DSYMD 9
+        FGET    0,1,SUSED
+        JE      0,DSMD11
+
+;                       DSYMD 10
+        BCALL   SVAR
+        J       DSMD15
+
+;                       DSYMD 11
+DSMD11: CALL    TDO,<$,CMSG+4,MONOCR>
+        SETOM   0,PFLG
+        J       DSMD15
+
+;                       DSYMD 12
+DSMD12: M       1,PDTP
+        FGET    0,1,PAKND
+        MM      0,AFG
+        FGET    0,1,PASN
+        MM      0,NDIM
+        FGET    0,1,PATYP
+        MM      0,TYP
+        FGET    0,1,PALOC
+        MM      0,LVAR
+        MOVE    1,PDTP
+        CALL    RCLN
+
+;                       DSYMD 13
+        M       1,AFG
+        CAIE    1,SPARY
+        J       DSMD15
+
+;                       DSYMD 14
+        MI      1,SARY
+        MM      1,AFG
+
+;                       DSYMD 15
+DSMD15: M       1,PFLG
+        JL      1,DSMD$$
+
+;                       DSYMD 16
+        CALL    TDO,<$,CMSG,MONOCR>
+        M       2,AFG
+        CALL    TDO,<$,KMSG(2),MOCR>
+        M       2,TYP
+        CALL    TDO,<$,TMSG(2),MONOCR>
+        CALL    PNUM,<$,NDIM>
+        CALL    CXTDO,<" ">
+        CALL    CXTDO,<" ">
+        CALL    OPNM,<$,LVAR>
+
+;                       EXIT DSYMD
+DSMD$$: RETURN DSYMD
+        SUBTTL  SORP DSYMD.5  FIND OUT IF THE VARIABLE IS A PARAMETER
+        BDCL    SORP
+
+;                       SORP 1
+        SETZM   0,PFLG
+        FGET    0,1,LSUBN
+        MM      0,SUBNM
+
+;                       SORP 2
+        SKIPN   0,SUBNM
+        J       SORP$$
+
+;                       SORP 3
+        CALL    TLOC,<$,PRODT,$,SUBNM>,<PROP>
+        FGET    0,1,PNP
+        MM      0,NDIM
+
+;                       SORP 4
+        M       2,PROP
+        FGET    1,2,PPARS
+        CALL    TSET,<$,PARDT>
+        MOVE    1,PROP
+        CALL    RCLN
+
+;                       SORP 5
+        SKIPN   0,NDIM
+        J       SORP$$
+
+;                       SORP 6
+SORP6:  CALL TNEXT,<$,PARDT>,<PDTP>
+        SOS     0,NDIM
+
+;                       SORP 7
+        M       1,NDIM
+        JE      1,SORP8
+        M       1,PDTP
+        FGET    0,1,PANAM
+        CAMN    0,CDEID
+        J       SORP8
+
+;               SORP 7B
+        MOVE    1,PDTP
+        CALL    RCLN
+        J       SORP6
+
+;                       SORP 8
+SORP8:  M 1,PDTP
+        FGET    0,1,PANAM
+        CAMN    0,CDEID
+        J       SORP10
+
+;                       SORP 9
+        MOVE    1,PDTP
+        CALL    RCLN
+        J       SORP$$
+
+;                       SORP 10
+SORP10: MI 1,1
+        MM      1,PFLG
+
+;                       EXIT SORP
+SORP$$: BRETURN SORP
+        SUBTTL  SVAR DSYMD.10
+        BDCL    SVAR
+
+;                       SVAR 1
+        M       1,SDTP
+        FGET    0,1,SKND
+        MM      0,AFG
+        FGET    0,1,SN
+        MM      0,NDIM
+        FGET    0,1,STYP
+        MM      0,TYP
+        FGET    0,1,SLOC
+        MM      0,LVAR
+
+;                       SVAR 2
+        M       1,AFG
+        CAIE    1,SPRO
+        J       SVAR$$
+
+;                       SVAR 3
+        CALL    TLOC,<$,PRODT,$,NDIM>,<PROP>
+        FGET    0,1,PNP
+        MM      0,NDIM
+        MOVE    1,PROP
+        CALL    RCLN
+
+;                       EXIT SVAR
+SVAR$$: BRETURN SVAR
+        SUBTTL MAKSDT   GET THE SDT TABLE INTO CORE AND LOCK IT
+        DCL     MAKSDT,,<PGECNT,HMPWN>
+
+;       HMPWN   How many sdt pages we now need
+;       PGECNT  A counter that holds the page number
+
+;       NMSDTP  The number of SDT pages we already have
+;       SDTTAB  Table of core addresses or virtual addresses of pages
+;                SDTTAB(0) apply to first page
+;       SDTCOR  Table of high 9 bits of core address of pages
+;                SDTCOR(0) refers to first page
+
+;       UDFSYM  number of sdt entries (or user defined symbols)
+;       SDTIN   -1 if SDT is in core, 0 if its not, 1 if its not and we want it intact
+;               like for a direct stmt or cde when no source mod has occured
+;       NAMIDX  a parser cell that holds the number of name table entries
+
+; We call this routine near the top of the declar pass. We get and lock all
+; the old sdt pages (if any) from the last compil of this program (if there
+; was a last compil). We then make new pages if enough new symbols were
+; added to the program to require new pages.
+;  At the completion of this compil we will unlock all the pages.
+
+
+        EXTERN NAMIDX,NMSDTP,SDTTAB,SDTIN,NSV1
+
+        SKIPGE  SDTIN           ; IS SDT TABLE IN CORE?
+        JRST    GTSDT$           ; YES, DO NOTHING
+
+        MOVE    0,NAMIDX        ; NUMBER OF NAMETABLE ENTRYS
+        SUB     0,FUN           ; SUBTRACT FIRST USER NAME
+        ADD     0,NSV1          ; ADD NUMBER OF SYSTEM VARIABLES
+        SUBI    0,1             ; (NSV1 IS TOO BIG BY 1)
+        MOVEM   0,UDFSYM        ; TO GET NUMBER OF SDT ENTRIES
+        ADDI    0,PSIZE/2-1     ; ADD ONE LESS THAN A WHOLE PAGE OF ENTRIES
+        IDIVI   0,PSIZE/2       ; AT TWO WORDS EACH, HOW MANY PAGES DO WE NEED?
+        MOVEM   0,HMPWN         ; HWPWN=HOW MANY PAGES WE NEED
+
+        SETZM   PGECNT          ; PAGE COUNTER
+GTSDT1: AOS     1,PGECNT        ; FOR PGECNT = 1 TO NMSDTP
+        CAMLE   1,NMSDTP
+        JRST    GTSDT2
+
+        MOVE    1,SDTTAB-1(1)   ; GET VIRTUAL ADDR OF PAGE
+        READ    1
+        MOVE    2,PGECNT
+        MOVEM   1,SDTTAB-1(2)   ; PUT CORE ADDR. IN TABLE
+        LDB     0,HIBITS        ; GET HIGH BITS OF CORE ADDRESS
+        MOVEM   0,SDTCOR-1(2)   ; PUT INTO TABLE FOR SDTGET TO USE
+
+        SKIPE   SDTIN
+        JRST    GTSDT1  ; WE NEED THE OLD SDT FOR THE CDE OR DIRECT STATEMENT
+
+;        Here we zero the page
+        SETZM   (1)             ; ZERO FIRST WORD OF PAGE
+        HRL     1,1
+        AOS     1               ; CORE ADDR,, CORE ADDR+1 TO R1
+        MOVE    2,1
+        BLT     1,PSIZE-2(2)    ; ZERO THE WHOLE PAGE
+
+        JRST    GTSDT1          ; NEXT PGECNT
+
+GTSDT2: CAMLE   1,HMPWN         ; FOR PGECNT= NMSDTP+1 TO HMPWN
+        JRST    GTSDT3
+
+;        Grab a new page of VMF
+        CALL    NVMFPG
+        MOVE    2,PGECNT
+        MOVEM   1,SDTTAB-1(2)   ; PUT CORE ADDR. IN TABLE
+        LDB     0,HIBITS        ; GET HIGH BITS OF CORE ADDRESS
+        MOVEM   0,SDTCOR-1(2)   ; PUT IN TABLE FOR SDTGET TO USE
+
+;       Zero the page
+        SETZM   (1)             ; ZERO FIRST WORD
+        HRL     1,1
+        AOS     1               ; CORE ADDR, CORE ADDR+1 TO R2
+        MOVE    2,1
+        BLT     1,PSIZE-2(2)    ; ZERO THE WHOLE PAGE
+
+        AOS     1,PGECNT
+        JRST    GTSDT2
+
+GTSDT3: MOVE    1,HMPWN
+        MOVEM   1,NMSDTP        ; NMSDTP := HMPWN
+        SETOM   SDTIN           ; SDT TABLE IS NOW IN CORE.
+
+GTSDT$: RETURN  MAKSDT
+
+                        ; BYTE POINTER TO GET HIGH 9 BITS OF CORE ADDRESS
+HIBITS: POINT   9,1,26  ; ... ... ... ... ... ...  XXX XXX XXX ... ... ...
+        SUBTTL  FRESDT  UNLOCK SDT
+        DCL     FRESDT,,<PGCNT>
+; This routine is called at the completion of the compilation
+
+        SETZM   PGCNT
+FRSDT1: AOS     2,PGCNT ; FOR PGCNT=1 TO NMSDTP
+        CAMLE   2,NMSDTP
+        JRST    FRSDT$
+        MOVE    1,SDTTAB-1(2)   ; GET CORE ADDR. TO WRITE PAGE
+        WRITE   1
+        MOVEM   1,SDTTAB-1(2)   ; PUT VIRTUAL ADDRESS IN TABLE
+        JRST    FRSDT1
+
+FRSDT$: SETZM   SDTIN           ; SDT TABLE IS NO LONGER IN CORE.
+        RETURN  FRESDT
+
+
+	SUBTTL  SDTGET   GET THE CORE ADRRESS OF AN SDT ENTRY GIVEN THE ID
+	DCL SDTGET
+; TO USE: PUT ID IN AC1, CORE ADR RETURNED IN AC1
+; IF THIS STILL SHOWS UP ON THE PROFIL THEN IT COULD BE MADE A MACRO
+
+        ROT     1,-^D8  ; PAGE NUM IN RIGHT HALF
+        HRR     1,SDTCOR(1)   ; GET HIGH BITS OF CORE ADDRESS
+        ROT     1,^D9   ; BUILD THE CORE ADDRESS
+
+        RETURN  SDTGET
+        SUBTTL  GETID  GET A VARIABLE FROM THE PMC, RETURN THE SDTP AND ID FOR IT
+        DCL     GETID,,<SDTP,ID>
+
+;                       GETID 1
+        ILDB    1,PMCP
+        LSH     1,9
+        ILDB    2,PMCP
+        ADD     1,2
+        MM      1,ID
+        MOVNI   0,2
+        ADDM    0,PMCK
+
+;                       GETID 2
+        JUMPE   1,GETD$$
+
+;                       GETID 3
+        CALL    SDTGET,<,$,ID>,<SDTP>
+;                       GETID 4
+
+;                       EXIT GETID
+GETD$$: RETURN GETID,<,$,ID>
+; THE FOLLOWING RETURNS GLNUM, GLNBK, GLNFW, AND LXPUT DEAL WITH THE LRXT,
+; THE LRT RAPID LOOKUP TABLE
+
+	SUBTTL GLNUM  GET A LINE NUMBER USING THE LRXT
+        DCL     GLNUM,<LNUM>,<LNUK,LNUMP>
+
+;                       GLNUM 1
+        MI      1,LRXT  ; LRXT/LRXL = LOWEST LINE NUMBER
+        FGET    0,1,LRXL
+        CAMLE   0,LNUM
+        J       GLNUM9
+
+;                       GLNUM 2
+        M       2,LRXN  ; LRXN IS THE ENTRY FOR THE HIGHEST LINE IN PROGRAM
+        MI      1,LRXT(2)
+        FGET    0,1,LRXL
+        CAML    0,LNUM
+        J       GLNUM4
+
+;                       GLNUM 3
+        M       2,LRXN
+        MI      3,LRXT(2)
+        FGET    1,3,LRXK
+        CALL    TLOC,<$,LRT>,<LNUMP>
+        J       GLNM$$
+
+;                       GLNUM 4  ((LNUM-LRXT/LRXL(0))*LRXN)DIV LRXRG
+GLNUM4: MI 2,LRXT
+        FGET    1,2,LRXL
+        M       2,LNUM
+        SUB     2,1
+        IMUL    2,LRXN
+        IDIV    2,LRXRG
+        MM      2,LNUK
+
+;                       GLNUM 5
+        M       1,LNUK
+        MI      2,LRXT(1)
+        FGET    0,2,LRXL
+        CAMN    0,LNUM
+        J       GLNUM7
+        CAMG    0,LNUM
+        J       GLNUM8
+
+;                       GLNUM 6
+        BCALL   GLNBK
+        J       GLNM$$
+
+;                       GLNUM 7
+GLNUM7: M 1,LNUK
+        MI      2,LRXT(1)
+        FGET    1,2,LRXK
+        CALL    TLOC,<$,LRT>,<LNUMP>
+        J       GLNM$$
+
+;                       GLNUM 8
+GLNUM8: BCALL GLNFW
+        J       GLNM$$
+
+;                       GLNUM 9
+GLNUM9: MI 2,LRXT
+        FGET    1,2,LRXK
+        CALL    TLOC,<$,LRT>,<LNUMP>
+
+;                       EXIT GLNUM
+GLNM$$: RETURN GLNUM,<$,LNUMP>
+        SUBTTL  GLNBK GET LINE NUMBER, SEARCH BACKWARDS FROM INITIAL GUESS
+        BDCL    GLNBK
+
+;                       GLNBK 1
+GLNBK1: SOS 0,LNUK
+
+;                       GLNBK 2
+        M       1,LNUK
+        MI      2,LRXT(1)
+        FGET    1,2,LRXL
+        CAMLE   1,LNUM
+        J       GLNBK1
+
+;                       GLNBK 3
+        M       1,LNUK
+        MI      2,LRXT(1)
+        FGET    1,2,LRXK
+        MM      1,LNUK
+
+;                       GLNBK 4
+GLNBK4: CALL TLOC,<$,LRT,$,LNUK>,<LNUMP>
+        FGET    0,1,LNXT
+        MM      0,LNUK
+
+;                       GLNBK 5
+        M       1,LNUMP
+        FGET    0,1,LNUMB
+        CAML    0,LNUM
+        J       GNBK$$
+
+;                       GLNBK 6
+        MOVE    1,LNUMP
+        CALL    RCLN
+        J       GLNBK4
+
+;                       EXIT GLNBK
+GNBK$$: BRETURN GLNBK
+        SUBTTL  GLNFW GET LINE NUMBER, SEARCH FORWARDS FROM INITIAL GUESS
+        BDCL    GLNFW
+
+;                       GLNFW 1
+GLNFW1: AOS 0,LNUK
+
+;               GLNFW 2
+        M       1,LNUK
+        MI      2,LRXT(1)
+        FGET    1,2,LRXL
+        CAMGE   1,LNUM
+        J       GLNFW1
+
+;                       GLNFW 3
+        M       1,LNUK
+        SUBI    1,1
+        MI      2,LRXT(1)
+        FGET    0,2,LRXK
+        MM      0,LNUK
+
+;                       GLNFW 4
+GLNFW4: CALL TLOC,<$,LRT,$,LNUK>,<LNUMP> ; R1 HAS LNUMP
+        FGET    0,1,LNXT
+        MM      0,LNUK
+
+;                       GLNFW 5 , R1 USED FROM LAST BOX
+        FGET    0,1,LNUMB
+        CAML    0,LNUM
+        J       GNFW$$
+
+;                       GLNFW 6
+        MOVE    1,LNUMP
+        CALL    RCLN
+        J       GLNFW4
+
+;                       EXIT GLNFW
+GNFW$$: BRETURN GLNFW
+        SUBTTL  LXPUT   MAKE A NEW ENTRY IN THE LRXT
+        DCL     LXPUT,<LRECN>
+
+;                       LXPUT 1
+        MOVE    1,0
+        AOS     0,LRXN
+        M       2,LRXN
+        MI      2,LRXT(2)
+        FPUT    1,2,LRXK
+        M       1,LRTP
+        FGET    0,1,LNUMB
+        FPUT    0,2,LRXL
+
+;                       EXIT LXPUT
+        RETURN  LXPUT
+        SUBTTL  PNUM    PRINT THE INTEGER N
+        ; This routine used by SYMD (maybe CDE and errors also)
+        DCL     PNUM,<N>
+
+;                       PNUM 1
+        M       0,N
+        M       1,[POINT 7,MBUF]
+        CALL    IISC
+        MI      1,0
+        IDPB    1,2
+        CALL    TDO,<MBUF,MONOCR>
+
+;                       EXIT PNUM
+        RETURN  PNUM
+        SUBTTL  PREL    PRINT THE LINE NUMBER
+        DCL     PREL
+
+;       PREL 1
+        M       1,LRTP
+        FGET    0,1,LNUMB
+        M       1,[POINT 7,MBUF]
+        CALL    IISC
+        MI      1,0
+        IDPB    1,2
+        CALL    CXR1,<MBUF,MOCR>
+
+;       EXIT PREL
+        RETURN  PREL
+        SUBTTL  SETDOL   GET DEFAULT VARIABLE TYPE (look for a $)
+        DCL     SETDOL,<ID>
+
+;       SETDOL 1
+        ADD     0,FUN
+        SUB     0,NSV2
+
+;       SETDOL 2
+        M       1,0
+        IDIVI   1,WDPRPG
+        M       1,NAMDIC(1)
+        IMULI   2,3
+        ADD     1,2
+
+;address of name table entry now in R1.
+;find out whether name ends with $.
+;Find last character of name:
+
+        SKIPN   R2,1(R1)        ;is second word zero?
+        JRST    LFSTWD          ;yes, last char is in first word
+        HLLZ    R3,2(R1)        ;get third word
+        JUMPE   R3,SDLOOK       ;3rd word zero, char is in 2nd
+        HLRZ    R2,R3           ;zero junk in other half of third word
+        JRST    SDLOOK
+LFSTWD: MOVE    R2,0(R1)
+SDLOOK: TRNN    R2,-1           ;anything in right half?
+        HLR     R2,R2           ;no, swap halves
+        TRNN    R2,^O77         ;last char?
+        LSH     R2,-6           ;no, next
+        TRNN    R2,^O77         ;last now?
+        LSH     R2,-6
+        MOVEI   R1,REAL
+        TRNN    R2,^O70         ;anything in 1st 3 bits of char?
+        MOVEI   R1,STR          ;no, must be a $ (code ^O04)
+
+;       EXIT SETDOL
+STDL$$: RETURN SETDOL
+        SUBTTL  SWPPOP
+        DCL     SWPPOP
+        CALL    SWPSCT
+        M       1,SUBPTR
+        SUBI    1,SUBSIZ
+        MM      1,SUBPTR
+        DMOVE   2,0(1)
+        DMOVEM  2,SUBNM
+        DMOVE   2,2(1)
+        DMOVEM  2,SUBNM+2
+;               EXIT SWPPOP
+        RETURN  SWPPOP
+        SUBTTL  SWPSCT Swap all parameters and local variables SDT-PARDT
+        DCL     SWPSCT,,<PROP,SWPR,PDTP,SDTP>
+
+;                       SWPSCT 1
+        CALL    TLOC,<$,PRODT,$,SUBNM>,<PROP> ; R1 HAS PROP
+
+;                       SWPSCT 2; R1 USED FROM LAST BOX
+        FGET    0,1,PPARS
+        MM      0,SWPR
+        MOVE    1,PROP
+        CALL    RCLN
+
+;                       SWPSCT 3
+spsct3: SKIPG   SWPR
+        J       SSCT$$
+
+;                       SWPSCT 5
+        CALL    TLOC,<$,PARDT,$,SWPR>,<PDTP>
+        M       2,PDTP
+        FGET    1,2,PANAM
+        JUMPE   R1,SPSCT9
+        FGET    R0,R2,PARLNK
+        MOVEM   R0,SWPR                 ;Link to next param or LV
+        CALL    SDTGET,,<SDTP>
+
+;                       SWPSCT 6
+        MOVE    R1,PDTP
+        MOVE    R2,SDTP
+        MOVE    R3,0(R1)
+        EXCH    R3,0(R2)
+        MOVEM   R3,0(R1)
+        FGET    R0,R1,PROCNO
+        FGET    R3,R2,SPROCN
+        FPUT    R3,R1,PROCNO
+        FPUT    R0,R2,SPROCN
+
+;                       SWPSCT 8
+SPSCT9: MOVE    1,PDTP
+        CALL    RDTY
+
+        JRST    SPSCT3
+
+;                       EXIT SWPSCT
+SSCT$$: RETURN SWPSCT
+        SUBTTL  DATA   GET A STRING FROM THE PMC AND PUT IT IN MBUF
+;                       MBUFD IS THE DESCRIPTOR FOR MBUF
+        DCL     DATA,,<PP,WW>
+
+;                       DATA 1
+        ILDB    1,PMCP
+        MI      2,MBUFD
+        FPUT    1,2,SDCL
+        MM      1,WW
+        SETCA   1,0
+        ADDM    1,PMCK
+        M       1,[POINT 7,MBUF]
+        MM      1,PP
+
+;                       DATA 2
+DATA2:  SKIPN WW
+        J       DATA$$
+
+;                       DATA 3
+        ILDB    1,PMCP
+        IDPB    1,PP
+        SOS     WW
+        J       DATA2
+
+;                       EXIT DATA
+DATA$$: RETURN DATA
+        SUBTTL  NMDCL  DECLAR A NAMED SUBARRAY
+        ; THIS ROUTINE CALLED BY DNAM AND NMFXP
+        DCL     NMDCL,<SDTP,ID,NDIM1,NDIM2>
+;.1
+        MOVE    3,SDTP2
+;.3
+NMDC3:  FGET 0,3,SN
+        SKIPE   0,NDIM2
+        J       .+3
+        MM      0,NDIM1
+        MM      0,NDIM2
+        CAME    0,NDIM2
+        J       NMDC10
+;.4
+NMDC4:  MOVE 1,SDTP     ; have we seen the parent descriptor?
+        FGET    2,1,SUSED
+        JUMPN   2,NMDC8
+;.6
+        MOVEI   2,1
+        FPUT    2,1,SUSED
+        MOVEI   2,SARY
+        FPUT    2,1,SKND
+        MOVE    2,NDIM1
+        FPUT    2,1,SN
+        FGET    2,3,STYP
+        FPUT    2,1,STYP
+        MOVE    2,r%vrlc
+        FPUT    2,1,SLOC
+        MOVE    0,NDIM1         ;APPARENT DIMMENSIONS
+        MOVE    1,NDIM2
+        SUB     1,NDIM1         ;HIDDEN DIMENSIONS
+        CALL    .SLCDR
+        ADDM    1,R%VRLC        ;THE SLICE DESCRIPTOR
+        JRST    NMDC$$
+;.8
+NMDC8:  FGET 2,1,SKND
+        FGET    4,3,SKND
+        CAME    2,4
+        JRST    NMDC9
+        FGET    2,1,STYP
+        FGET    4,3,STYP
+        CAME    2,4
+        JRST    NMDC9
+        FGET    2,1,SN
+        CAMN    2,NDIM1
+        JRST    NMDC$$
+;.9
+        ; error 'INVALID DUPLICATE DECLARATION'
+NMDC9:  CALL CNERR,<2,$,ID>
+        JRST    NMDC$$
+;.10
+        ; error 'WRONG NUMBER OF SUBSCRIPTS FOR ___'
+NMDC10: CALL CNERR,<6,$,ID2>
+;EXIT NMDCL
+NMDC$$: RETURN NMDCL
+
+        END
+    iç
