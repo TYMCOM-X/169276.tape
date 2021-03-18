@@ -1,0 +1,1759 @@
+	page
+        TITLE   STRING
+
+; 18 AUG 76     Put in new INDX routine for INDEX and COUNT that references
+;               ASCTABLE. Hopefully removes the bug I couldn't find in
+;               the old code.
+
+; 11 AUG 76     Put in new CHAR function and CHAR2 for 2 arguments.
+;               Also put store STR2 fix into SINDX.
+
+; 3 JUL 76	Add subroutines CREL1 and CREL2 to do conditional
+;	releases (like MB.REL) referancing memory cells STR1, STR2,
+;	and SCOD (instead of registers in MB.REL).
+;	Pervasive trivial changes to install calls to these
+;	routines/macro.  The REL macro is no longer referanced by
+;	the STRING package.
+;		Fix to RSLEN to avoid clobbering returned value
+;	when releasing temp argument.
+;		-Walt
+; 29 JUN 76	Add macro MB.REL (MayBe RELease) that releases a
+;	string body only if it was allocated.  -Walt
+
+; 27 JUN 76	Alter scmp to appeal to ASCTABLE when
+;	it thinks it's found a difference between two strings
+;	during its word-by-word compare.
+;		-Walt
+
+; 18 JUN 76	Substitute : for :: throughout.
+;		Move data block LEFTB to the end of the file and
+;	make it a separate program. (needed by some I/O code)
+;		Insert standard RUNOFF commands at the top
+;	of the file for later PLM making.
+;		Implement string relationals.
+;		Make page marks all over the place.
+;		-- Walt Main
+
+;+
+;.FIRST TITLE .NJ .P 0 .FLAG CAP .FLAG IND
+;.SUBT STRING PACKAGE
+;-
+
+        TWOSEG
+        RELOC   0
+	RADIX	10
+
+        EXTERN  ASCTBL,CHRTBL,CHANTB
+	EXTERN	RELSP
+        EXTERN  ROKFIL
+	EXTERN	LEFTB
+
+
+;               STORAGE FOR RUNSIDE STRING ROUTINES
+
+STMP1: BLOCK 2
+IDXSW: 0
+CTMOV: 0
+STR1: 0		; cells STR1 and STR2 must remain together --
+STR2: 0		;     DMOVEMS happen. . . .
+SCOD: 0
+STARG: 0
+LONGER: 0
+N1: 0
+SLEN: 0
+RPTCT: 0
+INDX: 0
+
+;    MACRO TO RELEASE A STRING BODY ONLY IF IT WAS ALLOCATED.
+; Input:  
+;	PTRADR: cell containing the address of the string descriptor.
+;		If this arguement is not EXACTLY STR1 or STR2, the
+;		macro assumes it's a register and will generate code
+;		accordingly.
+;	SCODE:	REGISTER containing the string code.  RELSP will
+;		never be called if the register is non-zero
+;		at runtime.  May be omitted, in which case no test
+;		is generated.
+;	%L:	Label of next word beyond all the code generated
+;		by this macro.  I always omit it, in which case the
+;		label is only generated if SCODE is non-blank.
+
+DEFINE MB.REL (PTRADR,SCODE,%L)
+<
+   IFNB <SCODE>, <
+	   Jumpe SCODE, %L>
+   IFIDN <PTRADR> <STR1>, <
+	   Move	1,STR1
+	   Skipe	1,(1)	>
+   IFDIF <PTRADR> <STR1>, <
+     IFIDN <PTRADR> <STR2>, <
+	   Move	1,STR2
+	   Skipe	1,(1)	>
+     IFDIF <PTRADR> <STR2>, <
+	   Skipe	1,(PTRADR)  >
+   >
+	   Pushj	R17,RELSP
+   IFNB <SCODE>, <%L:>
+>
+
+
+;               RUNSIDE STRING CONSTANTS
+
+        RELOC ^O400000
+
+BLKLTB: BYTE(7) 0,0,0,0,0
+         BYTE(7) " ",0,0,0,0
+         BYTE(7) " "," ",0,0,0
+         BYTE(7) " "," "," ",0,0
+         BYTE(7) " "," "," "," ",0
+
+BLKRTB: BYTE(7) " "," "," "," "," "
+         BYTE(7) 0," "," "," "," "
+         BYTE(7) 0,0," "," "," "
+         BYTE(7) 0,0,0," "," "
+         BYTE(7) 0,0,0,0," "
+
+ZERRTB: BYTE(7) ^O177,^O177,^O177,^O177,^O177
+         BYTE(7) ^O177,^O177,^O177,^O177,0
+         BYTE(7) ^O177,^O177,^O177,0,0
+         BYTE(7) ^O177,^O177,0,0,0
+         BYTE(7) ^O177,0,0,0,0
+
+RJSHFT: 0
+         -36
+         -29
+         -22
+         -15
+
+MVCSH1: -1
+         -8
+         -15
+         -22
+         -29
+
+        SUBTTL  RTAB1
+        DCL     RTAB1
+
+;                       1
+        M       8,1
+
+;                       2
+        CALL    RPOST
+
+;                       3
+        SUB     8,1
+        M       1,8
+
+;                       4
+        CALL    RSBLK
+
+;                       EXIT
+        RETURN  RTAB1
+
+
+        SUBTTL  RPOST
+        DCL     RPOST
+
+;                       1
+        MI      1,TERNUM
+        M       2,CHANTB(1)
+
+;                       2
+        M       1,FCBPOS(2)
+        ADD     1,FCBOWB(2)
+        ADDI    1,1     ;positions start at 1
+
+;                       EXIT
+        RETURN  RPOST
+
+
+        SUBTTL  RTAB2
+        DCL     RTAB2
+
+;                       1
+        M       8,1
+        M       9,4
+        M       1,3
+
+;                       2
+        CALL    RPOS
+
+;                       3
+        SUB     8,1
+        M       1,8
+        M       4,9
+
+;                       4
+        CALL    RSBLK
+
+;                       EXIT
+        RETURN  RTAB2
+
+
+        SUBTTL  RPOS
+        DCL     RPOS
+
+;                       1
+        M       6,1
+
+;                       2
+        CALL    ROKFIL
+
+;                       3
+        FCB     7
+
+;                       4
+        M       1,FCBPOS(7)
+        ADDI    1,1             ;We count up from 0, the user counts up from 1
+
+;                       EXIT
+        RETURN  RPOS
+
+
+        subttl  racxs
+;
+;       r1 = string descriptor address
+;       r2 = string descriptor address
+;
+;
+        dcl     racxs
+
+extern	racms
+
+sdadr1==r1      ; descriptor address, string 1
+sdadr2==r2      ; descriptor address, string 2
+dln1==r3        ; declared length, string 1
+dln2==r4        ; declared length, string 2
+aln1==r5        ; actual length, string 1
+bdy==r6         ; body address, string1/string2
+t1==r3          ; temp reg
+t2==r4          ; temp reg
+
+; Exchange actual lengths
+        hlrz    t1,1(sdadr1)
+        hlrz    t2,1(sdadr2)
+        hrlm    t1,1(sdadr2)
+        hrlm    t2,1(sdadr1)
+
+; Exchange pointers/back pointers
+        skipe   bdy,(sdadr1)            ; fetch body address of string 1
+        movem   sdadr2,-1(bdy)          ; back link string1 body to string2
+        exch    bdy,(sdadr2)            ; exchange body addresses
+        movem   bdy,(sdadr1)
+        jumpe   bdy,.+2
+        movem   sdadr1,-1(bdy)          ; back link string2 body to string1
+
+; Fetch declared lengths
+        hrrz    dln1,1(sdadr1)
+        hrrz    dln2,1(sdadr2)
+
+; If declared lengths are equal then we're done...
+        camn    dln1,dln2
+        jrst    racxs3
+
+; Get string with smallest declared length into sdadr1 and dln1
+        camg    dln1,dln2
+        jrst    racxs2
+        move    dln1,dln2
+        move    sdadr1,sdadr2
+
+; If actual length <= declared length then we're done...
+racxs2: hlrz    aln1,1(sdadr1)          ; fetch actual length
+        camg    aln1,dln1
+        jrst    racxs3
+
+; Set up temp descriptor and store the silly thing with RACMS
+        dmove   t1,(sdadr1)
+        dmovem  t1,stmp1
+        movei   t2,stmp1
+        movem   t2,-1(t1)
+        setzb   t1,(sdadr1)             ; unlink it from original descriptor
+        hrlm    t1,1(sdadr1)            ; zero actual length of target
+
+        move    r2,sdadr1
+        movei   r1,stmp1
+        movei   r5,4
+        call    racms
+
+racxs3: return  racxs
+        SUBTTL RCHAR
+        DCL     RCHAR
+
+;+
+;.PAGE;RCHAR - Routine to return a string of up to N characters
+;corresponding to the collating sequence codes of the integer I.
+;The appropriate characters are taken from the table CHARTABLE.
+;This routine ignores leading NULs, but imbedded and trailing NULs
+;are valid.
+;.s1;Parameters:
+;.s1;R1 - contains the integer I
+;.br;R2 - contains the integer N
+;.br;R4 - contains the address of the descriptor for the new string
+;.s1;N should be a number between 0 and 5. If it is not,
+;this routine will force it to 0 or 5. The resultant string length
+;will be an integer between 0 and the so modified N.
+;-
+
+        CAIGE   2,0             ;FORCE 2ND ARG TO 0<= <=5
+        MOVEI   2,0
+        CAILE   2,5
+        MOVEI   2,5
+
+;GET BYTE POINTER TO FIRST 7 BITS OF REAL DATA IN THE 1ST ARG:
+
+        MOVE    5,[POINT 7,1,7] ;BYTE POINTER IS 1 OFF FROM NORMAL
+        MOVEI   3,5
+        SUB     3,2             ;COUNT OF NON-DATA BYTES
+        SOJL    3,RCHAR3
+        IBP     5
+        JRST    .-2
+
+;DISPENSE WITH LEADING NUL'S:
+
+RCHAR3: JUMPE   2,RCHAR4
+        LDB     7,5
+        SKIPE   7               ; A NUL?
+        JRST    RCHAR4          ;NO-IT'S GOOD
+        SOJLE   2,RCHAR4        ;NOTHING LEFT?
+        IBP     5
+        JRST    RCHAR3
+
+;# OF CHARS LEFT IS IN R2.
+;PUT THESE, TRANSLATED VIA CHARTABLE, INTO R8:
+
+RCHAR4: PUSH    R17,2           ;REMEMBER COUNT
+        SETZ    8,              ;PREPARE ACC
+RCHAR5: SOJL    2,RCHAR6
+        LDB     7,5             ;GET NEXT CHAR
+        IBP     5               ;AND INCR POINTER
+        LSH     7,1             ;MULT BY 2 TO INDEX CHARTABLE DESCRIPTORS.
+        ADD     7,CHRTBL        ;GET ADDR OF DESCRIPTOR
+        MOVE    7,@(7)          ;GET FIRST WORD OF STRING BODY
+        LSH     7,-28           ;RIGHT JUSTIFY
+        LSH     8,7             ;ADD TO ACCUMULATOR
+        ADD     8,7
+        JRST    RCHAR5
+
+;CHARACTER COUNT IS IN THE STACK.
+;STRING IS RIGHT-JUSTIFIED IN R8.
+;ALLOCATE SPACE FOR STRING BODY, AND DEPOSIT LEFT-JUSTIFIED
+;STRING INTO IT.
+
+RCHAR6: MOVEI   6,5
+        SUB     6,(R17)         ;GET SHIFT COUNT
+        IMULI   6,7             ;IN BITS
+        LSH     8,(6)           ;LEFT JUSTIFY THE STRING
+
+;GET SPACE:
+
+        MOVE    0,(R17)
+        IDIVI   0,5
+        ADDI    0,1             ;WORD COUNT
+        PUSH    R17,8           ;SAVE STRING RESULT
+        MOVE    1,4             ;ADDR OF DESCRIPTOR
+        MOVEI   2,0             ;RELOCATION TYPE 0
+        ALLOC
+        POP     R17,8
+        POP     R17,3
+
+;1 OR 2 WORDS NOW ALLOCATED FOR NEW STRING AT ADDRESS IN R2.
+
+        MOVEM   8,(2)           ;STORE STRING INTO BODY
+        CAIN    3,5             ;A FULL 5 CHARACTERS?
+        SETZM   1(2)            ;YES-ZERO OUT SECOND WORD
+
+        HRL     3,3             ;COUNT,,COUNT
+        MOVEM   3,1(4)          ;INTO THE SECOND WORD OF THE DESCRIPTOR
+                                ;THE FIRST WORD WAS SET BY THE ALLOC ROUTINE
+
+        RETURN  RCHAR
+       SUBTTL  RNDX2
+       DCL     RNDX2
+
+;                              1
+       MI      3,1
+       SETZM   0,IDXSW
+
+;                              2
+       CALL    SINDX
+
+;                              EXIT
+       RETURN  RNDX2
+
+
+       SUBTTL  RNDX3
+       DCL     RNDX3
+
+;                              1-2
+       JUMPG   3,.+2
+       MI      3,1
+
+;                              3
+       SETZM   0,IDXSW
+
+;                              4
+       CALL    SINDX
+
+;                              EXIT
+       RETURN  RNDX3
+
+
+       SUBTTL  RSAS1
+       DCL     RSAS1
+
+;                              1
+       HLRZ    8,1(2)
+
+;                              2
+       JUMPN   8,RSA14
+
+;                              3
+       SETO    6,0
+       J       RSA18
+
+;                              4
+RSA14: CAILE   8,5
+       MI      8,5
+
+;                              5
+       M       4,@0(2)
+       M       7,ASCTBL
+       MI      6,0
+
+;                              6-7
+RSA16: MI      3,0
+       LSHC    3,7
+       LSH     6,7
+       ADD     3,7
+       IOR     6,0(3)
+       SOJG    8,RSA16
+RSA18:	MB.REL	2,5
+;                              10
+	M       1,6
+
+;                              EXIT
+       RETURN  RSAS1
+       SUBTTL  RSASC
+       DCL     RSASC
+
+;                              1
+       HLRZ    3,1(2)
+
+;                              2
+       JUMPLE  1,RSAS3
+       JUMPN   3,RSAS4
+
+;                              3
+RSAS3: SETO    6,0
+       J       RSAS8
+
+;                              4
+RSAS4: CAMLE   1,3
+       M       1,3
+       CAILE   1,5
+       MI      1,5
+
+;                              5
+       M       4,@0(2)
+       M       7,ASCTBL
+       MI      6,0
+
+;                              6-7
+RSAS6: MI      3,0
+       LSHC    3,7
+       LSH     6,7
+       ADD     3,7
+       IOR     6,0(3)
+       SOJG    1,RSAS6
+
+RSAS8:	MB.REL	2,5
+	M       1,6
+
+;                              EXIT
+       RETURN  RSASC
+       SUBTTL  RSBLK
+       DCL     RSBLK
+
+;                              1
+       JUMPGE  1,RSBK3
+
+;                              2
+       MI      1,0
+
+;                              3-4
+RSBK3: CAILE   1,MAXSTR
+        ERROR   SE0
+
+;                              5
+       M       7,1
+       M       5,1
+       IDIVI   5,5
+
+;                              6
+       MI      0,1(5)
+       M       1,4
+       MI      2,0
+       ALLOC
+
+;                              7
+       HRL     0,7
+       HRRI    0,MAXSTR
+       MM      0,1(4)
+
+;                              8
+       JUMPE   5,RSBK12
+
+;                              9
+       MOVN    5,5
+       HRL     2,5
+       M       3,[ASCII "     "]
+
+;                              10-11
+RSBK10:MM      3,0(2)
+       AOBJN   2,RSBK10
+
+;                              12
+RSBK12:M       0,BLKLTB(6)
+       MM      0,0(2)
+
+;                              EXIT
+       RETURN  RSBLK
+       SUBTTL  RSBN2
+       DCL     RSBN2
+
+;                              0-1
+        SOJGE  1,RSB23
+
+;                              2
+       MI      1,0
+
+;                              3
+RSB23: HLRZ    3,1(2)
+
+;                              4
+       SUB     3,1         ;R3 GETS R3-R1
+       JUMPGE  3,.+2
+       MI      3,0
+       MM      3,CTMOV
+       M       6,1
+       IDIVI   6,5
+       MM      2,STR1
+       MM      5,SCOD
+       MM      4,STARG
+
+;                              5
+       M       0,3
+       IDIVI   0,5
+       ADDI    0,1
+       MI      1,STMP1
+       MI      2,0
+       ALLOC
+
+;                              6
+       M       0,3
+       M       1,@STR1
+       ADD     1,6
+       M       3,7
+       CALL    MVC3
+	CALL	CREL1
+	JSP     8,STMPR4
+
+;                              EXIT
+       RETURN  RSBN2
+
+
+       SUBTTL  RSBNL
+       DCL     RSBNL
+
+;                              0-1
+       SOJGE   1,RSBN3
+
+;                              2
+       MI      1,0
+
+;                              3
+RSBN3: HLRZ    6,1(2)
+
+;                              4
+       SUB     6,1         ;R6 GETS R6-R1
+       CAML    6,3
+       M       6,3
+       JUMPGE  6,.+2
+       MI      6,0
+       MM      6,CTMOV
+       M       0,6
+       M       6,1
+       IDIVI   6,5
+       MM      2,STR1
+       MM      5,SCOD
+       MM      4,STARG
+
+;                              5
+       IDIVI   0,5         ;R0 SET ABOVE
+       ADDI    0,1
+       MI      1,STMP1
+       MI      2,0
+       ALLOC
+
+;                              6
+       M       0,CTMOV
+       M       1,@STR1
+       ADD     1,6
+       M       3,7
+       CALL    MVC3
+	CALL	CREL1
+	JSP     8,STMPR4
+
+;                              EXIT
+       RETURN  RSBNL
+
+
+       SUBTTL  RSCAT
+       DCL     RSCAT
+
+;                              1
+       HLRZ    3,1(2)
+       HLRZ    6,1(1)      ;R6 GETS ($(R1+1))LH
+       ADD     3,6
+
+;                              2-3
+       CAILE   3,MAXSTR
+        ERROR   SE0
+
+;                              4
+       MM      1,STR1
+       MM      2,STR2
+       MM      3,CTMOV
+       MM      4,STARG
+       MM      5,SCOD
+       IDIVI   6,5         ;R6 SET ABOVE
+
+;                              5
+       M       0,3
+       IDIVI   0,5
+       ADDI    0,1
+       MI      1,STMP1
+       MI      2,0
+       ALLOC
+
+;                              6
+       HRL     8,@STR1
+       HRR     8,2
+       ADD     2,6
+       BLT     8,0(2)
+
+;                              7
+       M       8,STR2
+       HLRZ    0,1(8)
+       M       1,0(8)
+       M       2,STMP1
+       ADD     2,6
+       M       3,7
+       CALL    MVC2
+	CALL	CREL2
+
+;                              12
+	JSP     8,STMPR4
+
+;                              EXIT
+       RETURN  RSCAT
+
+
+	SUBTTL STRING RELATIONALS
+;+
+;.p
+;<string <>relationals
+;.p
+; The following entries are to allow the compiler to
+; generate calls for the relational the user wants and
+; expect a logical value back, rather than calling COMP(S1,S2)
+; and reducing the -1,0,1 to logical in generated code.
+; As a first cut, we take the simple-minded approach:
+; call COMP and reduce the value by a table lookup.
+; (please don't get boggled by the fact that six three-word
+; tables are combined into 8 words of data)
+; If the compiler takes advantage of this, it will be feasable
+; in future to make special code for the EQ and NE cases that
+; runs a lot faster.
+;.NF .P
+;INPUT	R1: S1
+;	R2: S2
+;	R5: string code
+;.p
+;OUTPUT	R1: result, logical valued
+;.S
+;.FILL
+;-
+	DCL	.STRLE;&.BR;	ENTRY .STRLE
+	CALL	RSCMP	; Pass the args straight through
+	MOVE	R1,LE(R1)	; table lookup
+	RETURN	.STRLE
+
+	DCL	.STRGE;&.BR;	ENTRY .STRGE
+	CALL	RSCMP	; Pass the args straight through
+	MOVE	R1,GE(R1)	; table lookup
+	RETURN	.STRGE
+
+	DCL	.STRG;&.BR;	ENTRY .STRG
+	CALL	RSCMP	; Pass the args straight through
+	MOVE	R1,G(R1)	; table lookup
+	RETURN	.STRG
+
+	DCL	.STRL;&.BR;	ENTRY .STRL
+	CALL	RSCMP	; Pass the args straight through
+	MOVE	R1,L(R1)	; table lookup
+	RETURN	.STRL
+
+	DCL	.STRE;&.BR;	ENTRY .STRE
+	CALL	RSCMP	; Pass the args straight through
+	MOVE	R1,E(R1)	; table lookup
+	RETURN	.STRE
+
+	DCL	.STRNE;&.BR;	ENTRY .STRNE
+	CALL	RSCMP	; Pass the args straight through
+	MOVE	R1,NE(R1)	; table lookup
+	RETURN	.STRNE
+
+	0
+GE:	1
+LE:	1
+L:	0
+G:	0
+E:	1
+NE:	0
+	1
+       SUBTTL  RSCMP
+       DCL     RSCMP
+
+;                              1
+       CALL	SCMP
+	CALL	CREL2
+	M       1,9
+
+;                              EXIT
+       RETURN  RSCMP
+       SUBTTL  RSCNT
+       DCL     RSCNT
+
+;                              1
+       MI      3,1
+       SETOM   0,IDXSW
+
+;                              2
+       CALL    SINDX
+
+;                              EXIT
+       RETURN  RSCNT
+
+
+
+
+       SUBTTL  RSLEN
+       DCL     RSLEN
+
+;                              1
+       HLRZ    9,1(2)
+	MB.REL	2,5
+;                              EXIT
+	MOVE	1,9
+	RETURN RSLEN
+       SUBTTL  RSLFT
+       DCL     RSLFT
+
+;                              1
+       HLRZ    6,1(2)
+
+;                              2
+       CAML    6,1
+       M       6,1
+       JUMPGE  6,.+2
+       MI      6,0
+       MM      6,CTMOV
+       MM      1
+       MM      4,STARG
+       IDIVI   6,5
+
+;                              3
+       MI      0,1(6)
+       MI      1,STMP1
+       MI      2,0
+       ALLOC
+
+;                              4
+       HRL     8,@STR1
+       HRR     8,2
+       ADD     2,6
+       BLT     8,0(2)
+       M       0,LEFTB(7)
+       ANDM    0,0(2)      ;ZERO-FILL LAST WORD
+
+	MB.REL	STR1,5
+;                              7
+	JSP     8,STMPR4
+
+;                              EXIT
+       RETURN  RSLFT
+       SUBTTL  RSLJT
+       DCL     RSLJT
+
+;                              1
+       MM      4,STARG
+       MM      5,SCOD
+       MM      2,STR1
+       M       8,0(2)
+       MI      1,0
+       MI      0,0
+       M       10,BLKRTB
+
+;                              2-3
+RSLJ2: CAME    10,0(8)
+       J       RSLJ4
+       ADDI    1,5
+       AOJA    8,RSLJ2
+
+;                              4
+RSLJ4: M       9,0(8)
+
+;                              5-7
+RSLJ5: MI      8,0
+       LSHC    8,7
+       CAIN    8," "
+       AOJA    1,RSLJ5
+
+;                              8
+       HLRZ    8,1(2)
+       SUB     8,1
+       MM      8,CTMOV
+       M       6,1
+       IDIVI   6,5
+
+;                              9
+       M       0,8
+       IDIVI   0,5
+       ADDI    0,1
+       MI      1,STMP1
+       MI      2,0
+       ALLOC
+
+;                              10
+       M       0,8
+       M       1,@STR1
+       ADD     1,6
+       M       2,STMP1
+       M       3,7
+       CALL    MVC3
+	CALL	CREL1
+;                              13
+	JSP     8,STMPR4
+
+;                              EXIT
+       RETURN  RSLJT
+        SUBTTL  .CPAD
+
+        DCL     .CPAD,<,STRLEN,SRCADR,,DSTADR,STRCOD>
+
+;Routine to center a string by padding on left and right with spaces.
+;String is left-centered if it can't be evenly centered.
+
+;Arguments:
+;R1 - length of desired string
+;R2 - address of source string descriptor
+;R4 - address of destination string descriptor
+;R5 - string release code
+
+        CAILE   R1,MAXSTR
+        ERROR   SE0
+
+        HLRZ    R6,1(R2)        ;current string length
+        MOVE    R3,R1           ;desired length
+        SUB     R3,R6           ;# spaces needed
+        SKIPGE  R3
+        MOVEI   R3,0
+        MOVE    R0,R3
+        ADD     R0,R6           ;actual length of final result
+        MOVEM   R0,STRLEN
+        IDIVI   R3,2            ;# spaces needed on left
+        MOVE    R1,R6           ;current length
+        ADD     R1,R3           ;desired left-padded length
+        CALL    RSLPD,<,,$,SRCADR,,$,DSTADR,$,STRCOD>
+;Left-padded string is now in the destination string. Right pad it:
+        CALL    RSRPD,<,$,STRLEN,$,DSTADR,,$,DSTADR,1>
+
+        RETURN  .CPAD
+       SUBTTL  RSLPD
+       DCL     RSLPD
+
+;                              0A-0B
+       CAILE   1,MAXSTR
+        ERROR   SE0
+
+;                              1
+       HLRZ    6,1(2)
+       M       3,1
+       SUB     3,6
+       JUMPGE  3,.+2
+       MI      3,0
+       M       0,3
+       ADD     0,6
+       MM      0,CTMOV
+       IDIVI   0,5
+       MM      2,STR1
+       MM      5,SCOD
+       MM      4,STARG
+       M       7,3
+       IDIVI   7,5
+
+;                              2
+       ADDI    0,1
+       MI      1,STMP1
+       MI      2,0
+       ALLOC
+
+;                              3
+       JUMPLE  3,RSLP7
+
+;                              4
+       M       0,BLKRTB
+       MOVNI   9,1(7)
+       HRL     2,9
+
+;                              5-6
+RSLP5: MM      0,0(2)
+       AOBJN   2,RSLP5
+
+;                              7
+RSLP7: M       0,6
+       M       1,@STR1
+       M       2,STMP1
+       ADD     2,7
+       M       3,8
+       CALL    MVC2
+	CALL	CREL1
+;                              10
+	JSP     8,STMPR4
+
+;                              EXIT
+       RETURN  RSLPD
+
+
+       SUBTTL  RSMAX
+       DCL     RSMAX
+
+;                              1
+       CALL	SCMP
+
+;                              2-4
+       M       10,1
+       JUMPGE  9,RSMA5
+       M       10,2
+
+;                              5
+RSMA5: JSP     8,MXMNS
+
+;                              EXIT
+       RETURN  RSMAX
+
+
+       SUBTTL  RSMIN
+       DCL     RSMIN
+
+;                              1
+       CALL	SCMP
+
+;                              2-4
+       M       10,1
+       JUMPLE  9,RSMI5
+       M       10,2
+
+;                              5
+RSMI5: JSP     8,MXMNS
+
+;                              EXIT
+       RETURN  RSMIN
+
+
+       SUBTTL  RSRGT
+       DCL     RSRGT
+
+;                              1
+       HLRZ    6,1(2)
+
+;                              2
+       M       0,1
+       CAMLE   0,6
+       M       0,6
+       JUMPGE  0,.+2
+       MI      0,0
+       MM      0,CTMOV     ;R0 HAS CTMOV
+       MM      2,STR1
+       MM      4,STARG
+       MM      5,SCOD
+       SUB     6,0
+       IDIVI   6,5
+
+;                              3
+       IDIVI   0,5
+       ADDI    0,1
+       MI      1,STMP1
+       MI      2,0
+       ALLOC
+
+;                              4
+       M       0,CTMOV
+       M       1,@STR1
+       ADD     1,6
+       M       3,7
+       CALL    MVC3
+	CALL	CREL1
+;                              7
+	JSP     8,STMPR4
+
+;                              EXIT
+       RETURN  RSRGT
+
+
+       SUBTTL  RSRJT
+       DCL     RSRJT
+
+;                              1
+       HLRZ    3,1(2)
+       M       6,3
+       IDIVI   6,5
+       M       8,0(2)
+       ADD     8,6
+       MM      2,STR1
+       MI      0,1
+       M       9,0(8)
+
+;                              2
+       CAME    9,BLKLTB(7)
+       J       RSRJ4
+
+;                              3
+       M       1,7
+       MI      11,0
+       M       3,[ASCII "     "]
+       J       RSRJ8
+
+;                              4
+RSRJ4: MI      1,0
+       MI      10,0
+        MOVE    11,RJSHFT(7)
+        LSHC    9,0(11)
+        HRLZI   11,^O200000
+
+                               5-7
+RSRJ5: XOR     10,11
+       JUMPN   10,RSRJ8
+       LSHC    9,-7
+       AOJA    1,RSRJ5
+
+;                              8-9
+RSRJ8: SOJL    6,RSRJ17
+       JUMPN   11,RSRJ17
+
+;                              10
+       SUBI    8,1
+
+;                              11
+       CAME    3,0(8)
+       J       RSRJ13
+
+;                              12
+       ADDI    1,5
+       J       RSRJ8
+
+;                              13
+RSRJ13:M       9,0(8)
+       HRLZI   11,^O200000
+       MI      10,0
+       LSHC    9,-8
+
+;                              14-16
+RSRJ14:XOR     10,11
+       JUMPN   10,RSRJ8
+       LSHC    9,-7
+       AOJA    1,RSRJ14
+
+;                              17
+RSRJ17:HLRZ     8,1(2)
+       SUB     8,1
+       M       6,8
+       IDIVI   6,5
+
+;                              18
+       MI      0,1(6)
+       MI      1,STMP1
+       MI      2,0
+       ALLOC
+
+;                              19
+       HRL     9,@STR1
+       HRR     9,2
+       ADD     2,6
+       BLT     9,0(2)
+       M       0,LEFTB(7)
+       ANDM    0,0(2)      ;ZERO-PAD LAST WORD
+	MB.REL	STR1,5
+;                              22
+	MI      0,MAXSTR
+       HRL     0,8
+       MM      0,1(4)
+       M       5,STMP1
+       MOVPTR  5,4
+        SETZM   STMP1
+
+;                              EXIT
+       RETURN  RSRJT
+       SUBTTL  RSRPD
+       DCL     RSRPD
+
+;                              0A-0B
+       CAILE   R1,MAXSTR
+        ERROR   SE0
+
+;                              1
+       HLRZ    6,1(2)
+       M       3,1
+       SUB     3,6
+       JUMPGE  3,.+2
+       MI      3,0
+       M       0,3
+       ADD     0,6
+       MM      0,CTMOV
+       IDIVI   0,5
+       IDIVI   6,5
+       MM      2,STR1
+       MM      4,STARG
+
+;                              2
+       ADDI    0,1
+       MI      1,STMP1
+       MI      2,0
+        ALLOC
+
+;                              3
+       MI      0,0
+       HRL     8,@STR1
+       HRR     8,2
+       ADD     2,6
+       BLT     8,0(2)
+
+;                              4
+       JUMPLE  3,RSRD11
+
+;                              5
+       M       0,BLKRTB(7)
+       IORM    0,0(2)
+       ADD     3,7
+       SUBI    3,5
+       M       8,BLKRTB
+
+;                              6
+RSRD6: CAIGE   3,5
+       J       RSRD8
+
+;                              7
+       ADDI    2,1
+       MM      8,0(2)
+       SUBI    3,5
+       J       RSRD6
+
+;                              8
+RSRD8: JUMPGE  3,RSRD10
+
+;                              9
+       MOVN    3,3
+       M       0,ZERRTB(3)
+       ANDM    0,0(2)
+       J       RSRD11
+
+;                              10
+RSRD10:M       0,BLKLTB(3)
+       MM      0,1(2)
+RSRD11:	MB.REL	STR1,5
+;                              13
+RSRD13:JSP     8,STMPR4
+
+;                              EXIT
+       RETURN  RSRPD
+       SUBTTL  RSRPT
+       DCL     RSRPT
+
+;                              1
+       HLRZ    3,1(2)
+       JUMPG   1,.+2
+       MI      1,0
+       M       8,3
+       MUL     8,1
+
+;                              2-3
+       JUMPN   8,.+2
+       CAILE   9,MAXSTR
+        ERROR   SE0
+
+;                              4
+       MM      1,N1
+       MM      2,STR1
+       MM      3,SLEN
+       MM      4,STARG
+       MM      5,SCOD
+       MM      9,CTMOV
+       IDIVI   9,5
+       ADDI    9,1
+
+;                              5
+       M       0,9
+       MI      1,STMP1
+       MI      2,0
+        ALLOC
+
+;                              6
+       CAIE    3,1
+       J       RSRP12
+
+;                              7
+       M       8,@STR1
+       M       8,0(8)
+       MI      7,0
+       LSHC    7,7
+       MUL     7,[^O2010040201]
+       LSH     8,1
+
+;                              8
+       MOVN    9,9
+       HRL     2,9
+
+;                              9-10
+RSRP9: MM      8,0(2)
+       AOBJN   2,RSRP9
+
+;                              11
+       M       0,LEFTB(10)
+       ANDM    0,-1(2)
+       J       RSRP16
+
+;                              12
+RSRP12:SETZB   5,RPTCT
+
+;                              13
+RSRP13:CAMN    5,N1
+       J       RSRP16
+
+;                              14
+       M       0,SLEN
+       M       1,@STR1
+       M       2,0         ;SLEN INTO R2
+       IMUL    2,5         ;SLEN * RPTCT
+       IDIVI   2,5         ;SET R3
+       ADD     2,STMP1
+       CALL    MVC2
+
+;                              15
+       AOS     5,RPTCT
+       J       RSRP13
+
+RSRP16:	CALL	CREL1
+	JSP     8,STMPR4
+
+;                              EXIT
+       RETURN  RSRPT
+
+
+       SUBTTL  MVC2
+       DCL     MVC2
+
+;                              1
+       JUMPG   0,MVC23
+
+;                              2
+       M       4,LEFTB(3)
+       ANDM    4,0(2)
+       J       MVC2$$
+
+;                              3
+MVC23: JUMPN   3,MVC25
+
+;                              4
+       HRL     8,1
+       HRR     8,2
+       IDIVI   0,5         ;SET R1 TO REMAINDER CHAR. CT.
+       ADD     2,0         ;SET R2 TO FINAL WORD ADDRESS
+       BLT     8,0(2)
+       M       1,LEFTB(1)
+       ANDM    1,0(2)      ;ZERO-PAD
+       J       MVC2$$
+
+;                              5
+MVC25: M       6,MVCSH1(3)
+       M       4,0(1)
+       M       5,1(1)
+       LSH     4,-1
+       ROTC    4,2(6)
+       M       8,4
+       TRZ     8,1         ;SET BIT 35=0
+       TDZ     8,LEFTB(3)
+       M       9,0(2)
+       AND     9,LEFTB(3)
+       IOR     8,9
+       ADD     0,3
+        SUBI    0,5
+
+;                              6
+       JUMPL   0,MVC213
+
+;                              7-8
+       MM      8,0(2)
+       ROTC    4,-2
+       LSH     5,1
+       MOVNI   7,37(6)
+
+;                              9-10
+MVC29: SUBI    0,5
+       JUMPL   0,MVC212
+
+;                              11
+       MM      5,1(2)
+       ADDI    1,1
+       M       5,1(1)
+       LSH     4,0(7)
+       ROTC    4,0(6)
+       LSH     5,1
+       AOJA    2,MVC29
+
+;                              12
+MVC212:M       8,0
+       AND     5,LEFTB+5(8)
+       MM      5,1(2)
+       J       MVC2$$
+
+;                              13-14
+MVC213:M       9,0
+       AND     8,LEFTB+5(9)
+       MM      8,0(2)
+
+;                              EXIT
+MVC2$$:RETURN  MVC2
+       SUBTTL  MVC3
+       DCL     MVC3
+
+;                              1
+       JUMPG   0,MVC33
+
+;                              2
+       SETZM   0,0(2)
+       J       MVC3$$
+
+;                              3
+MVC33: JUMPN   3,MVC35
+
+;                              4
+       HRL     3,1
+       HRR     3,2
+       IDIVI   0,5         ;R1 GETS REMAINDER CHAR. CT.
+       ADD     2,0         ;R2 GETS ADDRESS OF LAST TARGET WORD
+       BLT     3,0(2)
+       M       0,LEFTB(1)
+       ANDM    0,0(2)      ;ZERO-PAD
+       J       MVC3$$
+
+;                              5
+MVC35: M       6,MVCSH1(3)
+       MOVNI   7,37(6)
+       M       4,0(1)
+       MOVNI   8,1(6)     ;GET LEFT SHIFT COUNT INTO R8
+       LSH     4,0(8)
+
+;                              6
+MVC36: ADDI    1,1
+       M       5,0(1)
+       LSH     4,0(6)
+       ROTC    4,0(7)
+       LSH     5,1
+       SUBI    0,5
+
+;                              7
+       JUMPL   0,MVC39
+
+;                              8
+       MM      5,0(2)
+       AOJA    2,MVC36
+
+;                              9
+MVC39: M       3,0
+       AND     5,LEFTB+5(3)
+       MM      5,0(2)
+
+;                              EXIT
+MVC3$$:RETURN  MVC3
+       SUBTTL MXMNS
+;                              CALLED WITH JSP 8,MXMNS
+
+;                              1
+MXMNS: HLRZ    3,1(10)
+       M       6,3
+       IDIVI   6,5
+       MM      1,STR1
+       MM      2,STR2
+
+;                              2
+       MI      0,1(6)
+       MI      1,STMP1
+       MI      2,0
+       ALLOC
+
+;                              3
+       MI      0,0
+       HRL     11,0(10)
+       HRR     11,2
+       ADD     2,6
+       BLT     11,0(2)
+	CALL	CREL2
+	MI      0,MAXSTR
+        HLL     0,1(10)
+       MM      0,1(4)
+       M       5,STMP1
+       MOVPTR  5,4
+        SETZM   STMP1
+
+;                              EXIT
+       JRST    0(8)
+	SUBTTL  SCMP
+
+;  COMPARES TWO STRING
+;  ADDRESS OF DESCRIPTORS IN R1 AND R2
+;  RESULT IN R9:  -1 IF S1 IS LOW   1 IF S2 IS LOW
+
+
+	EXTERN	LEFTB
+
+;	R E G I S T E R S
+;	6	7	8	9	10	11
+;		.minl	.rem	.val	.len1	.len2
+;	.wd1	.wd2			.ptr1	.ptr2
+
+.wd1==6
+.wd2==7
+.minl==7
+.rem==8
+.val==9
+.len1==10
+.ptr1==10
+.len2==11
+.ptr2==11
+
+SCMP:
+	DMOVEM	1,STR1	; SAVE FOR THE LATER
+	MOVEM	5,SCOD	; BENEFIT OF CREL2
+	hlrz	.len1, 1(1)
+	hlrz	.len2, 1(2)
+        jumpe   .ptr1,short1
+        jumpe   .ptr2,short2
+	move	.minl, .len1
+	sub	.len1, .len2
+	hlre	.val, .len1
+	jumple	.len1, scmp.b
+	move	.minl, .len2
+	movei	.val, 1
+scmp.b:
+	hrrz	.ptr1, 0(1)
+	hrrz	.ptr2, 0(2)
+	idivi	.minl, 5
+	jumpe	.minl, scmp.e
+	MOVN	.minl, .minl
+	HRL     .ptr1, .minl
+	MI      0, 0
+
+SCMP2:	M       .wd1, 0(.ptr1)
+	CAMN    .wd1, 0(.ptr2)
+	JRST	SCMP21
+	move	.wd2, 0(.ptr2)
+	push	r17, .ptr1
+	push	r17, .ptr2
+	CALL	SCMP.W
+	pop	r17, .ptr2
+	pop	r17, .ptr1
+	JUMPN	0, SCMP.X
+SCMP21:	ADDI    .ptr2, 1
+	AOBJN   .ptr1, SCMP2
+
+; Fell out of loop:	all but last word (0-4 char) compares equal.
+scmp.e:
+	move	.wd1, 0(.ptr1)		; trim last word to length of shorter.
+	and	.wd1, LEFTB(.rem)	; Worry is that a short string
+	move	.wd2, 0(.ptr2)		; will look like it has trailing
+	and	.wd2, LEFTB(.rem)	; NUL's,  which might compare high.
+	came	.wd1, .wd2
+	call	scmp.w
+scmp.x:	movem	.val, longer	; EXIT
+	popj	r17,
+
+short1: seto    .val,
+        skipn   .len2
+        setz    .val,
+        jrst    scmp.x
+
+short2: movei   .val,1
+        jrst    scmp.x
+
+;	subroutine	scmp.w
+
+;	We have words warrented not equal in R.wd1 and R.wd2.
+;	Determine if they are still not equal after translation
+;	through ASCTABLE.  R0 is zero at entry.
+;	If words are not equal, set R0 non-zero and set R.val to -1
+;	(if R.wd1 is low) or 1 (if R.wd2 is low).
+
+	EXTERN	ASCTBL
+
+.ch1==.ptr1
+.ch2==.wd1
+
+scmp.w:
+	move	.ch1+1, .ch2
+	setz	.ch1,
+	setz	.ch2,
+sc.w.1:	lshc	.ch1, 7
+	lshc	.ch2, 7
+	camn	.ch1, .ch2
+	jrst	sc.w.1
+	andi	.ch1, ^o177
+	add	.ch1,ASCTBL
+	move	.ch1,0(.ch1)
+	andi	.ch2, ^o177
+	add	.ch2,ASCTBL
+	came	.ch1,0(.ch2)
+	jrst	sc.w.2
+	came	.ch1+1, .wd2
+	jrst	sc.w.1
+	jrst	sc.w.x
+
+sc.w.2:	movei	.val,1
+	camg	.ch1,0(.ch2)
+	seto	.val,
+	move	0,.val
+
+sc.w.x:
+	popj	r17,
+
+       SUBTTL  SINDX
+;+
+;.page
+;.nofill
+;SINDX
+; 
+;Called by routines COUNT (RSCNT) and INDEX (RNDX2, RNDX3).
+; 
+;Arguments:
+; 
+;  R1  STR1   addr of descriptor for parent string
+;  R2  STR2   addr of descriptor for search string
+;  R3     N   character position to start search at in STR1
+;  R5  SCOD   string body temporary flags for conditional release when done
+;     IDXSW  -1 - COUNT function
+;             0 - INDEX function
+; 
+;Result:
+; 
+;R1 contains,
+; 
+;  if IDXSW=-1, the number of instances of STR2 within SUBSTR(STR1,N)
+;  if IDXSW=0, the character position of the first occurence of
+;  STR2 within SUBSTR(STR1,N)
+; 
+;Behavior: All compares are done through ASCTABLE values.
+;-
+       DCL     SINDX,,<SVPTR1,SVPTR2>
+
+;set up for call to REL2 later:
+
+        MOVEM   1,STR1
+        MOVEM   2,STR2
+        MOVEM   5,SCOD
+
+;initialize return code:
+
+        SETZM   INDX
+
+;set up counts, pointers:
+
+;R1  - address of STR1 descriptor
+;R2  - address of STR2 descriptor
+;R3  - ASCTABLE base address
+;R4  - length of STR1
+;R5  - length of STR2
+;R6  - # of positions within STR1 to do compare=(len1-N+1)-len2+1
+;R7  - PTR1: a byte pointer into STR1
+;R10 - PTR2: a byte pointer into STR2
+;R11 - CHAR1: character code from STR1
+;R12 - CHAR2: character code from STR2
+;R13 - CNT2: counter for STR2
+
+        PTR1== R7
+        PTR2== R10
+        CHAR1== R11
+        CHAR2== R12
+        CNT2== R13
+
+        HLRZ    R4,1(R1)
+        HLRZ    R5,1(R2)
+        MOVEI   R6,2(R4)
+        SUB     R6,R5
+        SUB     R6,R3
+
+        JUMPLE  R5,SIND8        ;STR2 null
+        JUMPLE  R6,SIND8        ;no room in STR1 substring for STR2
+
+;compute byte pointers into the two strings:
+
+        HRRZ    R7,(R1)         ;addr of STR1
+        MOVE    R10,R3          ;position
+        PUSHJ   R17,MAKPTR      ;put pointer in R7
+        PUSH    R17,R7          ;save result
+        HRRZ    R7,(R2)         ;addr of STR2
+        MOVEI   R10,1           ;position=1
+        PUSHJ   R17,MAKPTR
+	POP	R17,-1+SVPTR1
+        MOVEM   R7,SVPTR2
+
+        MOVE    R3,ASCTBL       ;set up base register
+
+;SIND1 is the main loop. It will compare the entire string STR2 to
+;the string of equal length at a given position within STR1.
+
+SIND1:  DMOVE   PTR1,SVPTR1     ;start at next char in STR1
+				;and at first char in STR2
+        MOVE    CNT2,R5         ;renew counter for length of STR2
+
+;given the current position in STR1, compare STR2:
+
+SIND3:  ILDB    CHAR1,PTR1
+        ADD     CHAR1,R3
+	MOVE	CHAR1,(CHAR1)
+        ILDB    CHAR2,PTR2
+        ADD     CHAR2,R3
+        CAME    CHAR1,(CHAR2)
+        JRST    SIND6           ;strings do not compare-loop SIND1
+        SOJG    CNT2,SIND3
+
+;we have a match:
+
+        SKIPE   IDXSW           ;INDEX or COUNT?
+        JRST    SIND4           ;COUNT
+        SUB     R4,R5
+        ADDI    R4,2
+        SUB     R4,R6
+        MOVEM   R4,INDX         ;set final result
+        JRST    SIND8           ;all done
+
+SIND4:  AOS     INDX            ;for COUNT, keep a count
+
+SIND6:  IBP     SVPTR1          ;start at next char in STR1
+        SOJG    R6,SIND1        ;and loop
+
+SIND8:  CALL    CREL2           ;release string bodies if appropriate
+        MOVE    1,INDX
+        RETURN  SINDX
+
+;Routine to return a byte pointer in register R7 given base address
+;in R7 and position in R10. Pointer points to character before
+;R10'th.
+
+MAKPTR: SUBI    R10,1
+        IDIVI   R10,5           ;get base offset in R10, char cnt in R11
+        HRRZ    R7,R7           ;pick out addr
+        ADD     R7,R10          ;compute byte address
+        MOVNS   R11
+        ADDI    R11,5
+        IMULI   R11,7
+        ADDI    R11,1           ;# bits to the right of the byte
+        LSH     R11,6
+        ADDI    R11,7
+        LSH     R11,^D24
+        ADD     R7,R11
+        POPJ    R17,
+       SUBTTL  STMPR4
+
+;                              CAALLED WITH JSP 8,STMPR4
+STMPR4:M       4,STARG
+       MI      0,MAXSTR
+       HRL     0,CTMOV
+       MM      0,1(4)
+       M       5,STMP1
+       MOVPTR  5,4              ;STORE BACK POINTER TO DESCRIPTOR
+                                ;AND STORE ADDR OF STRING INTO DESCRIPTOR
+
+;                              EXIT
+        SETZM   STMP1
+       JRST    0(8)
+
+
+	SUBTTL	CREL1 and CREL2 -- Conditional RELease subroutines
+CREL1:
+        EXTERN  .CREL1
+
+        CALL    .CREL1,<,$,STR1,$,SCOD>
+        POPJ    P,
+
+
+CREL2:
+        EXTERN  .CREL2
+
+        CALL    .CREL2,<,$,STR1,$,STR2,$,SCOD>
+        POPJ    P,
+
+	PRGEND
+	Title	.RELSA
+	Subttl	RELEASE STRING ARRAY
+	twoseg
+	Reloc	400000
+;+
+;	Subroutine	.RELSA	:release string array
+;	Input:	r1:	address of array descriptor
+;		r2:	element count
+;	Output:	none
+;-
+
+; define registers
+	r1==1
+	r2==2
+	.elet==10
+	.count==11
+	p==17
+
+	entry	.RELSA
+	extern	RELSP
+
+.RELSA:	push	p,.count	;save 2 registers
+	push	p,.elet
+	move	.count,r2
+	move	.elet,(r1)	;first word of desc points to body
+	tlne	.elet,-1	;except for slices, who have LH bits on
+	jrst	.exit		;it's a slice, do nothing
+	push	p,.elet
+	jumpe	.count,relbod	;maybe no elements
+loop:	skipe	r1,(.elet)	;skip if no string
+	pushj	p,RELSP		;release string body
+	addi	.elet,2		;next element address
+	sojg	.count,loop
+relbod:	pop	p,r1		;recover body address
+	pushj	p,RELSP		;release array body
+.exit:	pop	p,.elet		;restore registers
+	pop	p,.count
+	popj	p,		;return
+	PRGEND
+	TITLE .LEFTB
+	SUBTTL	LEFT BYTES--Data block required by STRING and I/O
+			;&.BR ; ENTRY LEFTB (Left Bytes)
+	TWOSEG
+	RADIX	10
+	RELOC	^O400000
+	ENTRY	LEFTB
+
+LEFTB:  BYTE(7) 0,0,0,0,0
+         BYTE(7) ^O177,0,0,0,0
+         BYTE(7) ^O177,^O177,0,0,0
+         BYTE(7) ^O177,^O177,^O177,0,0
+         BYTE(7) ^O177,^O177,^O177,^O177,0
+	END
+ k
