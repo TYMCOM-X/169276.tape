@@ -1,0 +1,94 @@
+TITLE  .SEXP   20)             ;FROM LIB40 VERSION V.027
+SUBTTL  TBA     VERSION ADAPTED FROM SFO VERSION 10/22/76  J.HOUHA
+;FROM	V.021	8-AUG-69
+
+;FLOATING POINT SINGLE PRECISION EXPONENTIAL FUNCTION
+;IF X<=-89.415..., THE PROGRAM RETURNS ZERO AS THE ANSWER
+;IF X>=88.029..., THE PROGRAM RETURNS 377777777777 AS THE ANSWER
+;THE RANGE OF THE ARGUMENT IS REDUCED AS FOLLOWS:
+;EXP(X) = 2**(X*LOG(E)BASE2) = 2**(M+F)
+;WHERE M IS AN INTEGER AND F IS A FRACTION
+;2**M IS CALCULATED BY ALGEBRAICALLY ADDING M TO THE EXPONENT
+;OF THE RESULT OF 2**F. 2**F IS CALCULATED AS
+
+;2**F = 2(0.5+F(A+B*F^2 - F-C(F^2 + D)**-1)**-1
+
+;               TO USE  PUT ARG IN AC1
+;               PUSHJ P,.SEXP
+;               RESULT IN AC1
+
+
+        TWOSEG
+        RELOC   ^O400000
+
+        A=      0
+        B=      1
+        C=      2
+        D=      3
+        E=      4
+
+
+
+
+        DCL     .SEXP
+        CAMGE   B,E77           ;IS EXP< -89.41...
+        JRST    OUT2            ;YES, GO TO EXIT.
+        CAMG    B,E7            ;IS EXP. > +88.029...?
+        JRST    EXP1            ;GO TO STANDARD ALGORITHM.
+
+        MATH    MFE11
+        HRLOI   B,377777        ;GET LARGEST FLOATING NUMBER
+        JRST    DONE            ;EXIT
+
+OUT2:   MOVEI   B,0             ;ANSWER IS 0
+        JRST    DONE            ;EXIT
+
+
+EXP1:   PUSH    P,C           ;SAVE ACS
+        PUSH    P,D           ;ON STACK
+        PUSH    P,E
+        SETZM   1(P)          ;USE STACK+1 AS TEMP
+        MULI    B, 400          ;SEPARATE FRACTION AND EXPONENT
+        TSC     B, B            ;GET A POSITIVE EXPONENT
+        MUL     C, E5           ;FIXED POINT MULTIPLY BY LOG2(E)
+        ASHC    C, -242(B)      ;SEPARATE FRACTION AND INTEGER
+        AOSG    C               ;ALGORITHM CALLS FOR MULT. BY 2
+        AOS     C               ;ADJUST IF FRACTION WAS NEGATIVE
+        HRR     E,C             ;SAVE FOR FUTURE SCALING
+        JUMPG   D,ASHH          ;GO AHEAD IF ARG > 0.
+        TRNN    D,377           ;ARE ALL THESE BITS 0?
+        JRST    ASHH            ;YES, GO AHEAD.
+        ADDI    D,200           ;NO, FIX UP.
+ASHH:   ASH     D, -10          ;MAKE ROOM FOR EXPONENT
+        TLC     D, 200000       ;PUT 200 IN EXPONENT BITS
+        FADB    D,1(P)        ;NORMALIZE, RESULTS TO D AND TEMP
+        FMP     D, D            ;FORM X^2
+        MOVE    A, E2           ;GET FIRST CONSTANT
+        FMP     A, D            ;E2*X^2 IN A
+        FAD     D, E4           ;ADD E4 TO RESULTS IN D
+        MOVE    B, E3           ;PICK UP E3
+        FDV     B, D            ;CALCULATE E3/(F^2 + E4)
+        FSB     A, B            ;E2*F^2-E3(F^2 + E4)**-1
+        MOVE    C,1(P)        ;GET F AGAIN
+        FSB     A, C            ;SUBTRACT FROM PARTIAL SUM
+        FAD     A, E1           ;ADD IN E1
+        FDVM    C, A            ;DIVIDE BY F
+        FAD     A, E6           ;ADD 0.5
+EX1:    FSC     A,0(E)          ;SCALE THE RESULTS
+        MOVE    1,A             ;PUT RESULT IN AC1
+        POP     P,E
+        POP     P,D           ;RESTORE
+        POP     P,C           ;ACS
+DONE:   RETURN  .SEXP
+
+E1:     204476430062            ;9.95459578
+E2:     174433723400            ;0.03465735903
+E3:     212464770715            ;617.97226953
+E4:     207535527022            ;87.417497202
+E5:     270524354513            ;LOG(E), BASE 2
+E6:     0.5
+E7:     207540074636            ;88.029...
+E77:    570232254037            ;-89.415986
+
+        LIT
+        END
