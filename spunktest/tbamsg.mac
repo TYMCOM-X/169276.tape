@@ -1,0 +1,328 @@
+; THE FOLLOWING CODE IS NOT ASSEMBLED WITH THE PAGER.
+        IFNDEF  PGRMOD, <
+        TITLE   TBAMSG  TBA error messages
+
+;+
+;.paper size 54, 78
+;.nofill
+;.nojustify
+;.first title
+;.title ^^ERRMSG.MAC Program Logic Flow
+;.subtitle ^^Global error message universal file
+;.nonumber
+;.page
+;.paragraph 5
+;  This file contains all error messages for the Tymbasic system.
+;  Any module referencing this package must include a "SEARCH ERRMSG"
+;  to get all the goodies.
+;.paragraph 5
+;  Way to reference messages:  There is a uuo (ERROR) which takes as
+;  an address the error message NUMBER.  To facilitate knowing which
+;  error messages goes with which number, error messages usually have
+;  a label assigned (such as RSMOFL, etc) although sometimes
+;  a group of error messages appear after one label (in which case
+;  you have to mention label+offset to get the error message)
+;.paragraph 5
+;  Way to add messages: All yea know that
+;   . Never disturbe order of messages in this file, especially messages
+;     which are offset from one label (that is, one label with more than
+;     one message)
+;   . Bou may be able to remove a message if both the immediately preceeding
+;     and following messages have labels (no offset to screw up)
+;   . But note that users may get to assume what a particular error message
+;     will be as far as number (ERRCOD, remember!) so a good practice
+;     is to leave a space blank if an error message is to be removed from
+;     within.
+;   . To add a message simply put it on the end of this file
+;     BEFORE THE LABEL "MSGMAX" in the form:
+;.skip
+;               label: Q  <       your message>
+;-
+
+        SALL
+
+        TWOSEG
+        RELOC   400000
+        PHASE   0
+                        >
+; THE FOLLOWING CODE IS ASSEMBLED WITH THE PAGER.
+
+        DEFINE  Q (STRING)
+        <       CNT==0
+                IRPC    STRING <CNT==CNT+1>
+                XWD     CNT,[ASCIZ "STRING"]
+        >
+
+
+
+
+; THE FOLLOWING CODE IS NOT ASSEMBLED WITH THE PAGER
+        IFNDEF  PGRMOD, <
+        EXP     MSGMAX
+
+
+
+
+
+PATMSG= .-1
+CER1:
+Q       Expression out of bounds in ON expression GO TO or GO SUB statement
+CER2:
+Q       Negative number used in BOUNDARY statement
+CER3:
+Q       Negative number used in SIGNIFICANCE statement
+
+
+
+
+
+JRMMSG= .-1
+SE0:
+Q       String too long
+SE1:
+Q       Argument to CHAR must be greater than or equal to 0 and less than 128
+LDLMSG= .-1
+ME0:
+Q       Array subscript out of bounds
+ME1:
+Q       Vector sizes do not conform in vector product
+ME2:
+Q       Matrix not in proper form in vector-matrix product
+ME3:
+Q       Vector and matrix not size conformal in vector-matrix product
+ME4:
+Q       Matrix not in proper form for matrix-vector product
+ME5:
+Q       Vector and matrix not size conformal in matrix-vector product
+ME6:
+Q       Matrices not conformal in matrix product
+ME7:
+Q       Attempt to multiply or transpose matrices of more than 2 dimensions
+ME8:
+Q       Arrays do not have the same number of dimensions
+ME9:
+Q       Arrays do not have same number of elements in corresponding dimensions
+ME10:
+Q       Type of base array less than type of power array
+ME11:
+Q       Matrix is not square
+ME12:
+Q       Operation is not defined on given types
+ME13:
+Q       Sub-array subscript out of bounds
+ME14:
+Q       Power less than zero in matrix exponentiation
+ME15:
+Q       Reference to undeclared array
+ME16:
+Q       Type conversion for string arrays not defined
+ME17:
+Q       Attempt to invert a singular matrix
+ME18:
+Q       Subarrays do not share a common ancestor in @ operation
+ME19:
+Q       Subarrays share no common elements in @ operation
+MFE1:
+Q       Attempt to take LOG of negative argument
+MFE2:
+Q       Attempt to take SQRT of negative argument
+MFE3:
+Q       Operand types incompatible
+MFE4:
+Q       Overflow in SINH function
+MFE5:
+Q       Overflow in COSH function
+MFE6:
+Q       Underflow in two argument ATAN function
+MFE7:
+Q       Magnitude of argument to ASIN function greater than 1
+MFE8:
+Q       Attempt to take LOG of zero
+MFE9:
+Q       Attempt to take LOG10 of a complex argument
+MFE10:
+Q       Error in EXP for complex argument
+MFE11:
+Q       Overflow in ** operation
+MFE12:
+Q       Underflow in ** operation
+MFE13:
+Q       Overflow in (complex)**(integer) operation
+MFE14:
+Q       Underflow in (complex)**(integer) operation
+MFE15:
+Q       Radius less than or equal to zero in POLAR function
+MFE16:
+Q       Overflow in complex multiplication
+MFE17:
+Q       Underflow in complex multiplication
+MFE18:
+Q       Underflow in complex division
+MFE19:
+Q       Relational operation not defined on given numeric types
+MFE20:
+Q       Overflow in TAN routine
+
+MTE0:
+Q       Integer overflow
+MTE1:
+Q       Integer divide check
+MTE2:
+Q       Illegal error trap
+MTE3:
+Q       Floating overflow
+MTE4:
+Q       Floating divide check
+MTE5:
+Q       Floating underflow
+
+RZLER:
+Q       Run time initialization error
+OPCERR:
+Q       Maximum number of input streams exceeded
+MOHMSG= .-1
+PGRMSG:
+                        >
+; THE FOLLOWING CODE IS ASSEMBLED WITH THE PAGER.
+Q       Open not confirmed on file 
+Q       Cannot find file 
+Q       File already exists 
+Q       No free I/O channel for file 
+Q       User name too long 
+Q       Illegal file name 
+Q       Cannot find file 
+Q       User name does not exist 
+Q       Protection failure on file 
+Q       File is being modified 
+Q       Cannot rename file. (File already exists) 
+Q       Compiler error during operation on file directory 
+Q       Data error during operation on file directory 
+Q       Monitor error during operation on file directory 
+Q       Monitor error during operation on file directory 
+Q       Monitor error during operation on file directory
+Q       Monitor error during operation on file directory 
+Q       Monitor error during operation on file directory 
+Q       Disk storage quota exceeded. Cannot open file 
+Q       Cannot write in directory 
+Q       Monitor error during operation on file directory 
+Q       Monitor error during operation on file directory 
+Q       Monitor error during operation on file directory 
+Q       Monitor error during operation on file directory 
+Q       Monitor error during operation on file directory 
+Q       Monitor error during operation on file directory 
+Q       Monitor error during operation on file directory 
+Q       Monitor error during operation on file directory 
+Q       Cannot create file in directory 
+Q       Monitor error during operation on file directory 
+
+; THE FOLLOWING CODE IS NOT ASSEMBLED WITH THE PAGER.
+        IFNDEF  PGRMOD, <
+RGSMSG= .-1
+Q       File number must be an integer between 1 and 20 inclusive
+Q       Same file number may not be used for two files 
+Q       Illegal protection code 
+Q       Three (3) protection codes required 
+Q       GO SUB stack overflow
+Q       GO SUB stack underflow
+Q       Record length must be greater than zero 
+Q       Invalid option combination:
+Q       TERMINAL may not be specified twice
+Q       TERMINAL may not be specified 
+Q       File must be random
+Q       File must be open for output or input-output
+Q       Record number must be an integer greater than 0
+Q       Last record number must not be less than the first
+Q       File must be open 
+Q       Error number must be an integer between 1 and 170 inclusive
+Q       File number must be an integer between -9 and 20 inclusive
+Q       File number must be 0 for TERMINAL BINARY input output
+RSJMSG= .-1
+Q       Illegal character in form field
+Q       Too many nested parentheses
+Q       Unmatched ')'
+Q       Unmatched '('
+Q       Number precedes ')' ']' or space
+Q       Unmatched string delimiter
+Q       Use of numeric format with string variable is illegal
+Q       Invalid R form
+Q       Number precedes decimal point
+Q       Attempt to overflow fixed length record on random file
+Q       Invalid input or format in VAL function
+Q       Vacuous format
+Q       Ambiguous dot
+Q       Two decimal points in numeric field
+Q       Unmatched ']'
+Q       Unmatched '['
+Q       Too many nested brackets
+Q       Number precedes exponent indicator
+Q       Illegal character in integer conversion field
+Q       Illegal character in special string field
+Q       Invalid integer part in special form
+Q       Invalid fractional part in special form
+Q       Invalid exponential part in special form
+Q       Invalid special form field
+Q       Invalid use of P in special form
+Q       Output field descriptor is too small
+Q       Number too large for type conversion indicated in format
+Q       Number too small for type conversion indicated in format
+Q       Illegal character for numeric conversion
+Q       Illegal character in alpha formatted field
+Q       Illegal character in numeric formatted field
+Q       Illegal character in alpha or numeric formatted field
+Q       Use of R form with numeric variable is illegal
+Q       Illegal character in special radix field
+Q       Expecting formatted input
+IN8ERR:
+Q       Normal terminal input not allowed during Eight-level input
+Q       Use of string format with a numeric variable is illegal
+Q       Field is valid for output only
+Q       Special radix must be used with an integer or logical variable
+STRCPX:
+Q       Complex argument to STR function is illegal
+EOFERR:
+Q       End of file found
+DATEOF:
+Q       READ statement out of DATA
+SFFERR:
+Q       File must be open 
+Q       File must be open for OUTPUT or IO
+Q       File must be open for INPUT
+Q       Format specified with binary file
+Q       'AT' construct not valid with sequential file
+Q       File number must be an integer between 1 and 20 inclusive
+Q       Free form I/O to fixed length record random file is illegal
+
+RVTNRF: Q       <Compiler bug: Trace UUO trapped but no trace routine loaded>
+
+RSMUFL: Q       RESUME statement before trap condition exists
+
+UNIMP:  Q       ( is unimplemented)
+
+DSACLB: Q       (Dynamic Storage Area Clobbered by Re-Load)
+ESCMSG: Q       Interrupted 
+        Q       Cannot create .SHR file
+        Q       Cannot create program load map
+        Q       Upper bound must be greater or equal to lower bound
+NOCORE:		; msg 159d
+	Q	<Data area may not be expanded beyond 131,072 words>
+	Q	Request for more core refused by Monitor
+	Q	Attempt to redimension a subarray
+	Q	File number 0 may be used only for eight-level input
+	Q	Error encountered during SORT
+	Q	Illegal sequence of string-field characters
+	Q	File must be SOPENed
+	Q	ERR 166 - Message not yet written for this condition
+	Q	ERR 167 - Message not yet written for this condition
+	Q	ERR 168 - Message not yet written for this condition
+	Q	ERR 169 - Message not yet written for this condition
+	Q	ERR 170 - Message not yet written for this condition
+
+
+; all error messages must occur before this assignment
+
+MSGMAX= .-1
+
+; THE FOLLOWING STATEMENT IS ASSEMBLED WITH THE PAGER
+                        >
+        END
+   
