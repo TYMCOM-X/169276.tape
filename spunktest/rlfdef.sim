@@ -1,0 +1,113 @@
+! MODULE statements for routines in RFGEN
+
+module "r%init" = %rf.init              ! initializes package
+module "r%fin"  = %rf.finish            ! cleans up and finishes
+
+module "r%cd"   = %rf.code              ! writes a word of code
+module "r%cdsh" = %rf.code.short        ! writes a word of code. short form
+module "r%cdbl" = %rf.code.block        ! writes n words of code
+module "r%cdsy" = %rf.code.plus.symbol  ! ditto, adds symbol val to RH
+module "r%cdcn" = %rf.code.plus.constant! ditto, adds constant loc to RH
+module "r%cdlc" = rf.code.loc           ! loc of next code word
+module "r%cdrl" = rf.code.reloc         ! reloc of same
+module "r%cdst" = %rf.set.code.loc      ! sets above two guys
+
+module "r%var"  = %rf.variable          ! allocates a variable
+module "r%vrlc" = rf.var.loc            ! loc of next variable word
+module "r%vrrl" = rf.var.reloc          ! reloc of same
+
+module "r%dfsy" = %rf.define.symbol     ! defs a sym from sym tbl info
+module "r%sym"  = %rf.symbol            ! writes a symbol
+
+module "r%lfix" = %rf.lh.fixup          ! fixes up a LH fixup chain
+module "r%rfix" = %rf.rh.fixup          ! fixes up a RH fixup chain
+module "r%link" = %rf.link              ! adds to link n
+module "r%lnke" = %rf.link.end          ! ends link n
+
+module "r%entr" = %rf.entry             ! writes an ENTRY name
+module "r%mnam" = %rf.module.name       ! writes module name, language
+module "r%stad" = %rf.start.address     ! writes start address
+module "r%comn" = %rf.common            ! defines COMMON block
+
+module "r%inab" = %rf.init.all.blocks   ! initializes all blocks
+module "r%inbl" = %rf.init.block        ! initializes specified block
+module "r%word" = %rf.word              ! writes word in specified block
+module "r%flbl" = %rf.flush.block       ! flushes specified block
+module "r%cdwd" = %rf.code.word         ! wries a word in the code block
+module "r%chcb" = %rf.check.code.block  ! checks for rooom in code block
+module "r%flab" = %rf.flush.all.blocks  ! flushes all blocks
+module "r%chbl" = %rf.check.block       ! checks room in specified block
+
+module "r%r50"  = %rf.radix50           ! makes radix50 code for symbol
+module "r%err"  = %rf.err               ! error condition
+
+! Relocation codes for halfwords
+
+def rel.abs  as 0       ! no relocation (must be def'd as 0)
+def rel.var  as 1       ! relocate into variable area
+def rel.code as 2       ! relocate into code area
+
+
+! Relocation codes for fullwords - all possible combinations of the
+! halfword codes
+
+def fw.def(fw.name,lh.code,rh.code) as &
+  def fw.name as ((lh.code shl 18) + rh.code)
+
+fw.def(rel.abs.abs,  rel.abs, rel.abs )
+fw.def(rel.abs.var,  rel.abs, rel.var )
+fw.def(rel.abs.code, rel.abs, rel.code)
+fw.def(rel.var.abs,  rel.var, rel.abs )
+fw.def(rel.var.var,  rel.var, rel.var )
+fw.def(rel.var.code, rel.var, rel.code)
+fw.def(rel.code.abs, rel.code,rel.abs )
+fw.def(rel.code.var, rel.code,rel.var )
+fw.def(rel.code.code,rel.code,rel.code)
+
+
+
+! Symbol type codes (radix50 codes)
+
+def rs.global           as oct 04       ! global definition
+def rs.external         as oct 60       ! external reference
+def rs.weak.external    as oct 70       ! weak external reference
+def rs.local            as oct 10       ! local definition
+def rs.hk.global        as oct 44       ! global def invisible to DDT
+def rs.hk.local         as oct 50       ! local def invisible to DDT
+def rs.block            as oct 14       ! block name
+
+! REL file block types
+
+def min.rb              as oct  1
+def rb.code             as oct  1
+def rb.symbol           as oct  2
+def rb.hiseg            as oct  3
+def rb.entry            as oct  4
+def rb.end              as oct  5
+def rb.module.name      as oct  6
+def rb.start.loc        as oct  7
+def rb.fixup            as oct 10
+def rb.polish           as oct 11
+def rb.link             as oct 12
+def rb.lvar             as oct 13
+!   rb.library.index    as oct 14  (illegal)
+def rb.algol            as oct 15
+def rb.require.program  as oct 16
+def rb.require.library  as oct 17
+def rb.common           as oct 20
+def rb.sfo.symbols      as oct 30
+def rb.sfo.uuo          as oct 31
+def rb.cobol.symbols    as oct 37
+
+def max.rb              as oct 37
+
+! Language (compiler) numbers
+
+def rf.cmp.barf         as - oct 4
+def rf.cmp.sbasic       as - oct 3
+def rf.cmp.simpl        as - oct 2
+
+! The current version of RFGEN will work only with the above
+! language numbers, since they are the only ones that tell the
+! loader to use our special relocation mode.
+
