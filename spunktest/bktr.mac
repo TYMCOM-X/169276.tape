@@ -1,0 +1,522 @@
+        title   bktr
+        twoseg
+        reloc   ^o400000
+        radix   10      ; here be dragons!!
+
+        subttl  rbrk
+        dcl     rbrk
+
+        call    w.test
+        return  rbrk
+
+
+        MOVEI   3,brkt##
+        MOVE    4,0(^O16)
+
+
+RBRK2:  HLRZ    1,0(3)
+        CAMGE   4,1
+        return  rbrk
+
+
+        HRRZ    1,0(3)
+        CAMLE   4,1
+        AOJA    3,RBRK2
+
+
+        MOVEI   0,[ASCIZ /Break at /]
+        CALL    cxmo##,<,1>
+
+
+        MOVEI   0,1
+        HRRZ    1,^O16
+        CALL    trisc##
+
+
+        CALL    cxmo##,<$,1,2>
+
+
+        CALL    runcom##,<,11>    ;EXIT
+        subttl  rtrc
+        dcl     rtrc
+
+        call    w.test
+        return  rtrc
+
+
+        MOVEI   3,novtr##
+        MOVE    4,0(^O16)
+
+
+RTRC2:  HLRZ    1,0(3)
+        CAMGE   4,1
+        return  rtrc
+
+
+        HRRZ    1,0(3)
+        CAMLE   4,1
+        AOJA    3,RTRC2
+
+        MOVEI   0,[ASCIZ "*"]
+        CALL    trccr         ;Decide and give * prompt (cr or not)
+
+
+        MOVEI   0,1
+        HRRZ    1,^O16
+        CALL    trisc##
+
+
+        CALL    cxmo##,<$,1,2>
+        MOVEI   0,[ASCIZ ""]
+        CALL    cxmo##,<,1>       ;type the final c.r.
+
+
+
+        return  RTRC
+        subttl  rstep
+        dcl     rstep
+
+        call    w.test
+        return  rstep
+
+
+        SOSL    0,stepfg##
+        return  rstep
+
+        h.off   r1,h.stp
+
+        MOVEI   0,[ASCIZ "@"]   ;STEP prompt is @no
+        CALL    trccr
+        MOVEI   0,1
+        HRRZ    1,^O16
+        CALL    trisc##
+        CALL    cxmo##,<$,1,2>
+        MOVEI   0,[ASCIZ ""]
+        CALL    cxmo##,<,1>
+
+
+        CALL    runcom##,<,11>
+
+        subttl  rvtrc
+        DCL     RVTRC
+
+        MM      11,TSAV+11
+        HRRZI   11,TSAV
+        BLT     11,TSAV+10
+        MOVE    11,TSAV+11
+
+;                       1
+        BCALL   TRCSTR
+
+;                       2
+RVTR2:  BCALL   LOOKTC
+
+;                       3
+        SKIPGE  0,TCIDX
+        J       RVTR6
+
+;                       4
+        BCALL   TRLNOU
+
+;                       5
+        BCALL   TRVROU
+
+;                       6
+RVTR6:  SKIPN   0,TRPTSW
+        J       RVTR8
+
+;                       7
+        SETZM   0,TRPTSW
+        M       1,TRV2
+        MM      1,TRV1
+        J       RVTR2
+
+;                       8-10
+RVTR8:  M       1,TUUO
+        AOS     0,0(^O17)
+        CAIL    1,7
+        CAILE   1,8
+        J       RVTR11
+        AOS     0,0(^O17)
+
+;                       11
+RVTR11: HRLZI   11,TSAV
+        BLT     11,11
+
+;                       EXIT
+        RETURN  RVTRC
+
+
+        SUBTTL  TRCSTR CHART RVTRC.1
+        BDCL    TRCSTR
+
+;Do the store.
+;At this point, regs 0-11 are stored in TSAV thru TSAV+11.
+;                       1 - extract opcode
+        HLRZ    10,^O40
+        LSH     10,-9
+        MM      10,TUUO
+
+;                       2-4
+        SETZM   0,TRPTSW
+        CAIE    10,12
+        J       TRCS5
+        SETOM   0,TRPTSW                ;for RACXS only (exchange string)
+        MM      2,TRV2                  ;second variable's addr
+
+;                       5
+TRCS5:  CAIN    10,11
+        J       TRCS8
+        CAILE   10,8
+        J       TRCS9
+        CAIL    10,7
+        J       TRCS7
+
+;                       6 - simple instruction
+        M       11,^O40
+        HRRZM   11,TRV1
+        TLZ     11,^O777000
+        IOR     11,TCINS(10)
+        JRST    TRCXCT
+
+;                       7 - READ and INPUT
+TRCS7:  MM      1,TRV1
+        M       9,TCINS(10)
+        MM      9,DMMY
+        M       9,0(^O17)
+        M       9,1(9)
+        MM      9,DMMY+1
+        M       9,[JRST TRCS$$]
+        MM      9,DMMY+2
+        HRLZI   11,TSAV
+        BLT     11,11
+        J       DMMY
+
+;                       8 - RACMS (store string)
+TRCS8:  MM      2,TRV1
+        M       11,TCINS(10)
+        JRST    TRCXCT
+
+;                       9 - call to a routine
+TRCS9:  MM      1,TRV1
+        M       11,TCINS(10)
+        JRST    TRCXCT
+
+TRCXCT: MOVEM   11,DMMY                 ;restore regs, execute contents of 11
+        HRLZI   11,TSAV
+        BLT     11,11
+        XCT     DMMY
+        JRST    TRCS$$
+
+;                       EXIT
+TRCS$$: BRETURN TRCSTR
+
+
+        SUBTTL  LOOKTC CHART RVTRC.2
+        BDCL    LOOKTC
+
+;                       1
+        call    w.test
+        jrst    look1
+        SKIPE   0,trvn##
+        J       LOOK3
+
+;                       2
+look1:  SETOM   0,TCIDX
+        J       LOOK4
+
+;                       3
+LOOK3:  BCALL   LKTRVT
+
+;                       4
+LOOK4:  SKIPGE  0,TCIDX
+        J       LOOK$$
+
+;                       5
+        BCALL   LKTRCT
+
+;                       EXIT
+LOOK$$: BRETURN LOOKTC
+
+
+        SUBTTL  LKTRVT CHART RVTRC.2.3
+        BDCL    LKTRVT
+
+;                       1-3
+        M       5,0(^O17)
+        HRRZ    4,0(5)
+        SKIPE   0,TRPTSW
+        HLRZ    4,0(5)
+
+;                       4
+        SETZB   5,6
+        MOVEI   3,TRVT##
+
+;                       5-7
+LKVT5:  FGET    1,3,TRVID
+        CAMN    1,4
+        SOJA    6,LKVT8
+        ADDI    3,TRVTR
+        ADDI    5,1
+
+;                       8
+LKVT8:  CAMGE   5,trvn##
+        JUMPE   6,LKVT5
+
+;                       9-10
+        JUMPN   6,.+2
+        SETO    5,0
+        MM      5,TCIDX
+
+;                       EXIT
+        BRETURN LKTRVT
+
+
+        SUBTTL  LKTRCT
+        BDCL    LKTRCT
+
+;                       1
+        MOVEI   3,TRCT##
+        M       5,0(^O16)
+
+;                       2
+LKCT2:  FGET    1,3,TCVL
+        CAML    1,TCIDX
+        J       LKCT4
+
+;                       3
+        ADDI    3,TRCTR
+        J       LKCT2
+
+;                       4
+LKCT4:  CAME    1,TCIDX         ;R1 SET ABOVE
+        J       LKCT14
+
+;                       5
+        MI      6,0
+
+;                       6-10
+LKCT6:  FGET    1,3,TCL1
+        CAMGE   5,1
+        SOJA    6,LKCT11
+        FGET    1,3,TCL2
+        CAMG    5,1
+        AOJA    6,LKCT11
+        ADDI    3,TRCTR
+
+;                       11
+LKCT11: FGET    1,3,TCVL
+        CAMN    1,TCIDX
+        JUMPE   6,LKCT6
+
+;                       12-13
+        SKIPG   0,6
+        SETOM   0,TCIDX
+        J       LKCT$$
+
+;                       14
+LKCT14: SETOM   0,TCIDX
+
+;                       EXIT
+LKCT$$: BRETURN LKTRCT
+
+
+        SUBTTL  TRLNOU CHART RVTRC.4
+        BDCL    TRLNOU
+
+;                       1
+        MOVEI   0,[ASCIZ "*"]
+        CALL    TRCCR           ;Issue proper * prompt
+
+;                       2
+        MI      0,1
+        HRRZ    1,^O16
+        CALL    trisc##
+
+;                       3
+        CALL    cxmo##,<$,1,2>
+
+;                       4
+        MI      0,[ASCIZ / /]
+        MI      1,2
+        CALL    cxmo##
+
+;                       5
+        SETZM   0,TRBUF+3
+        M       1,TCIDX
+        IMULI   1,TRVTR
+        ADDI    1,TRVT##+1        ;/TRSP1 IS SECOND WORD
+        HRL     1,1
+        HRRI    1,TRBUF
+        BLT     1,TRBUF+2
+
+;                       6
+        CALL    cxmo##,<TRBUF,2>
+
+;                       7
+        MI      0,[ASCIZ /=/]
+        MI      1,2
+        CALL    cxmo##
+
+
+;                       EXIT
+        BRETURN TRLNOU
+
+
+        SUBTTL  TRVROU CHART RVTRC.5
+;+
+; TRVROU
+;  Called at a trace level for a variable
+;  This will print the contents of a variable which has already been
+;  set up to be printed
+;  No arguments
+;  Decides if string or integer and prints contents appropriately
+;-
+        BDCL    TRVROU
+
+;                       1
+        M       1,TUUO
+        CAIE    1,12
+        J       TRVR3
+
+;                       2
+        MI      0,5
+        J       TRVR4
+
+;                       3
+TRVR3:  M       1,0(^O17)
+        HLRZ    0,0(1)
+
+;                       4
+TRVR4:  CAIE    0,5             ;Is it a string ?
+        J       TRVR8           ;No, print the number
+
+;                       5
+        HRRZ    1,TRV1          ;String, print it
+        HRRZ    0,0(1)
+
+;                       6
+        JUMPE   0,TRVR9A        ;It's a null and void
+
+;                       7
+        CALL    cxmo##,<,2>       ;Print the string out
+        J       TRVR9A
+
+;                       8
+TRVR8:  M       1,TRV1
+        CALL    trisc##
+
+;                       9
+        CALL    cxmo##,<$,1,2>
+
+;                       9A
+TRVR9A: MOVEI   0,[ASCIZ ""]    ;Final C.R. after trace output
+        CALL    cxmo##,<,1>
+
+
+;                       EXIT
+TRVR$$: BRETURN TRVROU
+        subttl  STOCON   -  storage and cons for RVTRC
+
+; storage for RVTRC and friends
+        reloc
+TSAV:   BLOCK ^d12
+TRBUF:  BLOCK 4
+DMMY:   BLOCK 3
+TRPTSW: 0
+TRV1:   0
+TRV2:   0
+TUUO:   0
+TCIDX:  0
+        reloc
+
+; constants for RVTRC and friends
+TCINS:  0                       ;+0
+        0                       ;+1
+        MOVEM   0,0             ;+2
+        MOVNM   0,0             ;+3
+        DMOVEM  0,0             ;+4
+        SETZM   0,0             ;+5
+        DMOVNM  0,0             ;+6
+        call    rread##         ;+7
+        call    rinpt##         ;+8
+        0                       ;+9
+        call    r8in##          ;+10
+        call    racms##         ;+11
+        call    racxs##         ;+12
+        call    rdxss##         ;+13
+        JFCL    0,0             ;+14 (NO-OP)
+        subttl  trccr
+;+
+; TRCCR
+;  ARG # 0 address of asciz string to type
+; For printing of the initial trace output prompt
+; Makes sure we are at beg of line and then issues * prompt
+;-
+        DCLNE   TRCCR
+
+;+
+; Decide if cr must be typed before output of trace line
+;  (CR always follows trace output)
+;  The tty FCB has the count of the number of characters last to output
+;  in the last line
+;  If there was a count, we must type cr before trace message
+;-
+
+        SETZ    2,              ;Reset terminal output line pos
+        MOVEI   1,TERNUM        ;Terminal no.
+        MOVE    1,chantb##(1)     ;Adr of terminal FCB
+        EXCH    2,FCBPOS(1)     ;FCBPOS(TERNUM)==0, 1==TERMINAL POS
+        MOVEI   1,2             ;CXMO code 2 = NO CR before output of line
+        JUMPE   2,.+2           ;skip if NOT LAST.LINE.FULL
+        MOVEI   1,1             ;CXMO code 1 = CR before output of line
+        CALL    cxmo##            ; Arg.0=Adr of /* /  Arg.1=1 or 2
+
+        RETURN  TRCCR
+        subttl  w.test
+        dclne   w.test
+;
+; determine if we are in workspace
+;
+        skipe   wrkflg
+        jrst    wtest2
+
+        setzm   w.strt
+        setzm   w.end
+
+        push    p,r1
+        push    p,r2
+        skipn   wmname##
+        jrst    w.lpe
+
+        move    r1,maporg##
+w.loop: addi    r1,2
+        move    r2,0(r1)
+        camn    r2,[sixbit /SYSTEM/]
+        jrst    w.lpe
+        came    r2,wmname##
+        jrst    w.loop
+
+        hrrz    r2,1(r1)
+        movem   r2,w.strt
+        hrrz    r2,3(r1)
+        movem   r2,w.end
+w.lpe:  pop     p,r2
+        pop     p,r1
+        setom   wrkflg
+
+wtest2: hrrz    r16,r16
+        caml    r16,w.strt
+        camle   r16,w.end
+        return  w.test
+        aos     (p)
+        return  w.test
+
+        reloc
+w.strt: 0
+w.end:   0
+wrkflg:: 0
+        reloc
+
+        END
+ 
