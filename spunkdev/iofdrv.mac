@@ -1,0 +1,1054 @@
+
+;****************************************************************
+        TITLE   IOFDRV  I/O FORM DRIVERS ("FORM ONLY" SEGMENT)
+;****************************************************************
+
+;  NOTE:  THIS FILE RESIDES IN THE "FORM ONLY" SEGMENT
+
+        TWOSEG
+        RELOC   ^O400000
+        RADIX 10
+
+        ENTRY   FDRVI, FDRVO
+
+        EXTERN  IMID04, IMID05, IMID07, IMID11
+        EXTERN  IMOD06, IMOD07, IMOD08, IMOD10, IMOD14
+
+
+;  SUBROUTINES
+
+        EXTERN  IDSKIP, IDGCHR, IDGFC, IDCNVN, ISC, SIP, SPFO
+        EXTERN  SFDGET, ODSPCS, FLSHST, .FLTCH, ODBLNK,  IWC, IDGLIN
+        EXTERN .OTCAR, FMTERR, CVTERR, STRSTR, ENDFIL
+        EXTERN  DIGFLG, DRSTG, DSCIN, IPEP, ISCDG1, ISCDIG, ISCEXP
+        EXTERN  LENG, MSGN, SAVIDX, SAVNFD, SAVNFG, UTPTR
+
+
+;****************************************************************
+        SUBTTL  FDRVI           CHART RS92.9
+        DCL     FDRVI
+;****************************************************************
+
+;       FORM DRIVER FOR INPUT
+
+        OMOVEM  A0,SAVFC        ; RS92.9.1-.3
+                                ; RS92.9.4  FRMID
+        CALL    SIP             ; RS92.9.4.1 (SET INPUT POINTER)
+        CAIG    STAGE,12        ; RS92.9.4.2
+        JRST    FMID03
+        JRST    @.-13(STAGE)
+        IMID04 ;STAGE=14
+        IMID04 ;STAGE=15
+        IMID05 ;STAGE=16
+        IMID04 ;STAGE=17
+        IMID04 ;STAGE=18
+        FMID06 ;STAGE=19
+        IMID07 ;STAGE=20
+        FMID08 ;STAGE=21
+        FMID09 ;STAGE=22
+        0
+        IMID11 ;STAGE=24
+
+;****************************************************************
+FMID03: ;STAGES 0-12            ; RS92.9.4.3    IDSFPC
+;****************************************************************
+                                ; RS92.9.4.3.1  CHECK
+        OHRRZ   R6,IOTYP        ; RS92.9.4.3.1.1
+        CAIE    R6,STRING
+        JRST    CHK04
+        OSKIPN  ,NUMONY         ; RS92.9.4.3.1.2 (SKIP IF NUMONY=1)
+        JRST    CHK06
+        CALL    CVTERR,<RSJMSG+^D7> ; RS92.9.4.3.1.3
+
+CHK04:  CAIE    STAGE,11        ; RS92.9.4.3.1.4
+        JRST    CHK06
+        CALL    CVTERR,<RSJMSG+^D37> ; RS92.9.4.3.1.5
+
+CHK06:  OSKIPN  ,OUTONY         ; RS92.9.4.3.1.6
+        JRST    CHK$$
+        CALL    CVTERR,<RSJMSG+^D38> ; RS92.9.4.3.1.7
+
+CHK$$:                          ;          RETURN  CHECK
+
+                                ; RS92.9.4.3.2  SET FOR RESCAN
+        OMOVE   R6,FLDBGN       ; RS92.9.4.3.2.1-.2
+        OEXCH   R6,FMTPTR
+        MOVEM   R6,SAVIDX       ; FMTPTR := FLDBGN
+        SETZ    I,              ; RS92.9.4.3.2.3
+        MOVEI   R6,1
+        OEXCH   R6,NUMFLG       ; NUMFLG := 1
+        MOVEM   R6,SAVNFG
+        OMOVE   R6,FSTLEN
+        OEXCH   R6,NUMFLD
+        MOVEM   R6,SAVNFD       ; NUMFLD := FSTLEN
+        SETZM   ,LENG
+        OHRRZ   R6,IOTYP        ; FRM.H,O,W  RS92.9.4.3.2.4
+        CAIN    R6,STRING
+        JRST    SFR$$
+        AOS     ,DSCIN+1        ; ALLOW EXTRA INPUT CHARACTER FOR SIGN
+        MOVE    A4,UTPTR        ; RS92.9.4.3.2.5-.7
+        CAIE    STAGE,12        ; RS92.9.4.3.2.7
+        JRST    SFR11
+        OHRRZ   R6,IOTYP        ; RS92.9.4.3.2.8
+        CAIE    R6,INT
+        CAIN    R6,LOG
+        JRST    SFR10
+        CALL    CVTERR,<RSJMSG+^D39> ; RS92.9.4.3.2.9
+
+SFR10:  SETZM   ,ICBUF  ; RS92.9.4.3.2.10
+        JRST    SFR$$
+SFR11:  MOVEI   A0,^O40         ; RS92.9.4.3.2.11-.13
+        MOVEM   A0,MSGN
+        CALL    IWC,<UTPTR>
+        SETOM   ,DIGFLG
+SFR$$:                          ;               RETURN  SET FOR RESCAN
+
+; PICK UP 1ST CHAR, AND TEST FOR EOL, EOF, STUFF LIKE THAT:
+        CALL    IDGFC           ; RS92.9.4.3.3-.4  R81
+                                ; RS92.9.4.3.5  FIRST FMT CHAR
+        SKIPN   ,A0
+        MOVEI   A0,^O15
+        MOVNS   ,A0             ; RS92.9.4.3.5.1
+        CALL    SFDGET          ; RS92.9.4.3.5.2  R82
+        JUMPN   A0,FFC05        ; RS92.9.4.3.5.3
+        CALL    IDGCHR          ; RS92.9.4.3.5.4  R78
+        SKIPA
+FFC05:  MOVNS   ,A0             ; RS92.9.4.3.5.5
+                                ;       RETURN  FIRST FMT CHAR
+                                ; RS92.9.4.3.6  SFINPT
+        SETZ    A2,             ; RS92.9.4.3.6.1
+SFIN02:                         ; RS92.9.4.3.6.2
+        SKIPLE  ,LENG            ; RS92.9.4.3.6.3
+        JRST    SFIN05
+        SETZ    A0,             ; RS92.9.4.3.6.4
+        CALL    SFDGET          ;       R82
+SFIN05: CAIN    I,EOFLD         ; RS92.9.4.3.6.5
+        JRST    SFIN08
+                                ; RS92.9.4.3.6.6  GET INPUT CHARACTER
+        JUMPG   A2,GIC08        ; RS92.9.4.3.6.6.1
+        JUMPL   A2,GIC05
+        MOVEI   A2,1            ; A2=0 RS92.9.4.3.6.6.2-.4
+        CAIE    I,FRM.V
+        CAIN    I,FRM.K
+        MOVN    A2,A0
+        JRST    GIC10
+GIC05:  CAIN    I,FRM.K         ; A2<0: RS92.9.4.3.6.6.5
+        JRST    GIC10
+        MOVN    A0,A2           ; RS92.9.4.3.6.6.6
+        MOVEI   A2,1            ; RS92.9.4.3.6.6.7
+        JRST    GIC10
+GIC08:  CAIE    I,FRM.V         ; RS92.9.4.3.6.6.8
+        CAIN    I,FRM.K
+        JRST    GIC10
+        CALL    IDGCHR          ; RS92.9.4.3.6.6.9  R78
+GIC10:  MOVE    R6,TERFLG(FCBREG) ; RS92.9.4.3.6.6.10
+        CAIGE   R6,3
+        JRST    GIC$$
+        CAIN    R6,5            ; .11
+        PUSHJ   R17,ENDFIL      ; .12
+        CAIE    I,FRM.X         ; .13
+        CAIN    R6,4
+        JRST    GIC15
+        CALL    CVTERR,<RSJMSG+^D35> ; RS92.9.4.3.6.6.14
+
+GIC15:  CAIE    R6,4            ; .15
+        JRST    GIC18
+        CALL    IDGLIN          ; .16
+        CALL    IDGCHR          ; .17
+GIC18:  SKIPN   ,A0             ; .18
+        MOVEI   A0,^O15         ; .19
+
+GIC$$:                          ;       RETURN  GET INPUT CHARACTER
+
+                                ; RS92.9.4.3.6.7 PROCESS AND STORE INPUT
+                                ;               CHARACTER
+        SETZ    A3,             ; RS92.9.4.3.6.7.1
+        CAIG    I,FRM.P         ; RS92.9.4.3.6.7.2
+        JRST    PSIC03
+        CAIG    I,FRM.Z
+        JRST    PSIC04
+        JRST    @.-10(I)
+        PSIC05  ; I=11
+        PSIC07  ; I=12
+        PSIC08  ; I=12
+        PSIC11  ; I=13
+        PSIC13  ; A
+        PSIC16  ; X
+        PSI14A ; U
+        PSIC16  ; C
+        PSIC16  ; J
+        PSIC15  ; H
+        PSIC15  ; O
+        PSIC15  ; W
+
+PSIC03:                         ; RS92.9.4.3.6.7.3  POSSIBLE STATICS
+        JUMPN   I,POSS03        ; RS92.9.4.3.6.7.3.1
+                                ; RS92.9.4.3.6.7.3.2  COMMA
+        SKIPL   R6,DIGFLG       ; RS92.9.4.3.6.7.3.2.1
+        CAIN    R6,3
+        SKIPA
+        JRST    COMA07
+        CAIE    A0,"+"          ; RS92.9.4.3.6.7.3.2.2
+        CAIN    A0,"-"
+        JRST    COMA$$
+        CAIN    A0,"("
+        JRST    COMA$$
+        CAIE    A0,^O54         ; (COMMA)
+        CAIN    A0,^O40
+        JRST    COMA03
+        CAIE    A0,"$"
+        CAIN    A0,"*"
+        JRST    COMA03
+        CAIN    A0,")"
+        JRST    COMA06
+COMA03: MOVE    R6,DIGFLG       ; RS92.9.4.3.6.7.3.2.3
+        CAIE    R6,3
+        JRST    COMA05
+        MOVEI   A0,^O40         ; RS92.9.4.3.6.7.3.2.4
+        JRST    COMA$$
+COMA05: SETO    A3,             ; RS92.9.4.3.6.7.3.2.5
+        JRST    COMA$$
+COMA06: MOVEI   A3,1            ; RS92.9.4.3.6.7.3.2.6
+        JRST    COMA$$
+COMA07: SETO    A3,             ; RS92.9.4.3.6.7.3.2.7-.9
+        CAIE    A0,^O54         ; (COMMA)
+        MOVEI   A3,2
+COMA$$:                         ;       RETURN  COMMA
+
+POSS03: JUMPN   A3,POSS$$       ; RS92.9.4.3.6.7.3.3
+                                ; RS92.9.4.3.6.7.3.4  FLOAT CHARACTER
+        CAIL    A0,^O60         ; RS92.9.4.3.6.7.3.4.1  (ZERO)
+        CAILE   A0,^O71         ;                       (NINE)
+        JRST    FLOA03
+        MOVMS   ,DIGFLG         ; RS92.9.4.3.6.7.3.4.2
+        JRST    FLOA$$
+FLOA03: SKIPGE  ,DIGFLG         ; RS92.9.4.3.6.7.3.4.3
+        JRST    FLOA05
+        MOVEI   R6,3            ; RS92.9.4.3.6.7.3.4.4
+        MOVEM   R6,DIGFLG
+FLOA05: CAIE    A0,^O40         ; RS92.9.4.3.6.7.3.4.5
+        JRST    FLOA07
+        SETO    A3,             ; RS92.9.4.3.6.7.3.4.6
+        JRST    FLOA15
+FLOA07: JUMPE   I,FLOA14        ; RS92.9.4.3.6.7.3.4.7
+        CAIL    I,FRM.S
+        JRST    FLOA14
+        CAIN    I,FRM.ST
+        JRST    FLOA11
+        SETO    A3,             ; RS92.9.4.3.6.7.3.4.8-.10
+        CAIE    A0,"$"
+        MOVEI   A3,3
+        JRST    FLOA15
+FLOA11: SETO    A3,             ; RS92.9.4.3.6.7.3.4.11-.13
+        CAIE    A0,"*"
+        MOVEI   A3,4
+        JRST    FLOA15
+FLOA14:                         ; RS92.9.4.3.6.7.3.4.14  SIGNS
+        CAIE    I,FRM.P         ; RS92.9.4.3.6.7.3.4.14.1-.3
+        SKIPN   ,I
+        CAIE    A0,"("
+        SKIPA
+        MOVEI   A0,"-"
+        CAIN    A0,"-"          ; RS92.9.4.3.6.7.3.4.14.4
+        JRST    SIGN05
+        CAIN    A0,"+"
+        JRST    SIGN10
+        CAIN    A0,")"
+        JRST    SIGN15
+        JRST    SIGN16
+SIGN05: MOVE    R6,DIGFLG       ; RS92.9.4.3.6.7.3.4.14.5
+        CAIE    R6,3
+        CAMN    R6,[-1]
+        SKIPA
+        JRST    SIGN$$
+        MOVE    R6,MSGN         ; RS92.9.4.3.6.7.3.4.14.6
+        CAIE    R6,"+"
+        JRST    SIGN08
+        MOVEI   A3,5            ; RS92.9.4.3.6.7.3.4.14.7
+        JRST    SIGN$$
+SIGN08: MOVEM   A0,MSGN         ; RS92.9.4.3.6.7.3.4.14.8-.9
+        SETO    A3,
+        JRST    SIGN$$
+SIGN10: MOVE    R6,DIGFLG       ; RS92.9.4.3.6.7.3.4.14.10
+        CAIE    R6,3
+        CAMN    R6,[-1]
+        SKIPA
+        JRST    SIGN$$
+        MOVE    R6,MSGN         ; RS92.9.4.3.6.7.3.4.14.11
+        CAIE    R6,"-"
+        JRST    SIGN13
+        MOVEI   A3,6            ; RS92.9.4.3.6.7.3.4.14.12
+        JRST    SIGN$$
+SIGN13: MOVEM   A0,MSGN         ; RS92.9.4.3.6.7.3.4.14.13-.14
+        SETO    A3,
+        JRST    SIGN$$
+SIGN15: SETO    A3,             ; RS92.9.4.3.6.7.3.4.14.15
+        JRST    SIGN$$
+SIGN16: MOVEI   A3,7            ; RS92.9..4.3.6.7.3.4.14.16
+SIGN$$:                         ;       RETURN  SIGNS
+
+FLOA15: MOVE    R6,DIGFLG       ; RS92.9.4.3.6.7.3.4.15
+        CAIN    R6,3
+        SKIPL   ,A3             ; (SKIP IF A3=-1)
+        JRST    FLOA$$
+        SETZ    A3,             ; RS92.9.4.3.6.7.3.4.16
+        MOVEI   A0,^O40
+FLOA$$:                         ;       RETURN FLOAT CHARACTER
+
+POSS$$: JRST    PSIC16          ;       RETURN  POSSIBLE STATICS
+
+PSIC04:                         ; RS92.9.4.3.6.7.4  DIGITS
+        MOVMS   ,DIGFLG         ; RS92.9.4.3.6.7.4.1
+        CAIN    A0,^O40         ; RS92.9.4.3.6.7.4.2
+        JRST    DIG03
+        CAIL    A0,^O60
+        CAILE   A0,^O71
+        JRST    DIG06
+        JRST    DIG$$
+DIG03:  MOVEI   A0,^O60         ; RS92.9.4.3.6.7.4.3-.5
+        JRST    DIG$$
+DIG06:  MOVEI   A3,9            ; RS92.9.4.3.6.7.4.6
+DIG$$:  JRST    PSIC16          ;         RETURN   DIGITS
+
+PSIC05: CAIE    A0,^O56         ; RS92.9.4.3.6.7.5-.6  (DOT)
+        MOVEI   A3,10
+        JRST    PSIC16
+PSIC07: MOVEI   A0,^O56         ; RS92.9.43.6.7.7
+        JRST    PSIC16
+PSIC08: MOVE    R6,[-2]         ; RS92.9.4.3.6.7.8-.10
+        MOVEM   R6,DIGFLG
+        CAIE    A0,"E"
+        CAIN    A0,"D"
+        JRST    PSIC16
+        CAIE    A0,^O144        ; (LOWER CASE, D,E)
+        CAIN    A0,^O145
+        JRST    PSIC16
+        MOVEI   A3,11
+        JRST    PSIC16
+PSIC11: MOVE    R6,[-2]         ; RS92.9.4.3.6.7.11-.12
+        MOVEM   R6,DIGFLG
+        MOVEI   A0,"E"
+        JRST    PSIC16
+PSIC13: CAIN    A0,^O40         ; RS92.9.4.3.6.7.13-.14
+        JRST    PSIC16
+        CAIL    A0,^O101        ; (A)
+        CAILE   A0,^O132        ; (Z)
+        CAIL    A0,^O141
+        CAILE   A0,^O172
+        MOVEI   A3,12           ; RS92.9.4.3.6.7.14A-14B
+        JRST    PSIC16
+PSI14A: CAIL    A0,^O141
+        CAILE   A0,^O172
+        JRST    PSIC16
+        SUBI    A0,^O40
+        JRST    PSIC16
+PSIC15:                          ;RS92.9.4.3.6.7.15  SPECIAL RADIX INPUT
+        CALL    IWC,<UTPTR>     ; RS92.9.4.3.6.7.15.1-.3
+        SETO    A3,
+        JRST    @.-FRM.H+1(I)
+        SRIN04  ;I=18
+        SRIN11  ;I=19
+        SRIN15  ;I=20
+
+SRIN04: CAIL    A0,^O60         ; RS92.9.4.3.6.7.15.4
+        CAILE   A0,^O71
+        JRST    SRIN07
+        SUBI    A0,^O60         ; RS92.9.4.3.6.7.15.5-.6
+        MOVEI   A1,4
+        JRST    SRIN19
+SRIN07: CAIL    A0,^O101        ; RS92.9.4.3.6.7.15.7 (A)
+        CAILE   A0,^O106        ; (F)
+        JRST    SRIN9A
+        SUBI    A0,^O67         ; RS92.9.4.3.6.7.15.8-.9
+        MOVEI   A1,4
+        JRST    SRIN19
+SRIN9A: CAIL    A0,^O141        ; RS92.9.4.3.6.7.15.9A
+        CAILE   A0,^O146
+        JRST    SRIN10
+        SUBI    A0,^O127        ; RS92.9.4.3.6.7.15.9B-.9C
+        MOVEI   A1,4
+        JRST    SRIN19
+SRIN10: MOVEI   A3,13           ; RS92.9.4.3.6.7.15.10
+        JRST    SRIN19
+SRIN11: CAIL    A0,^O60         ; RS92.9.4.3.6.7.15.11
+        CAILE   A0,^O67
+        JRST    SRIN14
+        SUBI    A0,^O60         ; RS92.9.4.3.6.7.15.12-.13
+        MOVEI   A1,3
+        JRST    SRIN19
+SRIN14: MOVEI   A3,14           ; RS92.9.4.3.6.7.15.14
+        JRST    SRIN19
+SRIN15: CAIE    A0,"0"          ; RS92.9.4.3.6.7.15.15  (ZERO)
+        CAIN    A0,"1"
+        SKIPA
+        JRST    SRIN18
+        SUBI    A0,^O60         ; RS92.9.4.3.6.7.15.16-.17
+        MOVEI   A1,1
+        JRST    SRIN19
+SRIN18: MOVEI   A3,15           ; RS92.9.4.3.6.7.15.18
+SRIN19: JUMPGE  A3,SRIN$$       ; RS92.9.4.3.6.7.15.19 (JUMP IF A3#-1)
+                                ; RS92.9.4.3.6.7.15.19A-.20-.21
+        LSH     ICBUF,0(A1)
+        ORM     A0,ICBUF
+SRIN$$:                         ;       RETURN  SPECIAL RADIX INPUT
+
+PSIC16: SOS     ,LENG            ; RS92.9.4.3.6.7.16
+        JUMPL   A3,PSIC$$       ; RS92.9.4.3.6.7.17 (JUMP IF A3=-1)
+        JUMPG   A3,PSIC19
+        CALL    IWC,<UTPTR>     ; RS92.9.4.3.6.7.18
+        JRST    PSIC$$
+PSIC19:                        ; RS92.9.4.3.6.7.19  SPECIAL FORM ERROR
+        MOVEI   R0,<RSJMSG+^D31>; RS92.9.4.3.6.7.19.1-.6
+        OSKIPN  ,NUMONY
+        MOVEI   R0,<RSJMSG+^D32>
+        CAIN    STAGE,11
+        MOVEI   R0,<RSJMSG+^D30>
+        CAIN    STAGE,12
+        CALL    CVTERR,<RSJMSG+^D34>
+                                ;       RETURN  SPECIAL FORM ERROR
+
+PSIC$$:                 ;   RETURN  PROCESS AND STORE INPUT CHARACTER
+
+SFIN08: CAIE    I,EOFLD         ; RS92.9.4.3.6.8
+        JRST    SFIN02
+        SETZ    A0,             ; RS92.9.4.3.6.9
+        CALL    IWC,<UTPTR>
+                                ;       RETURN  SFINPT
+
+        OHRRZ   R6,IOTYP        ; RS92.9.4.3.7
+        CAIE    R6,STRING
+        JRST    ISPF08
+        CALL    STRSTR          ;(STORE THE STRING)
+        JRST    ISPF10
+ISPF08:                         ; RS92.9.4.3.8 CONVERT AND STORE NUMERIC
+        CAIE    STAGE,12        ; RS92.9.4.3.8.1
+        JRST    CSN03
+        MOVE    R6,ICBUF        ; RS92.9.4.3.8.2
+        OMOVEM  R6,@BASADR
+        JRST    CSN$$
+CSN03:  MOVE    R6,MSGN         ; RS92.9.4.3.8.3
+        CAIE    R6,^O40
+        IDPB    R6,A4           ; (STORE SIGN)
+        CALL    IDCNVN          ; RS92.9.4.3.8.7  R87
+CSN$$:                          ;     RETURN  CONVERT AND STORE NUMERIC
+
+ISPF10: MOVE    R6,SAVIDX       ; RS92.9.4.3.9-.10
+        OMOVEM  R6,FMTPTR
+        MOVE    R6,SAVNFG       ; RS92.9.4.3.11
+        OMOVEM  R6,NUMFLG
+        MOVE    R6,SAVNFD
+        OMOVEM  R6,NUMFLD
+        JRST    FMID$$          ;       RETURN     IDSPF
+
+;****************************************************************
+FMID06:                         ; RS92.9.4.6    IDFRMR
+;****************************************************************
+        OHRRZ   R6,IOTYP        ; RS92.9.4.6.1
+        CAIN    R6,STRING
+        JRST    IFRMR3
+        CALL    CVTERR,<RSJMSG+^D33> ; RS92.9.4.6.2
+
+IFRMR3: CALL    IDGFC           ; RS92.9.4.6.3-.4  R81
+                                ; RS92.9.4.6.5  INPUT STRING
+ISTR01:                         ; RS92.9.4.6.5.1
+        MOVE    R6,TERFLG(FCBREG) ; RS92.9.4.6.5.2
+        CAIL    R6,3
+        JRST    ISTR05
+        CALL    IWC,<UTPTR>     ; RS92.9.4.6.5.3
+        CALL    IDGCHR          ; RS92.9.4.6.5.4  R78
+        JRST    ISTR01
+ISTR05: SETZ    A0,             ; RS92.9.4.6.5.5
+        CALL    IWC,<UTPTR>     ; RS92.9.4.6.5.6
+                                ;       RETURN  INPUT STRING
+
+        CALL    STRSTR          ; (STORE THE STRING)
+        MOVEI   R0,4
+        MOVEM   R0,TERFLG(FCBREG)
+
+        JRST    FMID$$          ;       RETURN  IDFRMR
+
+;****************************************************************
+FMID08:                         ; RS92.9.4.8    IDFRMB
+;****************************************************************
+        OMOVE   A0,LMIOC        ; RS92.9.4.8.1
+        CALL    IDSKIP          ; RS92.9.4.8.2  R76
+        JRST    FMID$$          ;       RETURN  IDFRMB
+
+;****************************************************************
+FMID09:                         ; RS92.9.4.9    IDSLSH
+;****************************************************************
+        TLNE    OCB,FCBVAL      ; SKIP IF NOT VAL FUNCTION
+        JRST    ISLS$$
+        MOVE    R6,TERFLG(FCBREG) ; RS92.9.4.9.1
+        CAIN    R6,3
+        JRST    ISLS05
+ISLS01: CALL    IDGFC
+ISLS02:                         ; RS92.9.4.9.2
+        MOVE    R6,TERFLG(FCBREG) ; RS92.9.4.9.3
+        CAIL    R6,3
+        JRST    ISLS05
+        CALL    IDGCHR          ; RS92.9.4.9.4  R78
+        JRST    ISLS02
+ISLS05:                         ; RS92.9.4.9.5
+        OSOSLE  ,LFP            ; RS92.9.4.9.6-.7
+        JRST    ISLS01
+        MOVEI   R6,4
+        MOVEM   R6,TERFLG(FCBREG)
+ISLS$$:                         ;       RETURN  IDSLSH
+
+FMID$$: 
+        OMOVE   A0,SAVFC        ; RS92.9.5-.6
+        RETURN  FDRVI
+
+;****************************************************************
+        SUBTTL  FDRVO   CHART RS98.3.9
+        DCL     FDRVO
+;***********************************************************
+
+;       FORM DRIVER FOR OUTPUT
+
+        OMOVEM  A0,SAVFC        ; RS98.3.9.1-.3
+                                ; RS98.3.9.4   FRMOD
+        CALL    SPFO            ; RS98.3.9.4.1 (SET POINTER FOR O)
+        CAIG    STAGE,10        ; RS98.3.9.4.2
+        JRST    FMOD03
+        JRST    @.-10(STAGE)
+        FMOD04 ;STAGE=11
+        FMOD05 ;STAGE=12
+        0
+        IMOD06 ;STAGE=14
+        IMOD06 ;STAGE=15
+        IMOD08 ;STAGE=16
+        IMOD07 ;STAGE=17
+        IMOD07 ;STAGE=18
+        FMOD09 ;STAGE=19        FRM.R
+        IMOD10 ;STAGE=20        FREE FORM
+        FMOD11 ;STAGE=21        B FORM
+        FMOD12 ;STAGE=22        / FORM
+        0
+        IMOD14 ;STAGE=24        END OF RECORD
+
+;****************************************************************
+FMOD03: ; STAGES 0-10           ; RS98.3.9.4.3  ODSPCN
+;****************************************************************
+        OMOVE   R5,FLDBGN       ; RS98.3.9.4.3.1-.2
+        OEXCH   R5,FMTPTR
+        MOVEM   R5,SAVIDX       ; FMTPTR := FLDBGN  [SAVIDX]
+        SETZ    I,              ; RS98.3.9.4.3.3
+        MOVEI   R5,1
+        OEXCH   R5,NUMFLG
+        MOVEM   R5,SAVNFG       ; NUMFLG := 1       [SAVNFG]
+        OMOVE   R5,FSTLEN
+        OEXCH   R5,NUMFLD
+        MOVEM   R5,SAVNFD       ; NUMFLD := FSTLEN  [SAVNFD]
+        OHRRZ   R5,IOTYP        ; RS98.3.9.4.3.4
+        CAIE    R5,STRING
+        JRST    OSPN06
+        CALL    ODSPCS          ; RS98.3.9.4.3.5  R86
+        JRST    OSPN07
+OSPN06:                         ; RS98.3.9.4.3.6        OAVWNF
+                                ; RS98.3.9.4.3.6.1  CONVERT TO STRING
+                                ; RS98.3.9.4.3.6.1.1  SET FIELD LENGTH
+        SETO    R6,             ; RS98.3.9.4.3.6.1.1.1
+        OCAMN   R6,FLFBGN+1
+        JRST    SFL04           ; IP NOT FLOATING
+        OMOVE   R5,FLFCHR+1     ; FLOATING IP RS98.3.9.4.3.6.1.1.2
+        CAIN    R5,"Q"
+        JRST    SFL04
+        CAIE    R5,"P"
+        CAIN    R5,"Z"
+        JRST    SFL04
+; FOR $ * S + -     MUST ALLOCATE ONE FOR STATIC:
+        OSOS    ,LIP            ; RS98.3.9.4.3.6.1.1.3
+        OSOS    ,FLFCTR+1
+SFL04:  OCAMN   R6,FLFBGN+2     ; RS98.3.9.4.3.6.1.1.4
+        JRST    SFL07
+        OMOVE   R5,FLFCHR+2     ; GOT FLOATING EP RS98.3.9.4.3.6.1.1.5
+        CAIN    R5,"Q"
+        JRST    SFL07
+        CAIE    R5,"P"
+        CAIN    R5,"Z"
+        JRST    SFL07
+        OSOS    ,LEP            ; RS98.3.9.4.3.6.1.1.6
+        OSOS    ,FLFCTR+2
+SFL07:  OMOVE   R5,PFLG         ; RS98.3.9.4.3.6.1.1.7
+        JUMPE   R5,SFL$$        ; JUMP PAST SERIES OF TESTS IF NOT FRM.P
+        CAIN    R5,PFLG5+PFLG6
+        JRST    SFL08
+        CAIN    R5,PFLG2+PFLG6
+        JRST    SFL09
+        CAIN    R5,PFLG2+PFLG3
+        JRST    SFL10
+        CAIN    R5,PFLG2
+        JRST    SFL12
+        CAIN    R5,PFLG5
+        JRST    SFL15
+        JRST    SFL$$
+;FLOATING EP, STATIC P TERMINATOR:    EPPSP
+SFL08:  OSOS    ,LEP            ; RS98.3.9.4.3.6.1.1.8
+        OSOS    ,FLFCTR+2
+        JRST    SFL$$
+;FLOATING IP, STATIC P TERMINATOR:    PPPP.DDP
+SFL09:  OSOS    ,LIP            ; RS98.3.9.4.3.6.1.1.9
+        OSOS    ,FLFCTR+1
+        JRST    SFL$$
+;FLOATING IP AND FP (NO Q OR Z IN FP):   PPPP.PP
+SFL10:  OSOS    ,LIP            ; RS98.3.9.4.3.6.1.1.10
+        OSOS    ,FLFCTR+1       ;I THINK THIS IS THE BUG PPP.PPP:-23.45->(23.45))
+        OSOS    ,LFP            ; RS98.3.9.4.3.6.1.1.11
+        JRST    SFL$$
+;FLOATING IP ONLY:                    PPPPPP.DD
+SFL12:  MOVE    R5,[-2]         ; RS98.3.9.4.3.6.1.1.12
+        OADDM   R5,LIP
+        OADDM   R5,FLFCTR+1
+        OSKPLE  ,LIP            ; RS98.3.9.4.3.6.1.1.13
+        JRST    SFL$$
+        CALL    FMTERR,<RSJMSG+^D21> ; RS98.3.9.4.3.6.1.1.14
+;FLOATING EP:                         EPPPP
+SFL15:  MOVE    R5,[-2]         ; RS98.3.9.4.3.6.1.1.15
+        OADDM   R5,LEP
+        OADDM   R5,FLFCTR+2
+        OSKPLE  ,LEP            ; RS98.3.9.4.3.6.1.1.16
+        JRST    SFL$$
+        CALL    FMTERR,<RSJMSG+^D23> ; RS98.3.9.4.3.6.1.1.17
+
+SFL$$:                          ;       RETURN  SET FIELD LENGTH
+
+;SET "NOT FREE FORM" FOR ISC:
+        SETZ    A0,             ; RS98.3.9.4.3.6.1.2
+        OMOVE   A1,LIP          
+        OMOVE   A2,LFP
+        OMOVE   A3,LEP
+        CALL    ISC              ; INTERNAL TO STRING CONVERSION       E191
+        JUMPE   A0,CTS05        ; RS98.3.9.4.3.6.1.3
+
+        EXTERN  FLDOVC          ; If non-zero, contains character code with 
+                                ; which to fill overflowing field.
+        setzm   leng            ; We have not read any formatting chars yet
+        call    filfld,<$,fldovc>; fill field or cause error if fldovc=0
+        jrst    ospn07          ; after filling field, done with field
+
+CTS05:  MOVE    R5,ISCDIG       ; RS98.3.9.4.3.6.1.5
+        MOVEM   R5,ISCDG1
+        MOVMS   ,ISCDIG         ; IN CASE NEG NUMBER RS98.3.9.4.3.6.1.6
+        SETZM   ,LENG            ; RS98.3.9.4.3.6.1.7-.9
+        MOVEI   R5,1
+        MOVEM   R5,DRSTG
+        MOVEM   R5,IPEP
+                                ;       RETURN  CONVERT TO STRING
+
+        CALL    FLSHST          ; PRINT STATICS BEFORE IP RS98.3.9.4.3.6.2  R83
+        OSKIPG  ,LIP            ; RS98.3.9.4.3.6.3
+        JRST    OVWN05
+; PRINT LEAD (FILL) CHARS OF FLOATING FIELD, INCLUDING THE SINGLE STATIC:
+        CALL    .FLTCH           ; RS98.3.9.4.3.6.4  R85
+;(LIP POSSIBLY GOT ZEROED BY ACTION OF .FLTCH):
+OVWN05: OSKIPG  ,LIP            ; RS98.3.9.4.3.6.6      PRTIP
+        JRST    OVWN07          ; SKIP PAST IP STUFF IF LIP=0
+;SET A3:=1 IF AT THE BOTTOM OF THE LOOP WE WILL WANT TO DECREMENT ISCEXP,
+;WHICH IS THE COUNT OF INTEGRAL DIGITS IN THE NUMBER (NOT NECESSARILY THE SAME
+;AS THE NUMBER OF INTEGER DIGITS ACTUALLY PRINTED, IF THERE IS AN EP).
+;THE LOGIC IS SOMETHING LIKE THIS:
+;   A3 :=1 IF ISCDIG # 0                !THERE ARE SIGNIFICANT DIGITS
+;             AND       ( ISCEXP >0     !THERE ARE INTEGRAL DIGITS
+;                        OR  LEP > -1)  !THERE IS AN EP
+        MOVEI   A3,1            ; RS98.3.9.4.3.6.6.1-.3
+        SKIPG   ,ISCEXP
+        OSKIPL  ,LEP            ;(SKIP IF LEP=-1)
+        SKIPN   ,ISCDIG
+        SETZ    A3,
+PIP04:                          ; RS98.3.9.4.3.6.6.4
+        SKIPLE  ,LENG            ; RS98.3.9.4.3.6.6.5
+        JRST    PIP07
+        SETZ    A0,             ; RS98.3.9.4.3.6.6.6
+        CALL    SFDGET          ;  R82
+PIP07:  SKIPG   ,ISCDIG         ; RS98.3.9.4.3.6.6.7
+        JRST    PIP12
+        SKIPG   ,ISCEXP         ; RS98.3.9.4.3.6.6.8
+        OSKIPL  ,LEP
+        SKIPA
+        JRST    PIP11
+        IGC(UTPTR)              ; RS98.3.9.4.3.6.6.9
+        SOS     ,ISCDIG         ; RS98.3.9.4.3.6.6.10
+        JRST    PIP13
+PIP11:                          ; RS98.3.9.4.3.6.6.11 (ZERO)
+PIP12:  MOVEI   A0,"0"          ; RS98.3.9.4.3.6.6.12 (ZERO)
+PIP13:                          ; RS98.3.9.4.3.6.6.13  OUTPUT INTEGER
+                                ;       PART CHARACTER(OIPC)
+        CAIN    A0,"0"          ; RS98.3.9.4.3.6.6.13.1 (ZERO)
+        CAIE    I,FRM.Y
+        SKIPA
+        MOVEI   A0,^O40         ; RS98.3.9.4.3.6.6.13.2-.4
+        CALL    .OTCAR
+        OSOS    ,LIP
+        SOS     ,LENG
+                                ;       RETURN   OIPC
+
+        SKIPE   ,A3             ; RS98.3.9.4.3.6.6.14
+        SOS     ,ISCEXP         ; RS98.3.9.4.3.6.6.15-.16
+        OSKPLE  ,LIP
+        JRST    PIP04
+                                ;       RETURN  PRTIP
+
+OVWN07: SETO    R5,             ; RS98.3.9.4.3.6.7
+        OCAMN   R5,LFP
+        JRST    OVWN09
+                                ; RS98.3.9.4.3.6.8      PRTFP
+                                ; RS98.3.9.4.3.6.8.1    DECIMAL POINT
+        SKIPLE  ,LENG
+        JRST    DP01
+        SETZ    A0,             ; RS98.3.9.4.3.6.8.1.1
+        CALL    SFDGET          ;       R82
+dp01:
+        skipn   iscdg1          ; was number=0?
+        skipn   .zfpsp          ; and is Zero Fractional Part SPaces set?
+        jrst    prtfp           ; no, so go ahead and do FP normally
+
+        oskipl  lep             ; also, don't fill if EP specified
+        jrst    prtfp
+
+        call    filfld,<" ">
+        jrst    ospn07          ; done with field
+
+prtfp:  CAIE    I,FRM..         ; RS98.3.9.4.3.6.8.1.2
+        JRST    DP04
+        MOVEI   A0,"."          ; RS98.3.9.4.3.6.8.1.3 (DOT)
+        CALL    .OTCAR
+DP04:   SETZM   ,LENG            ; RS98.3.9.4.3.6.8.1.4
+                                ;       RETURN  DECIMAL POINT
+
+        OSKIPN  ,LFP            ; RS98.3.9.4.3.6.8.2
+        JRST    PFP$$           ; EXPLICIT LFP=0: "DDDD."
+PFP03:  ;LOOP                   ; RS98.3.9.4.3.6.8.3
+        SKIPLE  ,LENG            ; RS98.3.9.4.3.6.8.4
+        JRST    PFP06
+        SETZ    A0,             ; RS98.3.9.4.3.6.8.5
+        CALL    SFDGET          ;       R82
+PFP06:  SKIPG   ,ISCDIG         ; RS98.3.9.4.3.6.8.6
+        JRST    PFP12           ; NO MORE SIG DIGITS
+        SKIPGE  ,ISCEXP         ; RS98.3.9.4.3.6.8.7
+        OSKPLE  ,LEP
+        SKIPA
+        JRST    PFP10           ; NO EP IN FORMAT, BUT THERE ARE LEADING FP ZEROES
+        IGC(UTPTR)              ; RS98.3.9.4.3.6.8.8
+        SOS     ISCDIG          ; RS98.3.9.4.3.6.8.9
+        JRST    PFP13
+PFP10:  MOVEI   A0,"0"          ; RS98.3.9.4.3.6.8.10 (ZERO)
+        AOS     ,ISCEXP         ; COMPENSATE FOR LEADING FP PWER OF10 RS98.3.9.4.3.6.8.11
+        JRST    PFP13
+PFP12:  MOVEI   A0,"0"          ; RS98.3.9.4.3.6.8.12 (ZERO)
+PFP13:                          ; RS98.3.9.4.3.6.8.13  OUTPUT FRACTIONAL
+                                ;               PART CHARACTER (OFPC)
+        CAIE    A0,"0"
+        JRST    OFPC04          ;no special processing
+        CAIN    I,FRM.Y
+        MOVEI   A0," "
+        SKIPE   ISCDIG          ;Any more sig. digits to print?
+        JRST    OFPC04          ;yes, this is a significant zero
+        CAIN    I,FRM.Q
+        JRST    OFPC05          ;Form Q suppresses insignificant zero
+        CAIN    I,FRM.Z
+        MOVEI   A0," "          ;Form Z turns them into spaces
+OFPC04: CALL    .OTCAR          ; RS98.3.9.4.3.6.8.13.4  E32
+OFPC05: OSOS    ,LFP            ; RS98.3.9.4.3.6.8.13.5
+        SOS    ,LENG
+                                ;       RETURN OFPC
+
+        OSKPLE  LFP             ; RS98.3.9.4.3.6.8.14
+        JRST    PFP03
+PFP$$:                          ;       RETURN  PRTFP
+
+OVWN09: SETO    R5,             ; RS98.3.9.4.3.6.9
+        OCAME   R5,LEP
+        JRST    OVWN10
+        MOVEI   R5,10
+        MOVEM   R5,DRSTG
+        JRST    OVWN12
+
+OVWN10:                         ; RS98.3.9.4.3.6.10     EXPONENT
+                                ; RS98.3.9.4.3.6.10.1   GENEXP
+        SETZ    A0,             ; RS98.3.9.4.3.6.10.1.1
+        CALL    SFDGET          ; R82
+        CAIE    I,FRM.E         ; RS98.3.9.4.3.6.10.1.2
+        JRST    GENX04
+        MOVEI   A0,"E"
+        CALL    .OTCAR          ; RS98.3.9.4.3.6.10.1.3
+GENX04: SETZM   ,LENG            ; RS98.3.9.4.3.6.10.1.4
+        MOVEI   R5,6            ; RS98.3.9.4.3.6.10.1.5
+        MOVEM   R5,DRSTG
+                                ;       RETURN  GENEXP
+
+        MOVEI   R5,2            ; RS98.3.9.4.3.6.10.2
+        MOVEM   R5,IPEP
+        CALL    FLSHST          ; RS98.3.9.4.3.6.10.3  R83
+        CALL    .FLTCH           ; RS98.3.9.4.3.6.10.4  R85
+                                ; RS98.3.9.4.3.6.10.5   PRTEP
+        OSKIPN  R5,LEP          ; RS98.3.9.4.3.6.10.5.1
+        JRST    PEP$$
+        CAIE    R5,2            ; RS98.3.9.4.3.6.10.5.2-.5
+        JRST    PEP4A
+        MOVM    A0,ISCEXP
+        IDIVI   A0,10
+        ADDI    A0,^O60
+        CAIN    I,FRM.Q
+        CAIE    A0,"0"
+        SKIPA
+        JRST    PEP04           ;(IGNORE - SHRINK FIELD)
+        CAIE    I,FRM.Y
+        CAIN    I,FRM.Z
+        CAIE    A0,"0"
+        SKIPA
+        MOVEI   A0,^O40
+        CALL    .OTCAR
+PEP04:  SOS     ,LENG
+PEP4A:  SKIPLE  ,LENG
+        JRST    PEP05
+        SETZ    A0,
+        CALL    SFDGET
+PEP05:  MOVM    R6,ISCEXP
+        CAIGE   R6,10
+        JRST    .+3
+        SUBI    R6,10
+        JRST    .-3
+        MOVE    A0,R6
+        ADDI    A0,^O60
+                                ; RS98.3.9.4.3.6.10.5.6
+                                ; RS98.3.9.4.3.6.10.5.7 (SPACE)
+        CALL    .OTCAR          ; RS98.3.9.4.3.6.10.5.8  E32
+        SOS     ,LENG
+PEP$$:                          ;       RETURN PRTEP
+                                ;       RETURN EXPONENT
+
+        MOVEI   R5,8            ; RS98.3.9.4.3.6.11
+        MOVEM   R5,DRSTG
+OVWN12: CALL    FLSHST          ; RS98.3.9.4.3.6.12  R83
+                                ;       RETURN  OAVWNF
+
+OSPN07: MOVE    R5,SAVIDX               ; RS98.3.9.4.3.7
+        OMOVEM  R5,FMTPTR
+        MOVE    R5,SAVNFG               ; RS98.3.9.4.3.8
+        OMOVEM  R5,NUMFLG
+        MOVE    R5,SAVNFD
+        OMOVEM  R5,NUMFLD
+        JRST    FMOD$$          ;       RETURN ODSPCN
+
+;*********************************************************************
+FMOD04: ; STAGE 11
+;*********************************************************************
+        OMOVE   R5,FLDBGN       ; RS98.3.9.4.4.1-.2
+        OEXCH   R5,FMTPTR
+        MOVEM   R5,SAVIDX
+        SETZ    I,              ; RS98.3.9.4.4.3
+        MOVEI   R5,1
+        OEXCH   R5,NUMFLG
+        MOVEM   R5,SAVNFG
+        OMOVE   R5,FSTLEN
+        OEXCH   R5,NUMFLD
+        MOVEM   R5,SAVNFD
+        CALL    ODSPCS          ; RS98.3.9.4.4.4  R86
+        MOVE    R5,SAVIDX       ; RS98.3.9.4.4.5
+        OMOVEM  R5,FMTPTR
+        MOVE    R5,SAVNFG       ; RS98.3.9.4.4.6
+        OMOVEM  R5,NUMFLG
+        MOVE    R5,SAVNFD
+        OMOVEM  R5,NUMFLD
+        JRST    FMOD$$          ;       RETURN  SSTRING
+
+;*********************************************************************
+FMOD05: ;STAGE 12: FRM.H,O,W  SPECIAL RADIX  ; RS98.3.9.4.5  ODSPCR
+;*********************************************************************
+
+        OHRRZ   R5,IOTYP        ; RS98.3.9.4.5.1-.5
+        CAIE    R5,INT
+        CAIN    R5,LOG
+        JRST    OSPR04
+        CALL    CVTERR,<RSJMSG+^D39>
+
+OSPR04: OMOVE   A1,OCBOPD
+        OMOVE   R5,FLDBGN       ; RS98.3.9.4.5.6-.7
+        OEXCH   R5,FMTPTR
+        MOVEM   R5,SAVIDX
+        SETZB   I,LENG          ; RS98.3.9.4.5.8
+        MOVEI   R5,1
+        OEXCH   R5,NUMFLG
+        MOVEM   R5,SAVNFG
+        OMOVE   R5,FSTLEN
+        OEXCH   R5,NUMFLD
+        MOVEM   R5,SAVNFD
+                                ; RS98.3.9.4.5.9  OUTPUT SPECIAL RADIX
+        MOVEI   R5,12           ; RS98.3.9.4.5.9.1
+        MOVEM   R5,DRSTG
+                                ; RS98.3.9.4.5.9.2  ALIGN
+        OMOVE   R5,LMIOC        ; RS98.3.9.4.5.9.2.1
+        CAIG    R5,36
+        JRST    ALIN03
+        SUBI    R5,36           ; RS98.3.9.4.5.9.2.2
+        OMOVEM  R5,LMIOC
+        JRST    ALIN$$
+ALIN03: MOVEI   A2,36           ; RS98.3.9.4.5.9.2.3
+        OSUB    A2,LMIOC
+        LSH     A1,0(A2)        ; RS98.3.9.4.5.9.2.4
+        OSETZM  ,LMIOC  
+ALIN$$:                         ;       RETURN  ALIGN
+
+OSR03:                          ; RS98.3.9.4.5.9.3
+        SETZ    A0,             ; RS98.3.9.4.5.9.4
+        CALL    SFDGET          ;   R82
+        CAIN    I,EOFLD         ; RS98.3.9.4.5.9.5
+        JRST    OSR07
+                                ; RS98.3.9.4.5.9.6  OUTPUT DIGIT
+        XCT     .-FRM.H+2(I)    ; RS98.3.9.4.5.9.6.1
+        JRST    ODIG05
+        MOVEI   A2,4            ; RS98.3.9.4.5.9.6.2-.4
+        MOVEI   A2,3
+        MOVEI   A2,1
+ODIG05:                         ; RS98.3.9.4.5.9.6.5
+                                ; RS98.3.9.4.5.9.6.6  GENSRD
+        OSKIPG  ,LMIOC          ; RS98.3.9.4.5.9.6.6.1
+        JRST    GEND07
+        OCAMLE  A2,LMIOC        ; RS98.3.9.4.5.9.6.6.2
+        JRST    GEND05
+        SETZ    A0,             ; RS98.3.9.4.5.9.6.6.3-.4
+        MOVN    R5,A2
+        OADDM   R5,LMIOC
+        JRST    GEND$$
+GEND05: SETZ    A0,             ; RS98.3.9.4.5.9.6.6.5
+        MOVE    R5,A2
+        OSUB    R5,LMIOC
+        LSHC    A0,0(R5)
+        OSETZM  ,LMIOC          ; RS98.3.9.4.5.9.6.6.6
+        JRST    GEND$$
+GEND07: SETZ    A0,             ; RS98.3.9.4.5.9.6.6.7
+        LSHC    A0,0(A2)
+        CAIL    A0,10
+        ADDI    A0,7            ; (FIX TO PRINT THE LETTERS A-F)
+GEND$$:                         ;       RETURN  GENSRD
+
+        ADDI    A0,^O60         ; RS98.3.9.4.5.9.6.7
+        CALL    .OTCAR          ; RS98.3.9.4.5.9.6.8  E32
+        SOS     R5,LENG          ; RS98.3.9.4.5.9.6.9-.10
+        JUMPN   R5,ODIG05
+                                ;       RETURN  OUTPUT DIGIT
+
+OSR07:  CAIE    I,EOFLD         ; RS98.3.9.4.5.9.7
+        JRST    OSR03
+                                ;       RETURN OUTPUT SPECIAL RADIX
+
+        MOVE    R5,SAVIDX       ; RS98.3.9.4.5.10
+        OMOVEM  R5,FMTPTR
+        MOVE    R5,SAVNFG       ; RS98.3.9.4.5.11
+        OMOVEM  R5,NUMFLG
+        MOVE    R5,SAVNFD
+        OMOVEM  R5,NUMFLD
+        JRST    FMOD$$          ;       RETURN  ODSPCR
+
+;*********************************************************************
+FMOD09: ;FRM.R                  ; RS98.3.9.4.9  ODFRMR
+;*********************************************************************
+
+        OHRRZ   R5,IOTYP        ; RS98.3.9.4.9.1
+        CAIN    R5,STRING
+        JRST    OFRMR3
+        CALL    CVTERR,<RSJMSG+^D33> ; RS98.3.9.4.9.2
+
+OFRMR3: OMOVE   A1,OCBOP1       ; RS98.3.9.4.9.3 (R6<=ADDR OF STR DESC.)
+        HLRZ    A1,1(A1)        ; (CURRENT LENGTH)
+        JUMPE   A1,OFRMR5       ; (NO CHARACTERS IN STRING)
+OFRMR4: ILDB    A0,UTPTR        ; (GET CHAR FROM STRING)
+        CALL    .OTCAR
+        SOJG    A1,OFRMR4
+OFRMR5: MOVEI   A0,^O15         ; RS98.3.9.4.9.4
+        TLNE    OCB,FCBFRL      ; SKIP IF NOT FRL RANDOM FILE
+        MOVEI   A0,^O400        ; INDICATE RECORD TERMINATOR
+        CALL    .OTCAR
+        JRST    FMOD$$          ;       RETURN  ODFRMR
+
+;*********************************************************************
+FMOD11: ; FORM B                ; RS98.3.9.4.11 ODFRMB
+;*********************************************************************
+
+        OMOVE   A1,LMIOC        ; RS98.3.9.4.11.1
+        CALL    ODBLNK          ; RS98.3.9.4.11.2  R73
+        JRST    FMOD$$          ;       RETURN  ODFRMB
+
+;*********************************************************************
+FMOD12: ; FORM /                ; RS98.3.9.4.12 ODSLSH
+;*********************************************************************
+
+        TLNE    OCB,FCBSTF      ; SKIP IF NOT STR FUNCTION
+        JRST    OSLS$$
+        MOVEI   A0,^O15         ; RS98.3.9.4.12.1
+        TLNE    OCB,FCBFRL      ; SKIP IF NOT FRL RANDOM FILE
+        MOVEI   A0,^O400        ; INDICATE RECORD TERMINATOR
+OSLS02:                         ; RS98.3.9.4.12.2
+        CALL    .OTCAR          ; RS98.3.9.4.12.3
+        OSOS    R5,LFP          ; RS98.3.9.4.12.4
+        JUMPG   R5,OSLS02       ; RS98.3.9.4.12.5
+OSLS$$:                         ;       RETURN  ODSLSH
+
+FMOD$$:                         ;   RETURN  FRMOD
+
+        MOVE    A0,ARRAY##      ; STORE RESULT IF :
+        CAILE   A0,1            ;  ARRAY <= 1 ,
+        JRST    FMOD$2
+        TLNE    OCB,FCBSTF      ;  STR FUNCTION ,
+        CAIL    STAGE,20        ;  AND STAGE < 20 (THERE WAS A VALUE)
+        SKIPA
+        PUSHJ   R17,STRSTR
+
+FMOD$2: OMOVE   A0,SAVFC        ; RS98.3.9.5-.6
+        RETURN  FDRVO
+
+
+subttl  FILFLD  Fill field with given character
+
+        dclne   filfld,<filchr>
+
+; Called during numeric form field output when the number is too large for
+; the field, or when rest of field is to be filled with spaces.
+; If FILCHR is non-zero, then its value is used as the fill character.
+; If zero, CVTERR is called.  A return will occur only in the first case.
+; The format pointers, etc., will be set just as if the digits of a
+; legal number had been printed (SFDGET is called until it returns I=EOFLD).
+
+        skipe   filchr
+        jrst    fillit
+
+        call    cvterr,<rsjmsg+^d26>;   overflow
+
+fillit: skipe   leng
+        jrst    filllp
+        setz    a0,
+        call    sfdget
+
+filllp: call    .otcar,<,$,filchr>
+        setz    a0,
+        call    sfdget
+        caie    i,eofld
+        jrst    filllp
+
+        return  filfld
+
+        subttl  .fldoc  TBA procedure to set FLDOVC variable
+
+        tbadcl  .fldoc,<ccode>
+
+        move    r1,ccode
+        extern  fldovc
+        movem   r1,fldovc
+
+        tbaret
+
+        subttl  .blzfp  TBA procedure to set .ZFPSP variable
+
+        tbadcl  .blzfp,<t.f>
+
+        move    r1,t.f
+        extern  .zfpsp
+        movem   r1,.zfpsp
+
+        tbaret
+
+        lit
+        END
+ >@ D
