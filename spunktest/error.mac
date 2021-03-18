@@ -1,0 +1,26 @@
+TITLE   ERROR
+SUBTTL  Generate ERROR uuo given number
+
+;+
+;.FIRST TITLE .NJ .P 0 .FLAG CAP .FLAG IND
+;.SUBTITLE Generate ERROR uuo given number
+;-
+
+; Initial compiler stuff
+        TWOSEG
+        RELOC   ^O400000
+
+;
+;
+;************************************************************
+        SUBTTL  ERROR   CHART T1
+        DCL     ERROR
+;************************************************************
+;
+;
+;       ERROR NUMBER IN R0
+;
+        ERROR   PG,@R0
+        HALT
+
+        END
