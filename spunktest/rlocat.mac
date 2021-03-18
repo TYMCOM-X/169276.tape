@@ -1,0 +1,59 @@
+        TITLE   RLOCAT
+
+        TWOSEG
+        RELOC   400000
+
+        EXTERN  ROKFIL, .lspag
+
+;Modified 3/29/80 Samuel Feldman. To fix bug wherein LOCATE didn't work
+;on Command File, because although it wasn't the active file (AFILE),
+;it had a page locked in core.
+
+; Input: r1 - target location
+;	 r3 - file number (evidently in the right place for ROKFIL)
+
+        DCL     RLOCAT,,<VLOC>
+
+        MOVE    R6,R3                   ;RLOCAT.1
+        PUSHJ   P,ROKFIL
+        MOVE    R2,R7                   ;R2 has virtual addr wd 0 of file
+	fcb	r7
+	move	r5,fcbmsk(r7)
+        TRNN    R5,FCBRND               ;random?
+        JRST    [MOVEI  R1,0(R3)        ;RLOCAT.5
+                 FILE   RGSMSG+^D11]
+        JUMPG   R1,RLOC8                ;RLOCAT.6
+        JRST    [MOVEI  R1,0(R3)        ;RLOCAT.7
+                 FILE   RGSMSG+^D13]
+
+rloc8:
+	SUBI    R1,1                    ;RLOCAT.8
+        TRNE    R5,FCBFRL               ;fixed record length?
+        IMUL    R1,FCBLOL(R7)           ;RLOCAT.10
+        ADD     R2,R1                   ;R2 has appropriate virtual file addr
+        MOVEM   R2,VLOC
+        TRNN    R5,FCBBIN               ;if symbolic
+        CAME    R7,FCBCUR(R7)           ;and page is active,
+        JRST    RLOC9
+        CALL    .LSPAG,<$,R7,1>
+        JRST    REDSYM                  ;release it and go read new one.
+        EXTERN  AFILE
+rloc9:  SKIPN   R1,AFILE                ;get active OCB pointer
+        JRST    GOTADR                  ;none - virtual addr is correct
+        MOVE    R1,OCBFCB(R1)           ;pick up FCB pointer
+        CAME    R1,R7                   ;does it point to this file?
+        JRST    GOTADR                  ;no, we're not dealing w/active operation
+        CALL    .LSPAG,<$,R7,$,INOUT(R1)>;free or write current page
+        MOVE    R5,FCBMSK(R7)
+        TRNN    R5,FCBBIN
+        JRST    REDSYM
+        READ    VLOC
+        JRST    GOTADR
+REDSYM: READCR  VLOC,7
+GOTADR: MOVE    R2,VLOC
+        MOVEM   R2,FCBCUR(R7)           ;RLOCAT.15
+        SETZM   FCBPOS(R7)              ;@ beg of record/line/word - Init POS
+        RETURN  RLOCAT
+
+	lit
+        END
