@@ -1,0 +1,877 @@
+        TITLE   TBA.RN
+	subttl	file TBARUN.MAC
+; LOOK OUT, THE TITLE IS TIED INTO SYMBOL TABLE AT INI372+1 AND RGQTM1+1
+
+        TWOSEG
+        RELOC   ^O400000
+
+;  RUNSIDE INITIALIZATION PROCESS
+
+        ENTRY   RGQTMD
+        INTERN  REENT, ENTRY, STRTPT, HEADER, RUNCOM, MENTRY
+        EXTERN  LOSTRT, RSMLV1, RSMLV2, SAVSEG
+        EXTERN  SAVDAT, SAVEND, STRUN, ENDRUN
+        EXTERN  VMEMAD
+        EXTERN  .OPEN, CLOSEF, TRANSFER, TFR, GETVM, STARTP
+        EXTERN  STOPP, STOPT, UNLOAD
+        EXTERN  OPNALL, READDT, FREEDT
+        EXTERN  CHANTB
+        EXTERN  VIRTAB
+        EXTERN  STARTER, OUTMSG
+        EXTERN  TRPENB, IOINIT
+        EXTERN  DUMBUF, LNPTR
+        EXTERN  EXECSW, SAVBNM, PSW, STRTNM
+	extern	WMNAME, DSMDFG, MDCNT, SPOINT
+        EXTERN  EPS, RNSGNM, PGCNFG, STTADR, RUNLEN
+	extern	comsav, COMLEN, CXLOC, CXLNUM
+        EXTERN  SEGNO, STEPFG, WRKREG, STBKFG, QTMDNO, P.MOD
+        EXTERN  ISF, OSF
+        EXTERN  RERR, ERRLIN, ERRCOD, ERRFIL
+        EXTERN  .jbff, .JBHRL, .JB41, .JBVER, .JBSYM, .JBREL, .JBDA, .JBSA
+        EXTERN  RUNVEC, TFRLOW
+
+        RADIX   10
+
+
+
+.JBHSM=^O400006
+;  THIS CODE MUST RESIDE AT ADDRESS ^O400010.
+
+        JRST    COMRUN          ;GO STEP START
+        JRST    RUNIZL          ;RUN INIT SAVE BINARY DIRECT STATEMENT
+;  THE FOLLOWING IS THE RUNSIDE SECTION OF  THE COMRUN PROCESS.
+
+COMRUN:
+        IFN     DEBMOD,<
+        MOVE    R1,.JBHSM
+        MOVEM   R1,.JBSYM
+        OUTSTR  [ASCIZ  /
+DDT
+Type REENT;G to proceed/]
+        JRST    .JBDA>
+REENT:
+	INISTK
+        MOVE    R1,[PUSHJ   P,RERR]
+        MOVEM   R1,.JB41                ;set up UUO address
+	call	startp;		init CTx, HTx, SWAP, ...
+        CALL    READDT
+        CALL    RSUPAG
+        CALL    TRPENB
+        DMOVE   R14,WRKREG
+
+        EXTERN  CONREG
+        MOVE    R16,CONREG
+        JRST    @CXLOC
+RUNIZL:
+        INISTK
+        MOVE    R1,[VERNUM]
+        MOVEM   R1,.JBVER
+        SETZ    R16,                    ;set up for UUO's
+        MOVE    R0,[PUSHJ   P,RERR]
+        MOVEM   R0,.JB41
+subttl  PRGMAP:  REFORMAT LOADER SYMBOL TABLE
+
+;Go through the symbol table built by the Loader and build a program map
+;where the hiseg and loseg locations of every program are stored. Treat the
+;TBA system stuff as one program called SYSTEM.
+
+;Register Usage
+
+;r6  Top of memory - highest legal place we can put map entries
+;r7  current loseg,,hiseg word
+;r10 STATE. 0=TBA system stuff, 1=user stuff, 2=almost done, 3=all done
+;r11 MAPORG start
+;r12 pointer into map being built
+;r13 pointer into symbol table
+
+;We assume that the first files in core are TBA system files
+;and so we ignore all programs up to the first occurrence of the program
+;UBG%$ which marks the beginning of user stuff. We make map entries
+;for all following programs until we find the program UND%$ which
+;marks the end of the user stuff.
+
+        SEXTERN .SYMB$
+
+PRGMAP: HRRZ    R13,.JBSYM              ;bottom of symbol table
+        HLRE    R12,.JBSYM              ;negative length of symbol table
+        SUB     R13,R12                 ;top of table
+        SUBI    R13,2                   ;point to first symbol at top of table
+        HLRZ    R12,.JBHRL              ;length of hiseg counting symbol table
+        ADDI    R12,^O400001            ;top of hiseg - where we start
+                                        ;building the map
+        MOVE    R11,R12                 ;MAPORG - map origin
+        HRRZ    R6,.JBHRL               ;highest legal addr at this moment
+        SETZ    R10,                    ;STATE
+        MOVE    R7,[^O140400010]        ;LSEG,,HSEG
+        MOVEI   R1,0            ;SET NO WRITE PROTECT
+        SETUWP  R1,
+        ERROR   IGN!PG,ESCMSG+2         ;Cannot create load map
+        MOVEM   R11,MAPORG
+        JRST    PRG42                   ;first program is SYSTEM
+
+PRGM4:  MOVE    R0,(R13)                ;get symbol name and type
+        TLZE    R0,^O740000             ;ignore all types but zero
+        JRST    PRGM45                  ;go get next symbol
+        JUMPE   R0,PRGM44               ;zero symbol means end of program,
+                                        ;get the hiseg,,loseg values with it
+        CAMN    R0,[RADIX50 0,UBG%$]    ;marker for begin of user stuff?
+        JRST    [MOVEI  R10,1           ;set STATE
+                 JRST PRGM45]           ;and get next symbol
+        CAMN    R0,[RADIX50 0,UND%$]    ;marker for end of user stuff?
+        JRST    [MOVEI  R10,0   ;set STATE
+                 JRST PRG42]            ;program is SYSTEM
+        CAMN    R0,[RADIX50 0,ENDP%$]   ;marker for end of everything?
+        JRST    [MOVEI  R10,2           ;set STATE
+                 JRST   PRGM45]         ;wait for end of this program
+        CAIE    R10,1                   ;doing user programs?
+        SKIPE   [.SYMB$]                ;or wanting all programs?
+        SKIPA
+        JRST    PRGM45
+
+;get the program name in sixbit into R2
+
+PRG435: MOVEI   R3,6
+        SETZ    R2,
+PR4352: IDIVI   R0,^O50
+        JUMPE   R1,PRG436
+        CAIG    R1,^O12
+        JRST    PR4354
+        CAIG    R1,^O44
+        JRST    PR4355
+        SUBI    R1,^O45
+        MOVE    R1,CHR(R1)
+        JRST    PR4357
+
+CHR:    '.'
+        '$'
+        '%'
+
+PR4354: ADDI    R1,^O17
+        JRST    PR4357
+PR4355: ADDI    R1,^O26
+PR4357: LSHC    R1,-6
+        SOJN    R3,PR4352
+
+PRG436: CAMGE   R12,R6
+        JRST    PRG439
+        MOVEI   R1,^O100(R6)            ;get some more memory for the map
+        HRLZ    R1,R1
+        CORE    R1,
+        ERROR   IGN!PG,ESCMSG+2         ;Cannot create load map
+        HRRZ    R6,.JBHRL
+PRG439: MOVE    R3,R7
+        DMOVEM  R2,(R12)                ;store name, beginning location in map
+        ADDI    R12,2
+        CAIN    R10,3                   ;all done with map?
+        JRST    PRGM46
+        JRST    PRGM45
+
+PRG42:  MOVE    R2,[SIXBIT /SYSTEM/]
+        JRST    PRG436
+
+PRGM44: CAIN    R10,0                   ;ignore programs within TBA system
+        SKIPE   [.SYMB$]                ;unless we want all programs
+        SKIPA
+        JRST    PRGM45
+        CAIN    R10,2                   ;almost done? if so, we'll now be
+        AOS     R10                     ;all done having read the last values
+        MOVE    R1,1(R13)               ;replace RH and LH of R7 with this
+                                        ;value if nonzero
+        TRNN    R1,^O777777
+        JRST    PRG445
+        TLNE    R1,^O777777
+        JRST    PRG444
+        HRL     R7,R1
+        JRST    PRGM45
+PRG444: MOVS    R7,R1
+        JRST    PRGM45
+PRG445: HLR     R7,R1
+PRGM45: SUBI    R13,2
+        CAIGE   R10,3                   ;all done?
+        JRST    PRGM4
+
+        MOVE    2,[SIXBIT/ENDP%$/]
+        JRST    PRG436                  ;add the symbol and value to the map
+PRGM46: MOVE    R10,R12
+        SUB     R10,R11
+        MOVEM   R10,MAPSIZ
+        SUBI    R12,^O400000
+        HRLM    R12,.JBHRL
+
+        IFE     DEBMOD, <
+        HRRZ    R1,.JBSYM
+        SUBI    R1,64           ;REMOVE PATCH AREA SPACE
+        HRRZM   R1,.JBFF
+        HRLM    R1,.JBSA
+        ADDI    R1,1
+        CORE    R1,
+        ERROR   IGN!PG,ESCMSG+2         ;Cannot create load map
+                        >
+
+;
+;
+; Set workspace bounds so BREAK/TRACE/STEP will know....
+;
+;
+        sextern wrkflg
+        setzm   wrkflg  ; zero break/trace flag, if not loaded
+                        ; then we zero R0... who cares??
+subttl  LODRN1:  START PAGER, OPEN VMF, READ IN RUNDAT, OPEN FILES
+
+;  .3.1
+LODRN1:
+;       RESET
+	CALL    STARTP
+;  .3.2
+	CALL	GETVM,DFNAM
+	OPEN	DFNAM,,READ,SYSFIL,<RZ,IM>
+;  .3.4
+        PUSH    P,R2
+        MOVE    R1,R2           ;VMF virtual address
+        ADDI    R1,RUNDAT
+;  .3.5
+        CALL    TRANSFER,<STRUN,,ENDRUN-STRUN,0>
+        POP     P,R1            ;get virtual address back to do release
+        LSH     R1,-CHPOS
+        HRLI    R1,0            ;code for RELEAS
+        CHANIO  R1,
+;  .3.6
+        CALL    OPNALL
+subttl  SAVEHI:  SAVE THE HIGH SEGMENT
+
+        MOVE    R1,[XWD SAVDAT,HIDATA]
+        BLT     R1,HIDATA+<SAVEND-SAVDAT>
+
+        MOVE    R1,VMEMAD
+        ADDI    R1,PGMP
+        READ    R1
+        MOVE    R0,MAPSIZ
+        OUT     R0,R1
+;  .4.4.2-4
+        CAILE   R0,PGMSIZ
+        MOVEI   R0,PGMSIZ
+;  .4.4.5
+        CALL    TFR,<,,$,MAPORG,1>
+;  .4.4.6
+        WRITE   R1
+
+        CALL    SAVSEG
+
+        CALL    READDT
+        MOVE    R1,EXECSW
+        CAIE    R1,1
+        JRST    RUN8
+;  .6
+        MOVEI   R1,12
+        JRST    RUNCOM
+;  .8
+RUN8:   MOVE    R1,PSW
+        CAIL    R1,3
+        JRST    RUN9
+        SKIPN   P.MOD  ;P.MOD=0 iff prog has been in execution & no source mod since
+        JRST    RUN12         ;P.MOD=0, go to LODRN2 & recover previous lowseg
+;  .9
+RUN9:   CALL    INITLO        ;P.MOD#0, give user clean lowseg
+;  .10,11
+        MOVEI   R1,13
+        MOVE    R2,EXECSW
+        JUMPE   R2,RUNCOM
+        JRST    RUN13
+subttl  LODRN2:  REINSTATE PREVIOUS PROGRAM DATA AND CONDITIONS FOR A DIRECT
+;  LODRN2:  REINSTATE PREVIOUS PROGRAM DATA AND CONDITIONS FOR A DIRECT
+;           STATEMENT EXECUTION WITH A CONTINUABLE PROGRAM.
+
+;  .12.1
+
+
+LODRN2:
+RUN12:  HRRZ    R1,RUNLEN
+        CORE    R1,
+        ERROR   IGN!PG,RZLER
+;  .12.2
+        HRRZ    R2,RUNLEN
+        HLRZ    R0,RUNLEN
+        SUB     R2,R0
+        ADDI    R2,1
+;  .12.3
+        CALL    TFRLOW,<,RUNVEC,,0>
+
+        MOVE    R1,.JBFF                ; CHECK FOR DSA CLOBBER
+        CAMLE   R1,DSACOR
+        ERROR   IGN+PG,DSACLB
+
+        HRRZ    R1,.JBREL               ; RESTORE .JBFF!!
+        ADDI    R1,1
+        MOVEM   R1,.JBFF                ; PERHAPS A KLUDGE... JPS.
+;  .12.5
+        CALL    RSUPAG
+;  .12.6.1
+        MOVE    R1,MAPORG
+        MOVE    R2,MAPSIZ
+        ADD     R2,R1
+        SETZ    R3,
+;  .12.6.2
+LO1262: MOVE    R4,(R1)
+        CAME    R4,[SIXBIT /DIR.ST/]
+        JRST    LO1264
+;  .12.6.3
+        HRRZ    R4,1(R1)
+        MOVEM   R4,STRTPT
+        SETO    R3,
+;  .12.6.4
+LO1264: ADDI    R1,2
+;  .12.6.5
+        CAMGE   R1,R2
+        JUMPE   R3,LO1262
+;  .12.7
+        DMOVE   R14,WRKREG
+;  .13
+run13:  setzm   wrkflg          ; sexterned!!!!
+        CALL    TRPENB
+        MOVE    1,[POINT 7,DUMBUF]
+        MOVEM   1,LNPTR
+        SEXTERN .TDOST
+        SKIPE   [.TDOST]
+        PUSHJ   P,.TDOST        ;initialize the TDO pointers if loaded
+;  .14
+        SETZM   QTMDNO  ;A following nonzero value belongs to this run
+ENTRY:  JRST    @STRTPT
+subttl    MONITOR ENTRY POINT
+
+MENTRY:
+;  .1
+        JRST    [SETZM  SPOINT
+                 JRST   MENTR1];;NORMAL MONITOR ENTRY POINT
+        SETOM   SPOINT          ;indicate alternate entry (we'll change this to
+                                ;+1 later on...
+        SEXTERN .RNRGS
+MENTR1: SKIPN   [.RNRGS]        ;should we save registers?
+        JRST    MENTR2          ;no
+        MOVEM   R17,.RNRGS+R17
+        MOVEI   R17,.RNRGS
+        BLT     R17,.RNRGS+R16
+
+MENTR2: INISTK
+	push	p,spoint	; Hide the value for start.point till
+				; the elephants get done with the lowseg
+        opdef   STASAR [CALLI -^O63]
+        MOVE    R1,[SIXBIT /TBA.SV/]
+        STASAR  R1,             ;Start stream accounting record
+         JFCL
+
+;  .2
+        RESET
+;  .3
+        MOVE    R1,[XWD HIDATA,SAVDAT]
+        BLT     R1,SAVEND-1
+        HRREI   R1,-2
+        MOVEM   R1,EXECSW
+        H.OFF   R1,H.STP        ; TURN OFF STEP FLAG
+;  .4
+        CALL    STARTER
+;  .5
+        CALL    STARTP
+;  .6
+        CALL    INITLO
+;  .7
+        CALL    TRPENB
+	pop	p,spoint	; start.point ought to be safe now
+        movei   r1,1
+        skipe   spoint
+        movem   r1,spoint       ;change -1 to +1
+;  .8
+        JRST    @STRTPT
+subttl  INITLO:  INITIALIZE LOW SEGMENT
+;***********************************************************************
+;***********************************************************************
+
+INITLO:
+
+; Here to initialize the RESUME stack stuff
+; Resume ring init: front and back pointers collided at 0
+        SETZM   RSMLV1
+        SETZM   RSMLV2
+
+        EXTERN DIVZER
+        SETZM   DIVZER
+
+
+;   .1.1
+        EXTERN  GSBSTK,GSBPTR,GSBLFT
+        SETZM   GSBSTK
+        SETZM   GSBPTR
+        SETZM   GSBLFT
+
+        CALL    DSAINT##
+
+;  .1.8
+        MOVE    R1,[CALL RERR]
+        MOVEM   R1,.JB41
+        SETZM   ERRCOD
+        SETZM   ERRLIN
+        SETZM   ERRFIL
+;  .2
+        CALL    IOINIT
+        SEXTERN .RNDNI
+        SKIPE   [.RNDNI]        ;random initializer loaded?
+        pushj   p,.rndni                ;yes,call it
+;  .3.1
+        MOVE    R7,WMNAME
+        SKIPE   STRTNM
+        MOVE    R7,STRTNM
+;  .3.6
+INIT36: move    R13,mdcnt       ;MOD
+        movei   R12,1           ;STATE-start with user modules
+        MOVE    R11,MAPORG       ;NDX
+        MOVE    R10,R11
+        ADDI    R11,2           ;skip over TBA SYSTEM stuff
+        ADD     R10,MAPSIZ       ;LIM
+;  .3.7.1
+INIT37:
+	move	r0,(r11)		; module name
+	hlrz	r1,1(r11)	; lowseg start addr
+	hrrz	r2,1(r11)	; hiseg start addr
+	JRST    @STAB(R12)
+
+STAB:   INI372		; looking for TBA.RN
+        INI374		; do modules
+        IN3714		; do direct stmt
+	INILVR		; do user libraries
+;  .3.7.2
+INI372:			; r12=0  -- look for TBA.RN
+;  .3.7.3
+        MOVEI   R12,1           ; this code not used anymore
+        JRST    INIT38
+
+;  .3.7.4
+INI374:			; r12=1  -- do modules
+	sojg	r13,ini379	; jump if not last module
+        MOVEI   R12,3           ;next, do the user libraries
+        MOVE    R3,PSW          ;unless we have a direct statement
+        CAIG    R3,2
+        MOVEI   R12,2           ;in which case we handle that first
+INI379:
+        CAME    R0,R7		; set STRTPT only if this
+	JRST	INIWK		;   is the user's startpoint module
+        MOVEM   R2,STRTPT
+        MOVEM   R2,CXLOC        ;SAVE CONTINUE POINT
+        MOVEM   R2,STTADR       ;for later use by the START command - save the "START" addr so PARSE3 can store it into CXLOC
+INIWK:
+	CAME    R0,WMNAME
+        JRST    inilvr
+;  .3.7.12
+        DMOVE   R14,R1
+        HRRZ    R16,(R2)        ;GET ADDRS FROM  JRST  AROUND INIT CODE
+        MOVE    R5,1(R16)        ;GET LINE NUMBER
+        MOVEM   R5,CXLNUM       ;SAVE LINE NUMBER
+;  .3.7.13
+inilvr: CALL    IZLVR
+        JRST    INIT38
+;  .3.7.14
+IN3714:			; r12=2  - direct stmt coming up
+        CAME    R0,[SIXBIT /DIR.ST/]
+        JRST    inilvr		; this ain't it - check loseg init
+;  .3.7.15
+        MOVEM   R2,STRTPT	; Got it: set startpoint address and
+        MOVEI   R12,3		;  set state to do user libs
+
+INIT38:			; Here endeth the loop over the load map
+	ADDI    R11,2		; increment map pointer
+        CAMGE   R11,R10		; and skip out if done
+        JRST    INIT37
+;  .4
+        CALL    IZCAT
+;  .6
+        MOVE    R1,[1.0E-10]
+        MOVEM   R1,EPS
+        SETOM   DSMDFG
+
+        POPJ    P,
+subttl	IZLVR -- INITIALIZE PER-MODULE LOSEG (LVAR) SPACE
+
+IZLVR:  ; INITIALIZE LVAR SPACE FROM    
+        ; PARAMETERS IN R1, 2, 9
+        ; R1 = START OF LVAR AREA  IN LOW SEG
+        ; R2=>  HISEG START ADDRESS  
+        ; 0(2): JRST entry point of module (first line of code)
+        ;               if the module has no data stmts, this will be 
+        ;               a JRST .+5
+        ; 1(2)  # OF FOR LOOPS,,ADDRESS OF FOR LOOP VECTOR
+        ; 2(2)  J 0,0(1)
+        ; 3(2)  ADDR OF MODULE IZL CODE
+        ; 4(2) et seq: ASCIZ data stmts.  If the module has no data
+        ;               stmts, we at least get a ZERO.
+        ; R11 = pointer to this module's map entry
+
+;       first, check to see if this seems to be a TBA module.
+;       we pray no code will accidentely make word 2
+;       look like TBA header stuff.
+
+        move    0,2(2)  ; header+2 - should be JRST (1)
+        came    0,[JRST (1)]
+        POPJ    P,    ; not TBA
+		; check to see if this module has zero-length hiseg and
+		; is, therefore, non-TBA
+	movei	r4,2(9)		; point to next map entry
+	hrrz	r0,1(4)		; get hiseg address
+	camn	r0,r2		; skip if we have non-zero hiseg, else
+	popj	P,		; EXIT -- not TBA
+
+	HLRZ	4,1(2)		;# OF FOR LOOPS
+	JUMPE	4,IZLVR3	 ;  SKIP init IF NO FOR LOOPS
+	MOVN	4,4
+	HRLZ	4,4
+	HRR	4,1(2)
+	MOVEI	0,2(2)	;	GET XFER ADDRESS FOR UNIMPINGED FORS
+	MOVEM	0,(4)
+	AOBJN	4,.-1
+IZLVR3:
+;     INITIALIZE SPECIAL  one-per-module VARIABLES
+        EXTERN BAS,LOS,MDATPT
+        MOVEI   0,1
+        MOVEM   0,BAS(1)          ; BAS DEFAULT LOWER BOUND
+        MOVEI   0,MAXSTR        ; DEFAULT MAX STRING LENGTH
+        MOVEM   0,LOS(1)        ;SET INTO LOS
+        HRLZI   0,^O440700      ; [POINT 7,0]
+        ADDI    0,4(2)          ;DATA STARTS AT 4TH WORD OF MODULE
+        MOVEM   0,MDATPT(1)     ;SET UP MODULES DATA POINTER
+        pushj   P,@3(2)       ; call module prologue
+        popj    P,
+	subttl	IZCAT
+
+;   THE FOLLOWING SECTION INITIZLISES CHARTABLE AND ASCTABLE
+
+IZCAT:
+   EXTERN  BNDRY,SIGNIF
+;        INITIALIZE IO PARAMETERS
+        SETZM   ,BNDRY         ; SET BOUNDARY TO ZERO
+        MOVEI   0,^d14  ;  DEFAULT 14 DIGITS IN DOUBLE
+        MOVEM   0,SIGNIF
+        SETZM   AFILE           ; SET NO ACTIVE FILE
+EXTERN  RXASC,RXCHR
+EXTERN ASCTBL,CHRTBL
+        setzm   asctbl          ; zero out old pointer if any
+        movei   4,asctbl
+        pushj   P,rxasc
+        setzm   chrtbl          ; zero out old pointer if any
+        movei   4,chrtbl
+        pushj   P,rxchr
+        POPJ   P,0
+subttl  RUNCOM:  RUNSIDE TO COMPILER (PARSER) TRANSITION
+
+RUNCOM:
+        MOVEM   R1,FINCOD               ;Code for BTAB below
+        SETZM   P.MOD           ;WE CERTAINLY HAVE A VALID HIGHSEG NOW!!
+        SKIPN   QTMDNO          ;Has QTMDNO been set for this run?
+        CALL    RGQTMD          ;No. Set it.
+        SEXTERN .OTBUF
+        SKIPE   [.OTBUF]
+        CALL    .OTBUF
+        CALL    SVUPAG          ;Make sure last page of user files written
+
+RUNC4:  CALL    FREEDT
+
+;The following block of code (from here to RUNC19, not including RUNC19ets some flags (PGCNFG - program continuability & STBKFG - step 
+;or break flag) and some context info (CXLOC - context PC & CXLNUM -
+;context line number).  The accompanying table describes the situation
+;at RUNC19 (if we get there).
+
+        MOVE    R1,FINCOD
+        JRST    @BTAB(R1)
+
+;               TERMINATION TYPE         PGCNFG  STBKFG  CXLOC  CXLNUM  OTHER
+
+BTAB: RUNC6  ;0-STOP, END OF PROGRAM        0       0     R17     R16   CLOSE FILES
+      RUNC6  ;1-STOP WITH EXPRESSION        0       0     R17     R16   CLOSE FILES
+      RUNC6  ;2-END                         0       0     R17     R16   CLOSE FILES
+      RUNC6  ;3-END WITH EXPRESSION         0       0     R17     R16   CLOSE FILES
+      RUNC9  ;4-PAUSE                      -1       0     R17     R16    --
+      RUNC9  ;5-PAUSE WITH EXPRESSION      -1       0     R17     R16    --
+      RUNC10 ;6-QUIT                       -1       0     R17     R16   EXIT TO MONITOR
+      RUNC10 ;7-QUIT WITH EXPRESSION       -1       0     R17     R16   EXIT TO MONITOR
+      RUNC12 ;8-LOG                        --      --     --      --    DEL VIRT MEM FILE,CLOSE FILES,LOGOUT
+      RUNC12 ;9-LOG WITH EXPRESSION        --      --     --      --    DEL VIRT MEM FILE,CLOSE FILES,LOGOUT
+      RUNC14 ;10-ERRORS, ESCAPE            -1*      0   -1(R16)*  R16*   --
+      RUNC15 ;11-STEP, BREAK               -1      -1    1(R16)   R16    --
+      RUNC16 ;12-RETURN FROM SAVE BINARY    0       0      @       @    P.MOD _ -1 (TEMPORARY KLUDGE!)
+      RUNC17 ;13-RETURN FROM INIT          -1       0      +       +     --
+      RUNC19 ;14-END OF DIRECT STATEMENT   --      --     --      --     --
+
+;       * IF NOT DIRECT STMT.  IF DIRECT STMT, THESE ARE LEFT ALONE
+;       @ VALUES = 0 (NO LOWSEG INITIALIZATION HAS BEEN DONE)
+;       + VALUES = START OF PROG (SET IN INITLO)
+
+RUNC6:  CALL    CLUFLR	; stop, end
+        SETZM   PGCNFG
+        JRST    .+2
+
+RUNC9:  SETOM   PGCNFG	; pause (and hop in from stop, end)
+        MOVE    R1,(P)
+        MOVEM   R1,CXLOC
+        MOVE    R1,(^O16)
+        MOVEM   R1,CXLNUM
+        JRST    RUNC18
+
+RUNC10: SETOM   PGCNFG	; quit
+        MOVE    R1,(P)
+        MOVEM   R1,CXLOC
+        MOVE    R1,(^O16)
+        MOVEM   R1,CXLNUM
+        EXIT    1,
+        JRST    RUNC18
+
+RUNC12: CALL    STOPT	; log
+        MOVEI   R0,LOGFIL
+        RUN     R0,0
+        HALT
+
+LOGFIL: SIXBIT  /SYS/
+        SIXBIT  /LOGOUT/
+        EXP     0,0,0,0
+
+RUNC14: MOVE    R1,PSW	; error, escape
+        CAIGE   R1,3
+        JRST    RUNC18
+        SETOM   PGCNFG
+        MOVEI   R1,-1(^O16)
+        MOVEM   R1,CXLOC
+        MOVE    R1,(^O16)
+        MOVEM   R1,CXLNUM
+        JRST    RUNC18
+
+RUNC15: SETOM   PGCNFG	; step, break
+        MOVEI   R1,1(^O16)
+        MOVEM   R1,CXLOC
+        MOVE    R1,(^O16)
+        MOVEM   R1,CXLNUM
+        SETOM   STBKFG
+        JRST    RUNC19
+
+RUNC16: SETZM   PGCNFG	; return from save binary
+        SETOM   P.MOD   ;TEMPORARY KLUDGE WHILE P.MOD=0 IS MEANING GOD HIGH & LOW SEG
+        JRST    RUNC18
+
+RUNC17: SETOM   PGCNFG	; return from init
+        JRST    RUNC18
+
+RUNC18: SETZM   STBKFG
+		; EXECSW will have been set -2 if we came in thru
+		; MENTRY (are running a save binary image).  If so,
+		; now is the time to bail out -- there's no way back
+		; to TBA.
+        MOVE    R1,EXECSW
+        ADDI    R1,1
+        JUMPGE  R1,RUNC19
+        CALL    STOPP
+        EXIT    1,
+
+RUNC19: HRRZ    R2,.JBREL	; return from direct stmt
+        MOVEM   R2,RUNLEN
+        SUBI    R2,LOSTRT-1
+        MOVEI   R0,LOSTRT
+        HRLM    R0,RUNLEN
+        CALL    TFRLOW,<,RUNVEC,,1>
+RUNC23: MOVEI   R7,NMBCH-1
+RNC232: MOVE    R0,CHANTB(R7)
+        JUMPE   R0,RNC236
+        MOVE    R0,R7
+        LSH     R0,CHPOS
+        CALL    UNLOAD
+RNC236: SOJG    R7,RNC232
+
+		; set lowseg length for parse/compile
+        HRRZ    R1,COMLEN
+        CORE    R1,
+        JRST    FATAL
+
+		; recover the parse/compile saved area
+        MOVE    R1,VMEMAD
+        ADDI    R1,COMLOW
+        HRRZ    R2,comsav
+        HLRZ    R0,comsav
+        SUB     R2,R0
+        ADDI    R2,1
+        CALL    TRANSFER,<,,,0>
+        DMOVEM  R14,WRKREG
+        MOVE    R1,PSW
+        CAIL    R1,3                    ;in a Direct Statement?
+        MOVEM   R16,CONREG              ;no, save statement context
+        MOVEI   R1,6
+        MOVEM   R1,SEGNO
+        H.OFF   R1,H.STP        ; NO 'STEP' PENDING
+        INISTK
+	JMPTBA		;Go to parser
+
+FATAL:  ERROR   IGN!PR,RZLER
+        HALT    .
+subttl       RGQTMD - Runside Get QuiT MoDule number
+
+;Routine to search thru the load map & manufacture the "number" of the
+;module in which execution terminated.  This number QTMDNO (in
+;RUNDAT) is used to associate the termination module PROGRAM name
+;(which is all we've got here) with the termination FILE name (which we
+;will have when we get back to the parse/compile side).  The routine on
+;the parse side which accomplishes this association (PGQTMD - Parse
+;side Get QuiT MoDule name) depends on the fact that modules are loaded
+;in order of their appearance on the module list.
+
+;       QTMDNO  =  -1  if execution terminated in direct stmt module
+;               =   0  if execution terminated in the current workspace
+;               =   1  if execution terminated in the 1st user module loaded
+;                       and that module was not the workspace module or
+;                       the direct stmt module
+;               =   2  if execution terminated in the 2nd user module loaded
+;                       and that module was not the workspace module or
+;                       the direct stmt module
+;                   .
+;                   .
+
+;RGQTMD also returns (for NAMTYP in RUNERR)
+;in R1 the SIXBIT termination module name from the load map.
+;    PTZ  18 AUGUST 1976
+
+RGQTMD: MOVE    R1,MAPORG       ;Get ptr to start of load map table
+RGQTM1: ADDI    R1,2            ;Point to second entry (past SYSTEM)
+        MOVEI   R4,1            ;Initialize QTMDNO
+        MOVEM   R4,QTMDNO
+        HRRZ    R4,R16          ;R4 _ addr of bad user stmt
+RGQTM2: HRRZ    R2,3(R1)        ;R2 _ hiseg addr of start of NEXT module
+        CAML    R4,R2           ;Bad user addr within module pted at by R1?
+        JRST    [ADDI   R1,2    ;No...try next entry
+                 AOS    QTMDNO
+                 MOVE   R3,(R1) ;name of module
+                 CAMN   R3,[SIXBIT /SYSTEM/]
+                 ADDI   R1,2
+                 JRST   RGQTM2]
+        MOVE    R1,0(R1)        ;Get name in R1
+        CAMN    R1,WMNAME       ;Name = workspace name?
+        SETZM   QTMDNO          ;Yes, QTMDNO _ 0
+        CAMN    R1,[SIXBIT /DIR.ST/] ;Hope user doesn't have file named DIRECT
+        SETOM   QTMDNO          ;Direct stmt, QTMDNO _ -1
+        POPJ    P,
+subttl       SVUPAG
+
+SVUPAG: ;Make sure pages of  user files are written to disk
+
+        MOVE    R1,FINCOD
+        CAIE    R1,9
+        CAIG    R1,3
+        JRST    SVUPG1          ;If FINCOD causes file to be closed,
+                                ;don't worry about LOCKs on pages.
+        EXTERN  NCLBLK
+        SKIPN   NCLBLK          ;Any club locks?
+        JRST    SVUPG1          ;No, ok
+        CALL    OUTMSG,<<[ASCIZ "Page locks lost"]>,1,1>
+        CALL    OUTMSG,<<[ASCIZ "Continuability lost, files closed"]>,1,1>
+        MOVEI   R1,0            ;Pretend STOP statement
+        MOVEM   R1,FINCOD
+
+SVUPG1: MOVEI   R10,FILMAX               ;SVUPAG.1
+SVUPG2: SKIPN   R1,VIRTAB(R10)
+        JRST    SVUPG6                  ;no file open on this unit
+        SEXTERN  .FLSHO
+        SKIPE   [.FLSHO]
+        PUSHJ   P,.FLSHO                ;flush all operations connected with this file unit number
+        CALL    UNLOAD,<$,VIRTAB(R10)>; ;make sure data is written to file
+SVUPG6: SOJG    R10,SVUPG2               ;SVUPAG.6
+        SKIPN   VIRTAB                  ;SVUPAG.7
+        JRST    SVPG11
+        SETO    R0,                     ;SVUPAG.8
+        GETLCH  R0
+        TLZ     R0,(1B5)                ;SVUPAG.9
+        SETLCH  R0                      ;SVUPAG.10
+SVPG11: SKIPN   AFILE                   ;any more active operations?
+        JRST    SVPG$$
+        SEXTERN RKLFMT
+        SKIPE   [RKLFMT]                ;it better be here by the time we want to call it!
+        CALL    RKLFMT
+        JRST    SVPG11                  ;catch operations on the terminal and any others missed by mistake
+SVPG$$: POPJ    P,
+
+
+RSUPAG: SKIPN   VIRTAB                  ;RSUPAG.11
+        JRST    RSPG15
+        SETO    R0,                     ;RSUPAG.12
+        GETLCH  R0
+        TLO     R0,(1B5)                ;RSUPAG.13
+        SETLCH  R0                      ;RSUPAG.14
+RSPG15: POPJ    P,                    ;RSUPAG.15
+
+
+;       CLUFLR
+
+CLUFLR: MOVEI   R10,FILMAX               ;CLUFLR.1
+CLUFL2: SKIPN   VIRTAB(R10)              ;CLUFLR.2
+        JRST    CLUFL6
+        MOVE    R0,VIRTAB(R10)           ;CLUFLR.3
+        TLNN    R0,(^O777777B17)        ;CLUFLR.4
+        JRST    CLUFL6                  ;terminal
+        SETZM   VIRTAB(R10)
+        PUSHJ   P,CLOSEF              ;CLUFLR.5
+CLUFL6: SOJG    R10,CLUFL2               ;CLUFLR.6
+        SETZM   VIRTAB                  ;CLUFLR.7
+        POPJ    P,
+
+
+
+
+
+;  SAVE BINARY DATA STORAGE AREA
+
+HIDATA: BLOCK   32
+
+MAPORG:: BLOCK  1
+MAPSIZ: BLOCK   1
+
+
+
+
+;       TEMPORARY FIX FOR SHIFTING ARRAY ACCESS CODE. JPS.
+;       NOTE: THIS CODE CURRENTLY MUST RESIDE IN TBARUN IN ORDER
+;       TO GUARANTEE THAT IT DOES NOT MOVE DURING A RELOAD.
+
+        ENTRY   GAAPT,GAADPT,SLACPT
+        SEXTERN GAA,GAAD,SLACC
+GAAPT:  EXP     GAA
+GAADPT: EXP     GAAD
+SLACPT: EXP     SLACC
+
+        IFN     DEBMOD,<
+GODDT:  JRST    .JBDA
+>
+
+
+        LIT
+
+        RELOC   0
+  INTERN  AFILE
+AFILE: 0   ;  ACTIVE FILE FCB ADDRESS IF NON-ZERO
+
+FINCOD: BLOCK   1               ;saves finish-type-code from RUNCOM
+STRTPT: BLOCK   1
+DFNAM:  BLOCK   SXSIZ
+HEADER: BLOCK   2
+
+        INTERN  DSACOR,DSAFLG,.MYFF,.MYREL
+DSACOR: BLOCK   1                       ; FOR SAVING START OF DSA CORE
+.MYFF:  BLOCK   1                       ; PERSONAL COPY OF .JBFF
+.MYREL: BLOCK   1                       ; PERSONAL COPY OF .JBREL
+DSAFLG: BLOCK   1
+
+;*******************************************************************
+;*
+;*                      RUNEND ABSOLUTELY MUST
+;*                      BE LAST THING IN TBARUN
+;*                      LO-SEG CORE AREA.
+;*
+;*******************************************************************
+        INTERN  RUNEND
+RUNEND: BLOCK   0
+
+
+        IFN     DEBMOD, <
+        END     GODDT
+                        >
+        IFE     DEBMOD, <
+        END     RUNIZL  >
+     6—
