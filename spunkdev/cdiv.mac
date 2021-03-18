@@ -1,0 +1,284 @@
+TITLE  .CDIV   TBALIB          02-04-76
+
+        TWOSEG
+        RELOC   ^O400000
+
+
+;COMPLEX FLOATING DIVIDE ROUTINE
+
+
+
+
+;THIS PROGRAM CALCULATES THE QUOTIENT OF TWO COMPLEX
+;NUMBERS IN THE FOLLOWING MANNER:
+
+;(A+IB)/(C+ID) = [(AC+BD)+I(BC-AD)]/(C**2+D**2)
+
+;IF OVER OR UNDERFLOW OCCURS AT ANY POINT IN THE
+;CALCULATION, THE PROGRAM JUMPS TO A MORE
+;INVOLVED ROUTINE IN WHICH THE ORDER IN WHICH THE
+;TERMS ARE MULTIPLIED OR DIVIDED TOGETHER IS VERY
+;IMPORTANT.  OVER OR UNDERFLOW IS NOT PERMITTED
+;UNLESS THE FINAL ANSWER OVER OR UNDERFLOWS.
+
+;THE CALLING SEQUENCE IS AS FOLLOWS:
+;       PUSHJ   P,.CDIV
+;       R1,R2 = COMPLEX DIVIDEND
+;       R3,R4 = COMPLEX DIVISOR
+; COMPLEX QUOTIENT IS RETURNED IS R1,R2
+
+
+
+        ENTRY   .CDIV
+
+.CDIV:  DMOVEM  1,SAB           ;STORE FIRST ARG.
+        DMOVEM  3,SCD           ;STORE SECOND ARG.
+        DMOVE   0,3             ;POSITION SECOND ARG.
+        JUMPE   0,CZERO         ;GO TO CZERO IF C=0, TO
+        JUMPE   1,DZERO         ;DZERO IF D=0,
+        SKIPE   SAB             ;TO NORMAL IF NEITHER OR ONLY
+        JRST    NORMAL          ;ONE OF A AND B
+        SKIPE   LAB             ;=0, TO ABEQZR
+        JRST    NORMAL          ;IF
+ABEQZR: SETZM   REAL            ;A=
+        SETZM   IMAG            ;B=
+        JRST    DNE             ;0
+
+DZERO:  MOVE    0,SAB           ;D IS ZERO, SO REAL (ANS)
+        FDVR    0,SCD           ;= A/C AND
+        MOVEM   0,REAL          ;IMAG (ANS) =
+        MOVE    0,LAB           ;B/C
+        FDVR    0,SCD           ;AND THEN
+        MOVEM   0,IMAG          ;AFTER STORING IMAG PART,
+        JRST    DNE             ;GO TO EXIT
+CZERO:  MOVE    0,LAB           ;C IS ZERO (POSSIBLY D IS
+        FDVR    0,LCD           ;ZERO ALSO). REAL (ANS) =
+        MOVEM   0,REAL          ;B/D AND
+        MOVN    0,SAB           ;IMAG (ANS) =
+        FDVR    0,LCD           ;-A/D AND THEN
+        MOVEM   0,IMAG          ;AFTER STORING IMAG PART,
+        JRST    DNE             ;GO TO EXIT.
+NORMAL: FMPR    0,SCD           ;THIS SIMPLE ROUTINE
+        JFCL    NTSMPL          ;CALCULATES
+        FMPR    1,LCD           ;REAL (ANS) =
+        JFCL    NTSMPL          ;(A*C+B*D)/(C(2)+D(2))
+        FADR    0,1             ;AND
+        JFCL    NTSMPL          ;IMAG (ANS) =
+        MOVEM   0,TEMP          ;(B*C-A*D)/(C(2)+D(2))
+        MOVE    0,SCD           ;BUT
+        FMPR    0,SAB           ;IF
+        JFCL    NTSMPL          ;AT
+        MOVE    1,LAB           ;ANY
+        FMPR    1,LCD           ;POINT
+        JFCL    NTSMPL          ;OVER
+        FADR    0,1             ;OR
+        JFCL    NTSMPL          ;UNDERFW
+        FDVR    0,TEMP          ;OCCURS
+        JFCL    NTSMPL          ;IT
+        MOVEM   0,REAL          ;JUMPS
+        MOVE    0,SAB           ;TO
+        FMPR    0,LCD           ;NTSMPL
+        JFCL    NTSMPL          ;FOR
+        MOVE    2,LAB           ;A
+        FMPR    2,SCD           ;DIFFERENT
+        JFCL    NTSMPL          ;CALCULATION.
+        FSBR    2,0             ;IF THERE IS
+        JFCL    NTSMPL          ;OVER OR
+        FDVR    2,TEMP          ;UNDERFLOW
+        JRST    DNE+1           ;IT EXITS TO DNE+1.
+
+
+NTSMPL: MOVE    2,SAB           ;REARRANGE THE REAL
+        MOVM    0,SAB           ;AND IMAG PARTS OF
+        MOVM    1,LAB           ;THE 1ST ARG
+        MOVEI   4,1             ;SO THAT THE SMALLER ONE
+        CAMG    0,1             ;(IN MAGNITUDE) IS IN
+        JRST    .+4             ;SAB, AND THE OTHER IS IN
+        EXCH    2,LAB           ;LAB AND SET UP AC4 AS
+        MOVEM   2,SAB           ;A FLAG WORD TO TELL
+        MOVNS   4,4             ;WHICH PART IS WHERE.
+        MOVE    2,SCD           ;REARRANGE THE REAL
+        MOVM    0,SCD           ;AND IMAG PARTS OF THE OTHER ARG
+        MOVM    1,LCD           ;SO THAT THE SMALLER ONE
+        CAMG    0,1             ;(IN MAGNITUDE) IS IN SCD AND
+        JRST    .+4             ;THE OTHER IS IN LCD AND
+        EXCH    2,LCD           ;FIX AC4 TO TELL WHICH
+        MOVEM   2,SCD           ;PART
+        IMULI   4,3             ;IS WHERE.
+        MOVE    3,LCD           ;CALCULATE
+        FDVRB   2,3             ;THE
+        JFCL                    ;TERM
+        FMPR    2,2             ;1+(SCD/LCD)**2
+        JFCL                    ;AND
+        FADRI   2,201400        ;STORE IT IN
+        MOVEM   2,DENOM         ;DENOM.
+        MOVE    0,SAB           ;CALCULATE
+        FDVR    0,LAB           ;(SCD/LCD)*(SAB/LAB)
+        JFCL                    ;SUPPRESSING
+        FMPRM   0,3             ;UNDERFLOW
+        JFCL                    ;IF NECESSARY.
+        CAIN    4,1             ;FIX THE AC FLAG WORD
+        MOVNI   4,2             ;FOR
+        ADDI    4,1             ;EASY COMPARISONS.
+        SKIPL   4               ;CALCULATE
+        MOVNS   3,3             ;+-1 +-(SCD/LCD)*(SAB/LAB),
+        FADRI   3,201400        ;WHERE THE SIGNS
+        SKIPN   4               ;DEPEND ON
+        MOVNS   3,3             ;THE AC FLAG WORD.
+        PUSHJ   17,CALC34       ;JUMP TO CALC OF (LAB/LCD)*(AC3/DENOM).
+        MOVEM   0,REAL          ;STORE IT IN REAL(ANS) AND
+        MOVEM   0,IMAG          ;IMAG(ANS)(THE TEMP. LOCATIONS).
+        MOVE    3,SAB           ;CALCULATE
+        MOVE    2,SCD           ;+-(SAB/LAB)+-(SCD/LCD)
+        CAMN    4,[-2]          ;WHERE THE SIGNS
+        MOVNS   2,2             ;AGAIN DEPENDS ON
+        CAMN    4,[-1]          ;THE AC FLAG WORD,
+        MOVNS   3,3             ;AND IF UNDERFLOW
+        MOVE    0,2             ;OCCURS JUMP TO
+        MOVE    1,3             ;THE
+        FDVR    3,LAB           ;SPECIAL
+        JFCL    OVER1           ;ROUTINES-
+        FDVR    2,LCD           ;OVER1,
+        JFCL    OVER2           ;OVER2,
+ADD2:   FADR    3,2             ;OR
+        JFCL    OVER3           ;OVER3.
+        PUSHJ   17,CALC34       ;JUMP TO CALC OF(LAB/LCD)*(AC3/DENOM).
+        JUMPGE  4,.+3           ;STORE THIS IN
+        MOVEM   0,IMAG          ;THE CORRECT
+        JRST    .+2             ;PART OF THE
+        MOVEM   0,REAL          ;ANSWER (TEMP. LOCATION).
+DNE:    MOVE    2,IMAG          ;GET IMAG PART
+        MOVE    1,REAL          ;GET REAL PART
+        POPJ    17,             ;EXIT
+
+CALC34:	MOVM   1,LAB           ;CALC34 CALCS. (LAB/LCD)*(AC3/DENOM).
+        MOVM    2,LCD           ;/LAB/ TO AC 1 AND /LCD/ TO AC 2.
+        MOVM    0,3             ;/AC3/ TO AC 0.
+        CAMGE   2,ONE           ;GO TO CASEA IF
+        JRST    CASEA           ;/LCD/<1.0. O'E, STAY HERE.
+        CAMGE   1,ONE           ;GO TO CASEB IF /LCD/>1.0 AND
+        JRST    CASEB           ;/LAB/<1.0 OR IF
+        CAMGE   0,ONE           ;(>1)(<1)/(>1)(>1).
+        JRST    CASEB           ;STAY HERE IF (>1)(>1)/
+        FDVR    2,1             ;(>1)(>1).
+        FDVR    0,DENOM         ;CALCULATE
+        FDVR    0,2             ;IT AND GO
+        JRST    SETSGN          ;TO SETSGN.
+CASEB:  FMPR    0,1             ;CALCULATE CASE B AND
+        JRST    .-4             ;GO TO SETSGN (EVENTUALLY).
+CASEA:  FMPR    2,DENOM         ;CONDENSE THE DENOMINATOR INTO AC 2.
+        CAMLE   1,ONE           ;THEN (<1)(<1)/(<1) GOES
+        JRST    CHKAGN          ;TO SR, AND (>1)(><1)/(<>1)
+        CAMLE   0,ONE           ;GOES TO CHKAGN,
+        JRST    NOTRVS          ;AND EVERYTHING ELSE
+        CAMG    2,ONE           ;GOES TO
+        JRST    SR              ;NOTRVS.
+NOTRVS: FMPRM   1,0             ;CALCULATE
+        JFCL    1,SETSGN        ;NOTRVS AND GO
+        FDVR    0,2             ;TO
+        JRST    SETSGN          ;SETSGN.
+CHKAGN: CAMG    0,ONE           ;(>1)(<1)/(<>1)
+        JRST    NOTRVS          ;AND (>1)(>1)/(<1)
+        CAMG    2,ONE           ;GO TO
+        JRST    NOTRVS          ;NOTRVS.
+        FDVR    1,2             ;(>1)(>1)/(>1) IS
+        FMPRM   1,0             ;CALCULATED AND
+        JRST    SETSGN          ;GOES TO SETSGN.
+SR:     MOVEM   1,TEMP          ;SR CALCULATES
+        FDVR    1,2             ;(<1)(<1)/(<1)
+        JFCL    OV1             ;AND SINCE
+        FMPRM   1,0             ;(<1)/(<1)
+        JRST    SETSGN          ;CAN
+OV1:    MOVE    1,TEMP          ;OVERFLOW, IT
+        MOVEM   0,TEMP          ;CALCULATES
+        FDVR    0,2             ;IT
+        JFCL    OV2             ;WHICHEVER
+        FMPRM   1,0             ;WAY
+        JRST    SETSGN          ;IS
+OV2:    MOVE    0,TEMP          ;NECESSARY
+        FMPRM   1,0             ;AND
+        FDVR    0,2             ;THEN GOES TO SETSGN.
+SETSGN: MOVE    1,LAB           ;GET THE
+        XOR     1,LCD           ;SIGN OF THE
+        XOR     1,3             ;RESULT IN AC 1.
+        SKIPG   1               ;SET THE SIGN OF
+        MOVNS   0,0             ;THE ANSWER
+        POPJ    17,             ;AND EXIT.
+
+OVER1:  FDVR    2,LCD           ;IF ONE
+        JFCL    UU              ;TERM
+        MOVE    3,2             ;UNDERFLOWS
+        MOVE    0,1             ;AND THE OTHER
+        MOVE    2,LAB           ;TERM IS SO LARGE
+        JRST    OVER2+1         ;THAT NO BITS
+OVER2:  MOVE    2,LCD           ;CAN BE
+        MOVEM   2,SAVE5         ;SAVED,
+        JUMPE   3,UU            ;THEN
+        MOVM    1,3             ;RETURN
+        CAML    1,[030400000000] ;RIGHT
+        JRST    ADD2+2          ;AWAY.
+        FMPRI   3,270400        ;O'E, TRY TO
+        FMPRI   0,270400        ;SAVE SOME BITS
+        FDVRM   0,2             ;BY MULTIPLYING
+        JFCL                    ;THE TERMS BY 2**56,
+        FADRB   3,2             ;ADDING THE TERMS, AND THEN / BY 2**56.
+        FDVRI   3,270400        ;IF THE RESULT UNDERFLOWS, GO
+        JFCL    SRX             ;TO SRX, O'E GO BACK
+        JRST    ADD2+2          ;TO THE MAIN ROUTINE.
+OVER3:  MOVE    3,1             ;SET UP
+        FDVR    3,LAB           ;AC 2 FOR
+        FMPRI   3,270400        ;SRX. AC 2 WILL
+        FMPRI   2,270400        ;CONTAIN THE TERM
+        FADR    2,3             ;*(2**56).
+SRX:    MOVEM   5,SAVE5         ;SAVE THE CONTENTS OF AC 5.
+        MOVE    0,LCD           ;THIS IS AN
+        MOVE    1,LAB           ;ALTERNATE
+        MOVM    5,1             ;CALCULATION TO
+        CAMGE   5,ONE           ;CALC34, AND TAKES
+        JRST    SRX2            ;ADVANTAGE OF
+        FMPR    1,2             ;THE FACT THAT HERE
+        MOVM    5,0             ;DENOM CONTAINS 1.0.
+        CAML    5,ONE           ;THE ORDER OF
+        JRST    .+4             ;CALCULATION
+        FMPRI   0,270400        ;DEPENDS
+        FDVRM   1,0             ;ON THE SIZE OF
+        JRST    SETSN2          ;THE TERMS. AFTER
+        FDVRM   1,0             ;THE CALCULATION A
+        FDVRI   0,270400        ;TRANSFER
+        JRST    SETSN2          ;IS
+SRX2:   FDVRM   2,0             ;MADE
+        FMPR    0,1             ;TO
+        FDVRI   0,270400        ;SETSN2
+SETSN2: MOVE    5,SAVE5         ;RESTORE THE CONTENTS OF AC 5.
+        JRST    ADD2+3          ;GO BACK TO MAIN ROUTINE.
+
+
+UU:     MOVEM   0,SAB           ;ANOTHER ALTERNATE
+        MOVEM   1,SCD           ;CALCULATION TO
+        FMPR    1,LCD           ;CALC34
+        FMPR    0,LAB           ;USED WHEN
+        FADR    0,1             ;S/L FOR
+        JFCL    UND             ;BOTH SETS
+        FDVR    0,LCD           ;HAS UNDERFLOWED
+        FDVR    0,LCD           ;OR FOR
+        JRST    ADD2+3          ;UNDERFLOW PLUS
+UND:    MATH  MFE18           ;UNDERFLOW ERROR EXIT
+        JRST    ADD2+3          ;TO ADD2+3.
+
+ONE:    201400000000
+
+        LIT
+        RELOC   0
+
+SAVE5:  0
+SAB:    0
+LAB:    0
+SCD:    0
+LCD:    0
+TEMP:   0
+REAL:   0
+IMAG:   0
+DENOM:  0
+
+        END
+  
