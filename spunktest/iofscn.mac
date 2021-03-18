@@ -1,0 +1,2053 @@
+;
+;*****************************************************************
+        TITLE   IOFSCN   I/O FORM SCANNER  ("FORM ONLY" SEGMENT)
+;*****************************************************************
+;
+        TWOSEG
+        RELOC   ^O400000
+        RADIX   10
+;
+        ENTRY   FRMSCN
+;
+        EXTERN  IFINIT, IFBLIT, IFBNL, IFINCF, IFMDP, IFCLIT, IFCNL
+        EXTERN  IFEOS, DIGSCN, FMTERR
+        EXTERN  LITFLS, FBSP, SFDP, SFEXP, SFST10, LBRAC, RBRAC
+        EXTERN  IOBTBL
+        EXTERN  COUNTT, CTR, EFLDFG, FLSCHR, LAST, LENG, NESTB
+        EXTERN  NSTFLS, STRPTR, TMPLOC
+;
+        INTERN  FBSC03, FBSC05, FBSC07, FBSC09, FBSC10, FBSC11
+        INTERN  FBSC12, FBSC14, FBSC15, FBSC18, FBSC19, FBSC21
+        INTERN  FBSC23
+;
+;*****************************************************************
+        SUBTTL  FRMSCN  CHART R51
+        DCL     FRMSCN
+;*****************************************************************
+;
+;  R51.1
+        CALL IFINIT                     ;R53
+;
+;  R51.2
+FSCN02:
+;
+;  R51.3
+        OSKIPN  ,NXTCHR
+        JRST    FSCN05
+;
+;  R51.4
+        OSETZM  ,NXTCHR
+        JRST    FSCN06
+;
+;  R51.5
+FSCN05: IGC(FMTPTR,OCB)
+;
+;  R51.6-.6A-.6B
+FSCN06: CAIL    A0,^O141        ; LOWER CASE A
+        CAILE   A0,^O172        ; LOWER CASE Z
+        SKIPA
+        SUBI    A0,^O40
+        CAILE   STAGE,12
+        JRST    @.-10(STAGE)
+        JUMPL   STAGE,FSCN07            ;STAGE=-1
+        JRST    FSCN08                  ;STAGE=0-12
+        FSCN09                          ;STAGE=13
+        FSCN10                          ;STAGE=14
+        FSCN11                          ;STAGE=15
+        0
+        FSCN12                          ;STAGE=17
+        FSCN13                          ;STAGE=18
+        FSCN14                          ;STAGE=19
+        0
+        FSCN15                          ;STAGE=21
+;
+;*****************************************************************
+;  R51.7  FRMBSC
+FSCN07:
+;*****************************************************************
+;
+;  R51.7.1
+        SETZ    A1,
+;
+;  R51.7.2
+        JUMPE   A0,FBSC20               ;JUMP IF EOS
+        CAIL    A0,^O40                 ;ASCII BLANK
+        CAILE   A0,^O135                ;ASCII RIGHT BRACKET
+        JRST    FBSC23
+        HRRZ    R5,IOBTBL-^O40(A0)
+       JRST    @R5
+;
+;  R51.7.3 - .4
+FBSC03: MOVEI   STAGE,17
+        CALL    IFBNL                   ;R56
+        JRST    FBSC$$
+;
+;  R51.7.5 - .6
+FBSC05: MOVEI   STAGE,14
+        CALL    IFBNL                   ;R56
+        JRST    FBSC$$
+;
+;  R51.7.7 - .8
+FBSC07: MOVEI   STAGE,21
+        CALL    IFBNL                   ;R56
+        JRST    FBSC$$
+;
+;*****************************************************************
+;  R51.7.9   FRMLIT
+FBSC09:
+;*****************************************************************
+;
+;  R51.7.9.1
+        CALL    IFBLIT                  ;R55
+;
+;  R51.7.9.2
+        MOVEM   A0,FLSCHR
+;
+;  R51.7.9.3
+        MOVEI   R5,1
+        MOVEM   R5,COUNTT
+;
+;  R51.7.9.4
+        CALL    LITFLS                  ;R52
+;
+;  R51.7.9.5
+        MOVEI   STAGE,20
+;
+;  R51.7.9.6
+        CALL    IFCLIT                  ;R59
+;
+        JRST    FBSC$$
+;
+;  R51.7.10
+FBSC10: CALL    DIGSCN                  ;R64
+        JRST    FBSC$$
+;
+;*****************************************************************
+;  R51.7.11  R FORM
+FBSC11:
+;*****************************************************************
+;
+;  R51.7.11.1
+        OSKIPE  ,NUMFLG
+        JRST    RFRM03
+;
+;  R51.7.11.2
+        MOVEI   STAGE,19
+        JRST    RFRM$$
+;
+;  R51.7.11.3
+RFRM03: OSKIPN  ,NUMFLD
+        JRST    RFRM05
+;
+;  R51.7.11.4
+        CALL    FMTERR,<RSJMSG+^D8>
+;
+;  R51.7.11.5
+RFRM05: OSETZM  ,NUMFLG
+;
+RFRM$$: JRST    FBSC$$
+;
+;  R51.7.12 - .13 - .13A
+FBSC12: MOVEI   STAGE,13
+        CALL    IFMDP                   ;R58
+        OMOVE   R5,FMTPTR
+        OMOVEM   R5,FLDBGN
+        JRST    FBSC$$
+;
+;*****************************************************************
+;  R51.7.14  FCSF
+FBSC14:
+;*****************************************************************
+;
+;  R51.7.14.1
+        OSKIPE  ,NUMFLG
+        JRST    FCSF05
+;
+;  R51.7.14.2
+        MOVEI   R5,1
+        OMOVEM   R5,LFP
+;
+;  R51.7.14.3 - .4
+        MOVEM   R5,EFLDFG
+        MOVEI   STAGE,22
+        JRST    FCSF10
+;
+;  R51.7.14.5
+FCSF05: OSKIPE  ,NUMFLD
+        JRST    FCSF07
+;
+;  R51.7.14.6
+        CALL    IFINIT                  ;R53
+        JRST    FCSF10
+;
+;  R51.7.14.7
+FCSF07: OMOVE   R5,NUMFLD
+        OMOVEM   R5,LFP
+;
+;  R51.7.14.8
+        MOVEI   R5,1
+        MOVEM   R5,EFLDFG
+;
+;  R51.7.14.9
+        MOVEI   STAGE,22
+;
+;  R51.7.14.10 - .11
+FCSF10: OSETZM  ,NUMFLG
+        OSETZM  ,NUMFLD
+;
+;  RETURN
+        JRST    FBSC$$
+;
+;  R51.7.15 - .17
+FBSC15: MOVEI   R5,1
+        OMOVEM  R5,NXTCHR
+        SETZ    STAGE,
+        CALL    FBSP                    ;R54
+        JRST    FBSC$$
+;
+;**************************************************************
+;  R51.7.18  LPAR
+FBSC18: 
+;**************************************************************
+;
+;  R51.7.18.1
+        OAOS    R5,NESTP
+;
+;  R51.7.18.2
+        CAIG    R5,3
+        JRST    LPAR04
+;
+;  R51.7.18.3
+        CALL    FMTERR,<RSJMSG+^D2>
+;
+;  R51.7.18.4
+LPAR04: OMOVE   R5,FMTPTR
+        IMOVEM(R5,BEGLVP,NESTP) ;R5=>BEGLVP(NESTP)
+;
+;  R51.7.18.5
+        OSKIPG  ,NUMFLG
+        JRST    LPAR12
+;
+;  R51.7.18.6
+        OSKIPE  ,NUMFLD
+        JRST    LPAR09
+;
+;  R51.7.18.7
+        OMOVE   R5,NESTP
+        MOVEM   R5,NSTFLS
+;
+;**************************************************************
+;  R51.7.18.8  PARFLS
+;**************************************************************
+;
+;  R51.7.18.8.1
+        MOVEI   CONT,1
+;
+;  R51.7.18.8.2
+PFLS02:
+;
+;  R51.7.18.8.3
+        IGC(FMTPTR,OCB)
+;
+;  R51.7.18.8.4
+        CAIN    A0,"("
+        JRST    PFLS05
+        CAIN    A0,")"
+        JRST    PFLS06
+        JUMPE   A0,PFLS10               ;JUMP IF EOS
+        JRST    PFLS11
+;
+;  R51.7.18.8.5
+PFLS05: AOS     ,NSTFLS
+        JRST    PFLS11
+;
+;  R51.7.18.8.6
+PFLS06: SOS     ,NSTFLS
+;
+;  R51.7.18.8.7
+        OMOVE   R5,NESTP
+        SUBI    R5,1
+        CAME    R5,NSTFLS
+        JRST    PFLS11
+;
+;  R51.7.18.8.8
+        OSOS    ,NESTP
+;
+;  R51.7.18.8.9
+        SETZ    CONT,
+        JRST    PFLS11
+;
+;  R51.7.18.8.10
+PFLS10: CALL    FMTERR,<RSJMSG+^D4>
+;
+;  R51.7.18.8.11
+PFLS11: JUMPN   CONT,PFLS02             ;JUMP IF CONT=1
+;
+;  RETURN
+        JRST    LPAR11
+;
+;  R51.7.18.9
+LPAR09: OMOVE   R5,NUMFLD
+        IMOVEM(R5,RPEATP,NESTP) ;R5=>RPEATP(NESTP)
+;
+;  R51.7.18.10
+        OSETZM  ,NUMFLD
+;
+;  R51.7.18.11
+LPAR11: OSETZM  NUMFLG
+        JRST    LPAR$$
+;
+;  R51.7.18.12
+LPAR12: MOVEI   R5,1
+        IMOVEM(R5,RPEATP,NESTP) ;R5=>RPEATP(NESTP)
+;
+LPAR$$: JRST    FBSC$$
+;
+;**************************************************************
+;  R51.7.19  RTPAR
+FBSC19:
+;**************************************************************
+;
+;  R51.7.19.1
+        OSKIPN  ,NUMFLG
+        JRST    RTPR03
+;
+;  R51.7.19.2
+        CALL    FMTERR,<RSJMSG+^D5>
+;
+;  R51.7.19.3
+RTPR03: ISOS(R5,RPEATP,NESTP)           ;RPEATP(NESTP)-1 => R5
+;
+;  R51.7.19.4
+        SKIPLE  ,R5                     ;SKIP IF RPEATP(NESTP)<=0
+        JRST    RTPR11
+;
+;  R51.7.19.5
+        OSOS    ,NESTP
+;
+;  R51.7.19.6 - .8
+;
+;  R51.7.19.9
+        SETO    R5,
+        OCAMG   R5,NESTP
+        JRST    RTPR$$
+;
+;  R51.7.19.10
+        CALL    FMTERR,<RSJMSG+^D3>
+;
+;  R51.7.19.11
+RTPR11: IMOVE(R5,BEGLVP,NESTP)  ;R5<=BEGLVP(NESTP)
+        OMOVEM  R5,FMTPTR
+;
+RTPR$$: JRST    FBSC$$
+;
+;  R51.7.20
+FBSC20: CALL    IFEOS                   ;R62
+        JRST    FBSC$$
+;
+;  R51.7.21 - .22
+FBSC21: OSKIPN  ,NUMFLG
+        JRST    FBSC$$
+        CALL    FMTERR,<RSJMSG+^D5>
+;
+;  R51.7.23
+FBSC23: CALL    FMTERR,<RSJMSG+^D1>
+;
+FBSC$$: JRST    FSCN16
+;
+;**************************************************************
+;  R51.8  FRMSPF
+FSCN08:
+;**************************************************************
+;
+;  R51.8.1  SETLEN
+;
+;  R51.8.1.1 - .3
+        MOVEI   R5,1
+        OSKIPE  ,NUMFLG
+        OMOVE   R5,NUMFLD
+        MOVEM   R5,LENG
+;
+;  RETURN
+;  R51.8.2
+        SETZ    I,
+        CAIL    A0,^O40
+        CAILE   A0,^O135
+        JRST    FSPF04
+        HLRE    I,IOBTBL-^O40(A0)       ;SET INDEX I
+;
+;  R51.8.3
+        JUMPG   I,FSPF05                ;JUMP IF I NOT = 0
+;
+;**************************************************************
+;  R51.8.4   PROCESS INDEPENDENT OF STAGE (PIOS)
+FSPF04:
+;**************************************************************
+;
+;  R51.8.4.1
+        JUMPE   A0,PIOS12               ;EOS
+        MOVMS   ,I                      ;FEATURE TO SPEED INDEXING
+        JRST    @.+1(I)                 ;THIS IS THE 'DO CASE A0'
+        PIOS14                          ;OTHER
+        PIOS02                          ;DIGIT
+        PIOS04                          ;B,COMMA, OR BACKSLASH
+        PIOS08                          ;' OR "
+        PIOS10                          ;[
+        PIOS11                          ;]
+        PIOS12                          ;(,),/,SPACE
+;
+;  R51.8.4.2
+PIOS02: OAOS    ,NUMFLG
+        OMOVE   R5,NUMFLD
+        IMULI   R5,10
+;
+;  R51.8.4.3
+        ADD     R5,A0
+        SUBI    R5,^O60
+        OMOVEM  R5,NUMFLD
+        JRST    PIOS$$
+;
+;  R51.8.4.4 - .7
+PIOS04: OSETZM  ,NUMFLG
+        OSETZM  ,NUMFLD
+        CAIN    A0,","                  ;COMMA
+        SKIPN   ,LENG
+        JRST    PIOS$$
+        MOVEI   R5,1
+        OMOVEM   R5,NUMONY
+        JRST    PIOS$$
+;
+;************************************************************
+; R51.8.4.8     SFLIT
+PIOS08:
+;************************************************************
+;
+; R51.8.4.8.1-.4
+        MOVEM   A0,FLSCHR
+        SETZM   ,COUNTT
+        MOVE    R5,LENG
+        CAIG    R5,1
+        JRST    SFLT05
+        OMOVE   R5,FMTPTR
+        MOVEM   R5,STRPTR
+;
+; R51.8.4.8.5
+SFLT05:
+;
+; R51.8.4.8.6
+        CALL    LITFLS  ;R52
+;
+; R51.8.4.8.7
+        SOS     ,LENG
+;
+; R51.8.4.8.8
+        SKIPG   ,LENG
+        JRST    SFLT10
+;
+; R51.8.4.8.9
+        MOVE    R5,STRPTR
+        OMOVEM  R5,FMTPTR
+;
+; R51.8.4.8.10
+SFLT10: MOVE    R5,LENG
+        JUMPG   R5,SFLT05
+;
+; RETURN
+; R51.8.4.9
+        OSETZM  ,NUMFLG
+        OSETZM  ,NUMFLD
+        JRST    PIOS$$
+;
+; R51.8.4.10
+PIOS10: CALL    LBRAC   ;R88
+        JRST    PIOS$$
+;
+; R51.8.4.11
+PIOS11: CALL    RBRAC   ;R89
+        JRST    PIOS$$
+;
+;************************************************************
+;R51.8.4.12     FCSPF
+PIOS12:
+;************************************************************
+;
+; R51.8.4.12.1
+        SETO    R5,
+        CAMN    R5,NESTB
+        JRST    CSPF2A
+;
+; R51.8.4.12.2
+        CALL    FMTERR,<RSJMSG+^D16>
+;
+CSPF2A: OSKIPE  ,NUMFLG
+        CAIE    A0,^O40
+        JRST    CSPF03
+        CALL    FMTERR,<RSJMSG+^D5>
+;
+; R51.8.4.12.3
+CSPF03: CAIG    STAGE,1
+        JRST    CSPF04
+        CAIG    STAGE,10
+        JRST    CSPF05
+        CAIN    STAGE,11
+        JRST    CSPF09
+        JRST    CSPF10  ;STAGE=12
+;
+; R51.8.4.12.4
+CSPF04: CALL    FMTERR,<RSJMSG+^D24>
+;
+; R51.8.4.12.5
+CSPF05: CAIE    STAGE,2
+        JRST    CSPF08
+;
+; R51.8.4.12.6
+        OMOVE    R5,LIP
+        CAIE    R5,1
+        JRST    CSPF08
+        MOVE    R5,LAST
+        CAIL    R5,1
+        CAILE   R5,6
+        JRST    CSPF08
+;
+; R51.8.4.12.7
+        CALL    FMTERR,<RSJMSG+^D24>
+;
+;************************************************************
+; R51.8.4.12.8  CLSNUM
+CSPF08:
+;************************************************************
+;
+;************************************************************
+;R51.8.4.12.8.1-.5      CKPFLD
+;************************************************************
+;
+; R51.8.4.12.8.5.1
+        OMOVE    R5,PFLG
+        JUMPE   R5,CKPF$$
+        CAIE    R5,PFLG4+PFLG6
+        CAIN    R5,PFLG2+PFLG6
+        JRST    CKPF$$
+        CAIN    R5,PFLG1+PFLG6
+        JRST    CKPF$$
+        CAIN    R5,PFLG2
+        JRST    CKPF02
+        CAIN    R5,PFLG5
+        JRST    CKPF04
+        CAIN    R5,PFLG2+PFLG3
+        JRST    CKPF06
+        JRST    CKPF08  ;OTHER
+;
+; R51.8.4.12.8.5.2
+CKPF02: SETO    R5,
+        OCAMN    R5,LFP
+        OCAME    R5,LEP
+        JRST    CKPF03
+        OMOVE    R5,FLFCTR+1
+        OCAMN    R5,LIP
+        JRST    CKPF$$
+;
+; R51.8.4.12.8.5.3
+CKPF03: CALL    FMTERR,<RSJMSG+^D25>
+;
+; R51.8.4.12.8.5.4
+CKPF04: OMOVE    R5,FLFCTR+2
+        OCAMN    R5,LEP
+        JRST    CKPF$$
+;
+; R51.8.4.12.8.5.5
+        CALL    FMTERR,<RSJMSG+^D25>
+;
+; R51.8.4.12.8.5.6
+CKPF06: OSKPGE  ,LEP    ;SKIP IF LEP#-1
+        JRST    CKPF$$
+;
+; R51.8.4.12.8.5.7
+        CALL    FMTERR,<RSJMSG+^D25>
+;
+; R51.8.4.12.8.5.8
+CKPF08: CALL    FMTERR,<RSJMSG+^D25>
+;
+CKPF$$:
+;
+; R51.8.4.12.8.6
+        OAOS    ,NULFMT
+;
+; R51.8.4.12.8.7
+        MOVEI   R5,1
+        MOVEM   R5,EFLDFG
+;
+; R51.8.4.12.8.8
+        OSKPGE  ,LFP
+        OSKIPL   ,LEP
+        JRST    .+2
+        JRST    CLSN12
+;
+; R51.8.4.12.8.9
+        MOVEI   R5,1
+        OMOVEM   R5,NUMONY
+;
+; R51.8.4.12.8.10
+        OSKIPE   ,LEP
+        JRST    CLSN12
+;
+; R51.8.4.12.8.11
+        CALL    FMTERR,<RSJMSG+^D23>
+;
+;************************************************************
+; R51.8.4.12.8.12       CHECK FLOATING FIELDS (CHFF)
+CLSN12:
+;************************************************************
+;
+; R51.8.4.12.8.12.1
+        OMOVE    R5,FLFCTR+1
+        CAIE    R5,1
+        JRST    CHFF03
+        OMOVE   R5,FLFCHR+1
+        CAIN    R5,"Q"
+        JRST    CHFF03
+;
+; R51.8.4.12.8.12.2
+        CALL    FMTERR,<RSJMSG+^D21>
+;
+; R51.8.4.12.8.12.3
+CHFF03: OMOVE    R5,FLFCTR+2
+        CAIE    R5,1
+        JRST    CHFF$$
+        OMOVE   R5,FLFCHR+2
+        CAIN    R5,"Q"
+        JRST    CHFF$$
+;
+; R51.8.4.12.8.12.4
+        CALL    FMTERR,<RSJMSG+^D23>
+;
+CHFF$$:
+;
+; RETURN
+CLSN$$: JRST    CSPF11
+;
+;************************************************************
+; R51.8.4.12.9  CLSSTR
+CSPF09:
+;************************************************************
+;
+; R51.8.4.12.9.1
+        OMOVE    R5,NUMONY
+        CAIE    R5,1
+        JRST    CSTR03
+;
+; R51.8.4.12.9.2
+        CALL    FMTERR,<RSJMSG+^D20>
+;
+; R51.8.4.12.9.3
+CSTR03: OAOS    ,NULFMT
+;
+; R51.8.4.12.9.4
+        MOVEI   R5,1
+        MOVEM   R5,EFLDFG
+;
+        JRST    CSPF11
+;
+;************************************************************
+; R51.8.4.12.10 CLSIC
+CSPF10:
+;
+;************************************************************
+;
+; R51.8.4.12.10.1-.2
+        OAOS    ,NULFMT
+        MOVEI   R5,1
+        MOVEM   R5,EFLDFG
+;
+;       RETURN
+;
+; R51.8.4.12.11
+CSPF11: MOVEI   R5,1
+        OMOVEM  R5,NXTCHR
+;
+; RETURN
+        JRST    PIOS$$
+;
+; R51.8.4.13
+;
+; R51.8.4.14
+PIOS14: CALL    FMTERR,<RSJMSG+^D1>
+;
+; RETURN
+PIOS$$: JRST    FSPF$$
+;
+;************************************************************
+; R51.8.5       PROCESS BY STAGE (PBS)
+FSPF05:
+;************************************************************
+;
+; R51.8.5.1
+        SKIPN   ,LENG
+        JRST    PBS17
+;
+; R51.8.5.2
+        JRST    @.+1(STAGE)
+        PBS03                   ;STAGE=0
+        PBS04                   ;STAGE=1
+        PBS05                   ;STAGE=2
+        PBS06                   ;STAGE=3
+        PBS07                   ;STAGE=4
+        PBS08                   ;STAGE=5
+        PBS09                   ;STAGE=6
+        PBS10                   ;STAGE=7
+        PBS11                   ;STAGE=8
+        PBS12                   ;STAGE=9
+        PBS13                   ;STAGE=10
+        PBS14                   ;STAGE=11
+        PBS15                   ;STAGE=12
+;
+;************************************************************
+; R51.8.5.3     FSTG0
+PBS03:
+;************************************************************
+;
+; R51.8.5.3.1
+        CAIG    I,6
+        JRST    FS0G02  ;I=1-6
+        CAIG    I,10
+        JRST    FS0G03
+        CAIG    I,12
+        JRST    FS0G10
+        CAIG    I,14
+        JRST    FS0G11
+        JRST    FS0G12  ;I=15-22
+;
+;************************************************************
+; R51.8.5.3.2   STG0ST
+FS0G02:
+;************************************************************
+;
+; R51.8.5.3.2.1-.2
+        MOVEI   R5,1
+        OMOVEM   R5,NUMONY
+        CAME    R5,LENG
+        JRST    S0ST07
+;
+; R51.8.5.3.2.3-.4
+        MOVEI   STAGE,1
+        MOVEM   R5,CTR(I)
+;
+; R51.8.5.3.2.5-.6
+        CAIE    I,6
+        JRST    S0ST6A
+        MOVEI   R5,PFLG1
+        OORM     R5,PFLG
+;
+; R51.8.5.3.2.6A
+S0ST6A: OMOVE   R5,FMTPTR
+        MOVEM   R5,TMPLOC
+        JRST    S0ST$$
+;
+; R51.8.5.3.2.7-.8
+S0ST07: MOVEI   STAGE,2
+        MOVE    R5,[XWD CTR+1,CTR+2]
+        SETZM   ,CTR+1
+        BLT     R5,CTR+6
+;
+; R51.8.5.3.2.9
+        MOVE    R5,LENG
+        OADDM    R5,LIP
+;
+; R51.8.5.3.2.10
+        OMOVE   R6,FMTPTR
+        OMOVEM   R6,FLFBGN+1
+;
+; R51.8.5.3.2.11
+        OMOVEM   A0,FLFCHR+1
+        OMOVEM   R5,FLFCTR+1
+;
+; R51.8.5.3.2.12-.13
+        CAIE    I,6
+        JRST    S0ST$$
+        MOVEI   R5,PFLG2
+        OORM     R5,PFLG
+;
+S0ST$$: JRST    FS0G18
+;
+; R51.8.5.3.3
+FS0G03: MOVE    R5,LENG
+        OADDM    R5,LIP
+;
+; R51.8.5.3.4
+        CAILE   I,8     ;SKIP IF I=7 OR 8
+        JRST    FS0G06
+;
+; R51.8.5.3.5
+        MOVEI   STAGE,3
+        JRST    FS0G18
+;
+; R51.8.5.3.6
+FS0G06: CAIE    I,9
+        JRST    FS0G8A
+;
+; R51.8.5.3.7
+        MOVEI   R5,1
+        OMOVEM   R5,OUTONY
+;
+;*************************************************************
+; R51.8.5.3.8   MARKFF0
+;*************************************************************
+;
+; R51.8.5.3.8.1
+        MOVE    R5,FMTPTR
+        OMOVEM   R5,FLFBGN+1
+;
+; R51.8.5.3.8.2
+        OMOVEM   A0,FLFCHR+1
+        MOVE    R5,LENG
+        OMOVEM   R5,FLFCTR+1
+; R51.8.5.3.8A
+FS0G8A: MOVEI   R5,1
+        OMOVEM   R5,NUMONY
+;
+; RETURN
+; R51.8.5.3.9
+        MOVEI   STAGE,2
+        JRST    FS0G18
+;
+; R51.8.5.3.10
+FS0G10: CA SFDP    ;R65
+        JRST    FS0G18
+;
+; R51.8.5.3.11
+FS0G11: CALL    SFEXP   ;R66
+        JRST    FS0G18
+;
+; R51.8.5.3.12
+FS0G12: MOVE    R5,LENG
+        OADDM    R5,LIP
+;
+; R51.8.5.3.13
+        CAILE   I,FRM.J
+        JRST    FS0G16
+;
+; R51.8.5.3.14 FORMS A X U C J
+        MOVEI   STAGE,11
+;
+; R51.8.5.3.15
+        OADDM    R5,LMIOC
+        EXTERN  SPFCHR
+        MOVEM   I,SPFCHR
+        JRST    FS0G18
+;
+; R51.8.5.3.16-.17
+FS0G16: MOVEI   STAGE,12
+        MOVEI   R5,1
+        OMOVEM   R5,NUMONY
+        MOVE    R5,LENG
+        CAIN    I,FRM.W
+        JRST    FS0G17
+        MOVEI   R5,FRM.W+2
+        SUB     R5,I
+        IMUL    R5,LENG
+FS0G17: OMOVEM   R5,LMIOC
+;
+; R51.8.5.3.18
+FS0G18: CAILE   I,10
+        JRST    FS0G$$
+;
+; R51.8.5.3.19-.20
+        MOVEM   I,LAST
+        MOVE    R5,LENG
+        OADDM    R5,LMIOC
+;
+FS0G$$: JRST    PBS16
+;
+;*************************************************************
+; R51.8.5.4     FSTG1
+PBS04:
+;*************************************************************
+;
+; R51.8.5.4.1
+        CAIG    I,6
+        JRST    FS1G02
+        CAIG    I,10
+        JRST    FS1G03
+        CAIG    I,12
+        JRST    FS1G11
+        CAIG    I,14
+        JRST    FS1G14
+        CAIG    I,FRM.H
+        JRST    FS1G16
+        JRST    FS1G17          ;HOW FORMS
+;
+;*************************************************************
+; R51.8.5.4.2   STG1ST
+FS1G02:
+;*************************************************************
+;
+; R51.8.5.4.2.1
+        MOVE    R5,LENG
+        ADDM    R5,CTR(I)
+;
+; R51.8.5.4.2.2
+        MOVE    R5,CTR(I)
+        CAIG    R5,1
+        JRST    S1ST13
+;
+; R51.8.5.4.2.3
+        MOVEI   STAGE,2
+;
+; R51.8.5.4.2.4
+        MOVE    R5,[XWD CTR+1,CTR+2]
+        SETZM   ,CTR+1
+        BLT     R5,CTR+6
+;
+; R51.8.5.4.2.5-.6
+        MOVE    R5,LENG
+        OMOVEM   R5,LIP
+        OMOVE   R5,FMTPTR
+        OMOVEM   R5,FLFBGN+1
+;
+; R51.8.5.4.2.7
+        CAME    I,LAST
+        JRST    S1ST12
+;
+; R51.8.5.4.2.8
+        OAOS     ,LIP
+        AOS     ,LENG
+        OSOS    ,LMIOC
+;
+; R51.8.5.4.2.9
+        MOVE    R5,TMPLOC
+        OMOVEM   R5,FLFBGN+1
+;
+; R51.8.5.4.2.10-.11
+        CAIE    I,6
+        JRST    S1ST12
+        MOVEI   R5,PFLG1
+        OANCAM  R5,PFLG         ;PFLG(1)=0
+;
+;*************************************************************
+; R51.8.5.4.2.12        RECORD FLOATING FIELD (RFF)
+S1ST12:
+;*************************************************************
+;
+; R51.8.5.4.2.12.1
+        OMOVEM   A0,FLFCHR+1
+;
+; R51.8.5.4.2.12.2
+        MOVE    R5,LENG
+        OADDM    R5,FLFCTR+1
+;
+; R51.8.5.4.2.12.3
+        CAIE    I,6
+        JRST    RFF$$
+        MOVEI   R5,PFLG2
+        OORM     R5,PFLG
+;
+RFF$$:  JRST    S1ST$$
+;
+; R51.8.5.4.2.13-.14
+S1ST13: CAIE    I,6
+        JRST    S1ST15
+        MOVEI   R5,PFLG1
+        OORM     R5,PFLG
+;
+; R51.8.5.4.2.15
+S1ST15: OMOVE   R5,FMTPTR
+        MOVEM   R5,TMPLOC
+;
+S1ST$$: JRST    FS1G18
+;
+; R51.8.5.4.3-.4
+FS1G03: MOVE    R5,[XWD CTR+1,CTR+2]
+        SETZM   ,CTR+1
+        BLT     R5,CTR+6
+        MOVE    R5,LENG
+        OMOVEM   R5,LIP
+;
+; R51.8.5.4.5-.6
+        CAILE   I,8
+        JRST    FS1G07
+        MOVEI   STAGE,3
+        JRST    FS1G18
+;
+; R51.8.5.4.7-.8
+FS1G07: CAIE    I,9
+        JRST    FS1G9A
+        MOVEI   R5,1
+        OMOVEM   R5,OUTONY
+;
+;************************************************************
+; R51.8.5.4.9   MARKFF1
+;************************************************************
+;
+; R51.8.5.4.9.1
+        OMOVE   R5,FMTPTR
+        OMOVEM   R5,FLFBGN+1
+;
+; R51.8.5.4.9.2
+        OMOVEM   A0,FLFCHR+1
+        MOVE    R5,LENG
+        OMOVEM   R5,FLFCTR+1
+;
+; R51.8.5.4.9A
+FS1G9A: MOVEI   R5,1
+        OMOVEM   R5,NUMONY
+;
+; RETURN
+; R51.8.5.4.10
+        MOVEI   STAGE,2
+        JRST    FS1G18
+;
+; R51.8.5.4.11
+FS1G11: CALL    SFDP    ;R65
+;
+; R51.8.5.4.12-.13
+        SETOM   ,LAST
+        MOVE    R5,[XWD CTR+1,CTR+2]
+        SETZM   ,CTR+1
+        BLT     R5,CTR+6
+        JRST    FS1G18
+;
+; R51.8.5.4.14-.15
+FS1G14: CALL    SFEXP   ;R66
+        MOVE    R5,[XWD CTR+1,CTR+2]
+        SETZM   ,CTR+1
+        BLT     R5,CTR+6
+        JRST    FS1G18
+;
+; R51.8.5.4.16
+FS1G16: CALL    FMTERR,<RSJMSG+^D20>
+;
+; R51.8.5.4.17
+FS1G17: CALL    FMTERR,<RSJMSG+^D19>
+;
+; R51.8.5.4.18
+FS1G18: CAILE   I,10
+        JRST    FS1G$$
+        MOVEM   I,LAST
+        MOVE    R5,LENG
+        OADDM    R5,LMIOC
+;
+FS1G$$: JRST    PBS16
+;
+;************************************************************
+; R51.8.5.5     FSTG2
+PBS05:
+;************************************************************
+;
+; R51.8.5.5.1
+        CAIG    I,6
+        JRST    FS2G02
+        CAIG    I,8
+        JRST    FS2G03
+        CAIG    I,10
+        JRST    FS2G06
+        CAIG    I,12
+        JRST    FS2G09
+        CAIG    I,14
+        JRST    FS2G12
+        CAIGE   I,FRM.H
+        JRST    FS2G15
+        JRST    FS3G15
+        JRST    FS3G15
+        JRST    FS2G18          ;I=FORM H
+;
+;************************************************************
+; R51.8.5.5.2   STG2FL
+FS2G02:
+;************************************************************
+;
+; R51.8.5.5.2.1
+        CAME    I,LAST
+        JRST    S2FL03
+;
+; R51.8.5.5.2.2
+        MOVE    R5,LENG
+        OADDM    R5,LIP
+        OADDM    R5,FLFCTR+1
+        JRST    S2FL$$
+;
+; R51.8.5.5.2.3
+S2FL03: CALL    SFST10,<RSJMSG+^D21>     ;R67
+;
+; R51.8.5.5.2.4
+        OMOVE    R5,LIP
+        CAIE    R5,1
+        JRST    S2FL$$
+        MOVE    R5,LAST
+        CAIL    R5,1
+        CAILE   R5,6
+        JRST    .+2
+        JRST    S2FL$$
+;
+; R51.8.5.5.2.5
+        CALL    FMTERR,<RSJMSG+^D24>
+;
+S2FL$$: JRST    FS2G19
+;
+; R51.8.5.5.3-.5
+FS2G03: MOVEI   STAGE,3
+        MOVEM   I,LAST
+        MOVE    R5,LENG
+        OADDM    R5,LIP
+        JRST    FS2G19
+;
+; R51.8.5.5.6-.7
+FS2G06: CAMN    I,LAST
+        JRST    FS2G08
+        CALL    FMTERR,<RSJMSG+^D21>
+;
+; R51.8.5.5.8
+FS2G08: MOVE    R5,LENG
+        OADDM    R5,LIP
+        CAIN    I,9
+        OADDM    R5,FLFCTR+1
+        JRST    FS2G19
+;
+; R51.8.5.5.9
+FS2G09: CALL    SFDP    ;R65
+;
+; R51.8.5.5.10-.11
+        OMOVE    R5,LIP
+        CAIE    R5,1
+        JRST    FS2G19
+        MOVE    R5,LAST
+        CAIL    R5,1
+        CAILE   R5,6
+        JRST    FS2G19
+        CALL    FMTERR,<RSJMSG+^D21>
+;
+; R51.8.5.5.12
+FS2G12: CALL    SFEXP   ;R66
+;
+; R51.8.5.5.13-.14
+        OMOVE    R5,LIP
+        CAIE    R5,1
+        JRST    FS2G19
+        MOVE    R5,LAST
+        CAIL    R5,1
+        CAILE   R5,6
+        JRST    .+2
+        JRST    FS2G19
+        CALL    FMTERR,<RSJMSG+^D21>
+;
+; R51.8.5.5.15
+FS2G15: MOVEI   STAGE,11
+;
+; R51.8.5.5.16-.17
+        MOVE    R5,LENG
+        OADDM    R5,LIP
+        OADDM    R5,LMIOC
+        JRST    FS2G19
+;
+; R51.8.5.5.18
+FS2G18: CALL    FMTERR,<RSJMSG+^D19>
+;
+; R51.8.5.5.19
+FS2G19: CAILE   I,10
+        JRST    FS2G$$
+;
+; R51.8.5.5.20
+        MOVE    R5,LENG
+        OADDM    R5,LMIOC
+;
+FS2G$$: JRST    PBS16
+;
+;************************************************************
+; R51.8.5.6     FSTG3
+PBS06:
+;************************************************************
+;
+; R51.8.5.6.1
+        CAIG    I,6
+        JRST    FS3G02          ;I=1-6
+        JRST    @.-6(I)
+        FS3G04          ;I=7
+        FS3G04
+        FS3G06          ;I=9
+        FS3G06
+        FS3G07          ;I=11
+        FS3G07          ;I=12
+        FS3G14          ;I=13
+        FS3G14
+        FS3G15          ;I=15
+        FS3G15
+        FS3G15
+        FS3G18          ;I=18
+        FS3G18
+        FS3G18
+;
+; R51.8.5.6.2-.3
+FS3G02: CALL    SFST10,<RSJMSG+^D21>
+        MOVE    R5,LENG
+        OADDM    R5,LMIOC
+        JRST    FS3G19
+;
+; R51.8.5.6.4-.5
+FS3G04: MOVE    R5,LENG
+        OADDM    R5,LIP
+        OADDM    R5,LMIOC
+        JRST    FS3G19
+;
+; R51.8.5.6.6
+FS3G06: CALL    FMTERR,<RSJMSG+^D21>
+;
+; R51.8.5.6.7-.8
+FS3G07: CALL    SFDP
+        ADDI    STAGE,1         ; (SET STAGE=5)
+;
+; R51.8.5.6.9
+;
+; R51.8.5.6.10
+;
+        JRST    FS3G19
+;
+; R51.8.5.6.11
+;
+; R51.8.5.6.12
+;
+; R51.8.5.6.13
+;
+; R51.8.5.6.14
+FS3G14: CALL    SFEXP   ;R66
+        JRST    FS3G19
+;
+; R51.8.5.6.15-.17
+FS3G15: MOVEI   STAGE,11
+        MOVE    R5,LENG
+        OADDM    R5,LMIOC
+        OADDM    R5,LIP
+        JRST    FS3G19
+;
+; R51.8.5.6.18
+FS3G18: CALL    FMTERR,<RSJMSG+^D19>
+;
+; R51.8.5.6.19-.20
+FS3G19: CAIGE   I,11
+        JRST    FS3G$$
+        MOVE    R5,[XWD CTR+1,CTR+2]
+        SETZM   ,CTR+1
+        BLT     R5,CTR+6
+;
+FS3G$$: JRST    PBS16
+;
+;************************************************************
+; R51.8.5.7     FSTG4
+PBS07:
+;************************************************************
+;
+; R51.8.5.7.1
+        CAIG    I,6
+        JRST    FS4G02
+        CAIG    I,8
+        JRST    FS4G05
+        CAIG    I,10
+        JRST    FS4G10
+        CAIG    I,12
+        JRST    FS4G13
+        CAIG    I,14
+        JRST     FS4G14
+        CAIGE   I,FRM.H
+        JRST    FS4G15
+        JRST    FS4G16  ;HOW FORMS
+;
+; R51.8.5.7.2
+FS4G02: CAME    I,LAST
+        JRST    FS4G04
+;
+;************************************************************
+; R51.8.5.7.3   INCREMENT FIELD LENGTH (IFL)
+;************************************************************
+; R51.8.5.7.3.1
+        MOVE    R5,LENG
+        OADDM    R5,LFP
+;
+; R51.8.5.7.3.2-.3
+        CAIE    I,6
+        JRST    IFL$$
+        MOVEI   R5,PFLG3
+        OORM     R5,PFLG
+;
+IFL$$:  JRST    FS4G17
+;
+; R51.8.5.7.4
+FS4G04: CALL    SFST10,<RSJMSG+^D22>     ;R67
+        JRST    FS4G17
+;
+; R51.8.5.7.5-.6
+FS4G05: OSKIPN   ,LFP
+        JRST    FS4G07
+        CALL    FMTERR,<RSJMSG+^D22>
+;
+; R51.8.5.7.7-.9
+FS4G07: MOVEI   STAGE,5
+        MOVEM   I,LAST
+        MOVE    R5,LENG
+        OADDM    R5,LFP
+        JRST    FS4G17
+;
+; R51.8.5.7.10-.12
+FS4G10: MOVEI   STAGE,6
+        MOVEM   I,LAST
+        MOVEI   R5,PFLG3
+        OANCAM  R5,PFLG         ;PFLG(3)=0
+        MOVE    R5,LENG
+        OADDM    R5,LFP
+        JRST    FS4G17
+;
+; R51.8.5.7.13
+FS4G13: CALL    FMTERR,<RSJMSG+^D14>
+;
+; R51.8.5.7.14
+FS4G14: CALL    SFEXP   ;R66
+        JRST    FS4G17
+;
+; R51.8.5.7.15
+FS4G15: CALL    FMTERR,<RSJMSG+^D20>
+;
+; R51.8.5.7.16
+FS4G16: CALL    FMTERR,<RSJMSG+^D19>
+;
+; R51.8.5.7.17
+FS4G17: MOVE    R5,LENG
+        OADDM    R5,LMIOC
+;
+; RETRUN
+        JRST    PBS16
+;
+;************************************************************
+; R51.8.5.8     FSTG5
+PBS08:
+;************************************************************
+;
+; R51.8.5.8.1
+        CAIG    I,6
+        JRST    FS5G02
+        CAIG    I,10
+        JRST    FS5G04
+        JRST    @.-10(I)
+        FS5G09          ;I=11
+        FS5G09
+        FS5G10          ;I=13
+        FS5G10
+        FS5G11          ;I=15
+        FS5G11
+        FS5G11
+        FS5G11
+        FS5G11
+        FS5G12          ;I=FRM.H
+        FS5G12
+        FS5G12
+;
+; R51.8.5.8.2-.3
+FS5G02: CALL    SFST10,<RSJMSG+^D22>     ;R67
+        MOVE    R5,LENG
+        OADDM    R5,LMIOC
+        JRST    FS5G$$
+;
+; R51.8.5.8.4
+FS5G04: CAIG    I,8
+        JRST    FS5G07
+;
+; R51.8.5.8.5-.6
+        MOVEI   STAGE,6
+        MOVEM   I,LAST
+;
+; R51.8.5.8.7-.8
+FS5G07: MOVE    R5,LENG
+        OADDM    R5,LFP
+        OADDM    R5,LMIOC
+        JRST    FS5G$$
+;
+; R51.8.5.8.9
+FS5G09: CALL    FMTERR,<RSJMSG+^D14>
+;
+; R51.8.5.8.10
+FS5G10: CALL    SFEXP   ;R66
+        JRST    FS5G$$
+;
+; R51.8.5.8.11
+FS5G11: CALL    FMTERR,<RSJMSG+^D20>
+;
+; R51.8.5.8.12
+FS5G12: CALL    FMTERR,<RSJMSG+^D19>
+;
+FS5G$$: JRST    PBS16
+;
+;************************************************************
+; R51.8.5.9     FSTG6
+PBS09:
+;************************************************************
+;
+; R51.8.5.9.1
+        CAIG    I,6
+        JRST    FS6G02
+        JRST    @.-6(I)
+        FS6G04          ;I=7
+        FS6G04
+        FS6G05          ;I=9
+        FS6G05
+        FS6G09          ;I=11
+        FS6G09
+        FS6G10          ;I=13
+        FS6G10
+        FS6G11          ;I=15
+        FS6G11
+        FS6G11
+        FS6G11
+        FS6G11
+        FS6G12          ;I=FRM.H
+        FS6G12
+        FS6G12
+;
+; R51.8.5.9.2-.3
+FS6G02: CALL    SFST10,<RSJMSG+^D22>     ;R67
+        MOVE    R5,LENG
+        OADDM    R5,LMIOC
+        JRST    FS6G$$
+;
+; R51.8.5.9.4
+FS6G04: CALL    FMTERR,<RSJMSG+^D22>
+;
+; R51.8.5.9.5
+FS6G05: CAMN    I,LAST
+        JRST    FS6G07
+;
+; R51.8.5.9.6
+        CALL    FMTERR,<RSJMSG+^D22>
+;
+; R51.8.5.9.7-.8
+FS6G07: MOVE    R5,LENG
+        OADDM    R5,LFP
+        OADDM    R5,LMIOC
+        JRST    FS6G$$
+;
+; R51.8.5.9.9
+FS6G09: CALL    FMTERR,<RSJMSG+^D14>
+;
+; R51.8.5.9.10
+FS6G10: CALL    SFEXP          ;R66
+        JRST    FS6G$$
+;
+; R51.8.5.9.11
+FS6G11: CALL    FMTERR,<RSJMSG+^D20>
+;
+; R51.8.5.9.12
+FS6G12: CALL    FMTERR,<RSJMSG+^D19>
+;
+FS6G$$: JRST    PBS16
+;
+;************************************************************
+; R51.8.5.10    FSTG7
+PBS10:
+;************************************************************
+;
+; R51.8.5.10.1
+        CAIG    I,6
+        JRST    FS7G02
+        CAIG    I,10
+        JRST    FS7G13
+        JRST    FS7G20          ;I=11-22
+;
+; R51.8.5.10.2-.3
+FS7G02: MOVE    R5,LENG
+        ADDB    R5,CTR(I)
+        CAIG    R5,1
+        JRST    FS7G11
+;
+; R51.8.5.10.4-.5
+        MOVEI   STAGE,8
+        MOVE    R5,[XWD CTR+1,CTR+2]
+        SETZM   ,CTR+1
+        BLT     R5,CTR+6
+;
+;************************************************************
+; R51.8.5.10.6  MARKFF7
+;************************************************************
+; R51.8.5.10.6.1
+        OMOVE   R5,FMTPTR
+        OMOVEM   R5,FLFBGN+2
+;
+; R51.8.5.10.6.2-.3
+        MOVE    R5,LENG
+        OMOVEM   R5,LEP
+        OMOVEM   R5,FLFCTR+2
+        OMOVEM   A0,FLFCHR+2
+;
+; R51.8.5.10.6.4-.5
+        CAIE    I,6
+        JRST    MFF7$$
+        MOVEI   R5,PFLG5
+        OORM     R5,PFLG
+;
+MFF7$$:
+;
+; R51.8.5.10.7
+        CAME    I,LAST
+        JRST    FS7G21
+;
+;************************************************************
+; R51.8.5.10.8  MODIFY COUNTERS
+;************************************************************
+; R51.8.5.10.8.1
+        MOVE    R5,TMPLOC
+        OMOVEM   R5,FLFBGN+2
+;
+; R51.8.5.10.8.2-.3
+        OAOS     ,LEP
+        AOS     ,LENG
+        OSOS    ,LMIOC
+        OAOS     ,FLFCTR+2
+;
+; RETURN
+; R51.8.5.10.9-.10
+        CAIE    I,6
+        JRST    FS7G21
+        MOVEI   R5,PFLG4
+        OANCAM  R5,PFLG         ;PFLG(4)=0
+        JRST    FS7G21
+;
+; R51.8.5.10.11-.12
+FS7G11: CAIE    I,6
+        JRST    FS7G12
+        MOVEI   R5,PFLG4
+        OORM     R5,PFLG         ;PFLG(4)=1
+;
+; R51.8.5.10.12A
+FS7G12: OMOVE   R5,FMTPTR
+        MOVEM   R5,TMPLOC
+        JRST    FS7G21
+;
+; R51.8.5.10.13
+FS7G13: CAILE   I,8
+        JRST    FS7G15
+;
+; R51.8.5.10.14
+        MOVEI   STAGE,9
+        JRST    FS7G18
+;
+; R51.8.5.10.15-.17
+FS7G15: MOVEI   STAGE,8
+        CAIE    I,9
+        JRST    FS7G18
+        OMOVE   R5,FMTPTR
+        OMOVEM   R5,FLFBGN+2
+        MOVE    R5,LENG
+        OMOVEM   R5,FLFCTR+2
+        OMOVEM   A0,FLFCHR+2
+;
+; R51.8.5.10.18-.19
+FS7G18: MOVE    R5,[XWD CTR+1,CTR+2]
+        SETZM   ,CTR+1
+        BLT     R5,CTR+6
+        MOVE    R5,LENG
+        OMOVEM   R5,LEP
+        JRST    FS7G21
+;
+; R51.8.5.10.20
+FS7G20: CALL    FMTERR,<RSJMSG+^D23>
+;
+; R51.8.5.10.21-.22
+FS7G21: MOVEM   I,LAST
+        MOVE    R5,LENG
+        OADDM    R5,LMIOC
+;
+; RETURN
+        JRST    PBS16
+;
+;************************************************************
+; R51.8.5.11    FSTG8
+PBS11:
+;************************************************************
+;
+; R51.8.5.11.1
+        CAIG    I,6
+        JRST     FS8G02
+        CAIG    I,8
+        JRST    FS8G07
+        CAIG    I,10
+        JRST    FS8G10
+        JRST    FS8G13          ;I=11-22
+;
+; R51.8.5.11.2-.3
+FS8G02: CAME    I,LAST
+        JRST    FS8G04
+        MOVE    R5,LENG
+        OADDM    R5,LEP
+        OADDM    R5,FLFCTR+2
+        JRST    FS8G14
+;
+; R51.8.5.11.4-.6
+FS8G04: CALL    SFST10,<RSJMSG+^D23>     ;R67
+        OMOVE    R5,LEP
+        CAIE    R5,1
+        JRST    FS8G14
+        MOVE    R5,LAST
+        CAIL    R5,1
+        CAILE   R5,6
+        JRST    FS8G14
+        CALL    FMTERR,<RSJMSG+^D23>
+;
+; R51.8.5.11.7-.9
+FS8G07: MOVEI   STAGE,9
+        MOVEM   I,LAST
+        MOVE    R5,LENG
+        OADDM    R5,LEP
+        JRST    FS8G14
+;
+; R51.8.5.11.10-.11
+FS8G10: CAMN    I,LAST
+        JRST    FS8G12
+        CALL    FMTERR,<RSJMSG+^D23>
+;
+; R51.8.5.11.12
+FS8G12: MOVE    R5,LENG
+        OADDM    R5,LEP
+        CAIN    I,9
+        OADDM    R5,FLFCTR+2
+        JRST    FS8G14
+;
+;
+; R51.8.5.11.13
+FS8G13: CALL    FMTERR,<RSJMSG+^D23>
+;
+; R51.8.5.11.14
+FS8G14: MOVE    R5,LENG
+        OADDM    R5,LMIOC
+;
+; RETURN
+        JRST    PBS16
+;
+;************************************************************
+; R51.8.5.12    FSTG9
+PBS12:
+;************************************************************
+;
+; R51.8.5.12.1
+        CAIG    I,6
+        JRST    FS9G02
+        CAIG    I,8
+        JRST    FS9G04
+        JRST    FS9G06          ;I=9-22
+;
+; R51.8.5.12.2-.3
+FS9G02: CALL    SFST10,<RSJMSG+^D23>     ;R67
+        MOVE    R5,LENG
+        OADDM    R5,LMIOC
+        JRST    FS9G$$
+;
+; R51.8.5.12.4-.5
+FS9G04: MOVE    R5,LENG
+        OADDM    R5,LEP
+        OADDM    R5,LMIOC
+        JRST    FS9G$$
+;
+; R51.8.5.12.6
+FS9G06: CALL    FMTERR,<RSJMSG+^D23>
+;
+FS9G$$: JRST    PBS16
+;
+;************************************************************
+; R51.8.5.13    FSTG10
+PBS13:
+;************************************************************
+;
+; R51.8.5.13.1-.2
+        CAIG    I,6
+        JRST    FS10G3
+        CALL    FMTERR,<RSJMSG+^D24>
+;
+; R51.8.5.13.3-.5
+FS10G3: MOVE    R5,LENG
+        ADDB    R5,CTR(I)
+        CAIG    R5,1
+        JRST    FS10G6
+        CALL    FMTERR,<RSJMSG+^D24>
+;
+; R51.8.5.13.6-.7
+FS10G6: CAIE    I,6
+        JRST    FS10G8
+        MOVEI   R5,PFLG6
+        OORM     R5,PFLG
+;
+; R51.8.5.13.8
+FS10G8: MOVE    R5,LENG
+        OADDM    R5,LMIOC
+;
+; RETURN
+        JRST    PBS16
+;
+;************************************************************
+; R51.8.5.14    FSTG11
+PBS14:
+;************************************************************
+;
+; R51.8.5.14.1
+        CAIGE   I,FRM.D
+        JRST    FS11G2
+        CAIG    I,FRM.Y
+        JRST    FS11G3
+        CAIL    I,FRM.A
+        CAILE   I,FRM.J
+        JRST    .+2
+        JRST    FS11G3
+;
+; R51.8.5.14.2
+FS11G2: CALL    FMTERR,<RSJMSG+^D20>
+;
+; R51.8.5.14.3-.4
+FS11G3: MOVE    R5,LENG
+        OADDM    R5,LIP
+        OADDM    R5,LMIOC
+        MOVE    R5,SPFCHR
+        CAIE    R5,FRM.C
+        CAIN    R5,FRM.J
+        JRST    FS11G4
+
+;some other stage 11 character other than C or J started this field
+
+        CAIE    I,FRM.C
+        CAIN    I,FRM.J
+        JRST    FS11ER          ;C or J is current char - may not mix
+        JRST    PBS16
+FS11G4: CAMN    R5,I
+        JRST    PBS16
+FS11ER: CALL    FMTERR,<^D164>; ;ILLEGAL SEQUENCE OF SPECIAL STRING FIELD
+;
+; RETURN
+        JRST    PBS16
+;
+;************************************************************
+; R51.8.5.15    FSTG12
+PBS15:
+;************************************************************
+;
+; R51.8.5.15.1
+        CAIL    I,FRM.H
+        JRST    FS12G3
+;
+; R51.8.5.15.2
+        CALL    FMTERR,<RSJMSG+^D19>
+;
+; R51.8.5.15.3-.4
+FS12G3: MOVE    R5,LENG
+        OADDM    R5,LIP
+        CAIN    I,FRM.W
+        JRST    FS12G4
+        MOVEI   R5,FRM.W+2
+        SUB     R5,I
+        IMUL    R5,LENG
+FS12G4: OADDM    R5,LMIOC
+;
+; RETURN
+; R51.8.5.16
+PBS16:  OSETZM  ,NUMFLD
+;
+; R51.8.5.17
+PBS17:  OSETZM  ,NUMFLG
+;
+; RETURN PBS
+; RETURN FRMSPF
+FSPF$$: JRST    FSCN16
+;
+;************************************************************
+; R51.9 FSTG13
+FSCN09:
+;************************************************************
+;
+; R51.9.1
+        MOVEI   A1,1
+;
+; R51.9.2
+        JUMPE   A0,F13S11       ;EOS
+        CAIN    A0,"#"
+        JRST    F13S03
+        CAIN    A0,"%"
+        JRST    F13S05
+        CAIL    A0,^O60         ;CHECK FOR DIGIT
+        CAILE   A0,^O71
+        JRST    .+2             ;NOT A DIGIT
+        JRST    F13S10          ;DIGIT
+        CAIN    A0,"B"          ;CHECK FOR SPECIAL FORM
+        JRST    F13S07
+        CAIE    A0,"["
+        CAIN    A0,","
+        JRST    F13S07
+        CAIN    A0,^O134        ;BACKSLASH
+        JRST    F13S07
+        CAIL    A0,^O40         ;CKECK FOR VALID (STAGE DEPENDENT)
+        CAILE   A0,^O135        ;SPECIAL FORM CHARACTER, INDICATED
+        JRST    F13S12          ;BY A POSITIVE INDEX I (TABLE 6.2.2.3)
+        HLRE    I,IOBTBL-^O40(A0)
+        SKIPG   ,I
+        JRST    F13S12          ;A0=OTHER
+        CAIL    I,11            ;DOT(I=11) AND V (I=12) ARE ILLEGAL
+        CAILE   I,12
+        JRST    F13S07          ;SPECIAL FORM CHARACTER
+        JRST    F13S12
+;
+; R51.9.3-.4
+F13S03: MOVEI   STAGE,18
+        CALL    IFBNL           ;R56
+        JRST    F13S$$
+;
+; R51.9.5-.6
+F13S05: MOVEI   STAGE,15
+        CALL    IFBNL           ;R56
+        JRST    F13S$$
+;
+; R51.9.7-.9
+F13S07: MOVEI   STAGE,4
+        MOVEI   R5,1
+        OMOVEM  R5,NXTCHR
+        CALL    FBSP            ;R54
+        JRST    F13S$$
+;
+; R51.9.10
+F13S10: CALL    DIGSCN          ;R64
+        JRST    F13S$$
+;
+; R51.9.11
+F13S11: CALL    FMTERR,<RSJMSG+^D13>
+;
+; R51.9.12
+F13S12: CALL    FMTERR,<RSJMSG+^D1>
+;
+F13S$$: JRST    FSCN16
+;
+;************************************************************
+; R51.10        FSTG14
+FSCN10:
+;************************************************************
+;
+; R51.10.1
+        CAIN    A0,"%"
+        JRST    F14S02
+        CAIN    A0,"."
+        JRST    F14S03
+        CAIL    A0,^O60         ;CHECK FOR DIGIT
+        CAILE   A0,^O71
+        JRST    F14S07
+        JRST    F14S05
+;
+; R51.10.2
+F14S02: CALL    IFINCF          ;R57
+        JRST    F14S$$
+;
+; R51.10.3-.4
+F14S03: MOVEI   STAGE,15
+        CALL    IFMDP           ;R58
+        JRST    F14S$$
+;
+; R51.10.5
+F14S05: CALL    DIGSCN          ;R64
+        JRST    F14S$$
+       ;
+; R51.10.6
+;
+; R51.10.7
+F14S07: CALL    IFCNL           ;R60
+;
+F14S$$: JRST    FSCN16
+;
+;************************************************************
+; R51.11        FSTG15
+FSCN11:
+;************************************************************
+;
+; R51.11.1
+        CAIN    A0,"%"
+        JRST    F15S02
+        CAIL    A0,^O60
+        CAILE   A0,^O71
+        JRST    .+2
+        JRST    F15S03
+        CAIN    A0,"#"
+        JRST    F15S05
+        JRST    F15S08
+;
+; R51.11.2
+F15S02: CALL    IFINCF          ;R57
+        JRST    F15S$$
+;
+; R51.11.3
+F15S03: CALL    DIGSCN          ;R64
+        JRST    F15S$$
+;
+; R51.11.4
+;
+; R51.11.5
+F15S05: OSKIPE  ,NUMFLG
+        OSKIPE  ,NUMFLD
+        OSKIPE   ,LFP
+        JRST    F15S07
+;
+; R51.11.6
+        CALL    FMTERR,<RSJMSG+^D13>
+;
+; R51.11.7
+F15S07: CALL    IFCNL           ;R60
+        JRST    F15S$$
+;
+; R51.11.8
+F15S08: CALL    IFCNL           ;R60
+;
+F15S$$: JRST    FSCN16
+;
+;************************************************************
+; R51.12        FSTG17
+FSCN12:
+;************************************************************
+;
+; R51.12.1
+        CAIN    A0,"#"
+        JRST    F17S02
+        CAIN    A0,"."
+        JRST    F17S03
+        CAIL    A0,^O60
+        CAILE   A0,^O71
+        JRST    F17S07
+        JRST    F17S05
+;
+; R51.12.2
+F17S02: CALL    IFINCF          ;R57
+        JRST    F17S$$
+;
+; R51.12.3-.4
+F17S03: MOVEI   STAGE,18
+        CALL    IFMDP           ;R58
+        JRST    F17S$$
+;
+; R51.12.5
+F17S05: CALL    DIGSCN          ;R64
+        JRST    F17S$$
+;
+; R51.12.6
+;
+; R51.12.7
+F17S07: CALL    IFCNL           ;R60
+;
+F17S$$: JRST    FSCN16
+;
+;************************************************************
+; R51.13        FSTG18
+FSCN13:
+;************************************************************
+;
+; R51.13.1
+        CAIN     A0,"#"
+        JRST    F18S02
+        CAIL    A0,^O60
+        CAILE   A0,^O71
+        JRST    .+2
+        JRST    F18S03
+        CAIN    A0,"%"
+        JRST    F18S05
+        JRST    F18S08
+;
+; R51.13.2
+F18S02: CALL    IFINCF          ;R57
+        JRST    F18S$$
+;
+; R51.13.3
+F18S03: CALL    DIGSCN          ;R64
+        JRST    F18S$$
+;
+; R51.13.4
+;
+; R51.13.5-.6
+F18S05: OSKIPE  ,NUMFLG
+        OSKIPE  ,NUMFLD
+        OSKIPE   ,LFP
+        JRST    F18S07
+        CALL    FMTERR,<RSJMSG+^D13>
+;
+; R51.13.7
+F18S07: CALL    IFCNL           ;R60
+        JRST    F18S$$
+;
+; R51.13.8
+F18S08: CALL    IFCNL           ;R60
+;
+F18S$$: JRST    FSCN16
+;
+;************************************************************
+; R51.14        FSTG19
+FSCN14:
+;************************************************************
+;
+; R51.14.1
+        CAIE    A0,"/"
+        CAIN    A0,"("
+        JRST    F19S03
+        CAIE    A0,")"
+        CAIN    A0,^O40         ;SPACE
+        JRST    F19S03
+        JUMPE   A0,F19S03
+;
+; R51.14.2
+        CALL    FMTERR,<RSJMSG+^D8>
+;
+; R51.14.3
+F19S03: MOVEI   R5,1
+        MOVEM   R5,EFLDFG
+        OMOVEM  R5,NXTCHR
+;
+; R51.14.4
+        OAOS    ,NULFMT
+;
+; RETURN
+        JRST    FSCN16
+;
+;************************************************************
+; R51.15        FSTG21
+FSCN15:
+;************************************************************
+;
+; R51.15.1
+        CAIN    A0,"B"
+        JRST    F21S02
+        CAIL    A0,^O60
+        CAILE   A0,^O71
+        JRST    F21S04
+        JRST    F21S03
+;
+; R51.15.2
+F21S02: CALL    IFINCF          ;R57
+        JRST    F21S$$
+;
+; R51.15.3
+F21S03: CALL    DIGSCN          ;R64
+        JRST    F21S$$
+;
+; R51.15.4
+F21S04: CAIE    A0,"["          ;CHECK FOR SPECIAL FORM, AS IN FSTG13
+        CAIN    A0,","
+        JRST    F21S4A
+        CAIN    A0,^O134        ;BACKSLASH
+        JRST    F21S4A
+        CAIL    A0,^O40         ;OTHER SPC FRM CHARACTERS ARE INDICATED
+        CAILE   A0,^O135        ;BY A POSITIVE INDEX IN THE IO BRANCH
+        JRST    F21S05          ;TABLE (TABLE 6.2.2.3)
+        HLRE    I,IOBTBL-^O40(A0)
+        SKIPG   ,I
+        JRST    F21S05
+;
+F21S4A: SETZ    STAGE,
+        MOVEI   R0,1
+        OMOVEM  R0,NXTCHR
+        MOVEI   A1,2
+        CALL    FBSP
+        JRST    F21S$$
+;
+; R51.15.5
+F21S05: CALL    IFCNL           ;R60
+;
+; RETURN FSTG21  R51.15
+F21S$$:
+;
+; R51.16
+FSCN16: MOVE    R5,EFLDFG
+        CAIE    R5,1
+        JRST    FSCN02
+;
+        RETURN  FRMSCN
+        END
+ r)
