@@ -1,0 +1,370 @@
+	TITLE	ARYSCN
+	TWOSEG
+	RADIX	8	; OCTAL, BY GOD
+
+;Array scanning code
+;Provide, sequentially, each legal array element address for
+;either one or a pair of arrays.
+
+;initializing entries:
+;	INPUT:	R1:	address of descriptor for array 1
+;		R2:	address of descriptor for array 2
+;		R3:	address of descriptor for array 3
+;	OUTPUT:	CRAP
+
+;addressing entries:
+;	INPUT:	NONE
+;	OUTPUT:	array element addresses in R1, R2, R3
+;		EXCEPT:	if last address has already been delivered,
+;			return ZERO in R1
+
+;MORALS:	two basic cases: parent array or sliced array.
+;	for parents, we initialize to the core address of the
+;		body and increment by the element size
+;	for slices, we initialize a vector to the lower
+;		bounds of the subscripts and increment the first one
+;		--on overflow, reset and inc the next, etc.  The
+;		element address is finally gotten by calling the
+;		descriptor.
+
+; declare registers
+
+.a==10		; array descriptor address
+.b==.a+1	; bound pair address (in array descriptor)
+.s==.b+1	; subscript address (in context block) - inc time
+		; array size - setup time
+.c==.s+1	; context block for current array: subscript values, etc.
+.t==7		; alternate context block for DAMN - setup time only.
+.d==7		; dimensionality - setup time only.
+; NOTE that .c is placed last in the above bunch, since it's
+; the only register that has to survive loading all the subscripts
+
+
+
+; array descriptor description -- from Larry's notes
+
+bpr0==.hdsiz    ;bound pair zero: LH=lower; RH=upper
+
+; misc. constants
+
+maxdim==12	; maximum number of dimensions for an array
+.xndr==2	; number of subscripts we can transmit in registers
+IFLE <.c-.xndr>, <
+	PRINTX	context block register will be clobbered when
+	PRINTX	loading subscripts...
+>
+EXTERN	PREG	; block of pseudo-registers for passing subscripts in bulk
+EXTERN	.cadr	; accessing code displacements in array descriptor
+
+; locations in context block
+
+.ada==0		; array descriptor address
+.adrcd==1	; addressing code address
+.inccd==2	; address of inc code
+.ub1==3	; upper bound for sct1 (used only for 2-dimension case)
+.sct1==4	; this is subscript one
+.sct2==.sct1+1
+.cbsiz==.sct1+maxdim	; size of context block
+
+;  The following cells are used only in cases other than
+;  many-dimensional-slices, and use the space reserved
+;  for subscripts 3 and up in that case
+
+.lb1==.sct1+3	; lower DITTO
+.e.adr==.sct1+4	; element address - used only in parent array case
+
+	RELOC	0
+.count:	0
+.cb1:	block	.cbsiz
+.cb2:	block	.cbsiz
+.cb3:	block	.cbsiz
+
+	RELOC	400000
+
+	ENTRY	.ASCN1
+        DCL     .ascn1,,,4
+	movem	r1,.cb1+.ada
+	movei	.c,.cb1
+	pushj	p,setup
+	aoj	.s,
+	movem	.s,.count
+        move    r1,.cb1+.ada
+        return  .ascn1
+
+	ENTRY	.ASCN2
+        DCL     .ascn2,,,4
+	movem	r1,.cb1+.ada
+	movem	r2,.cb2+.ada
+	movei	.c,.cb1
+	pushj	p,setup
+	movem	.s,.count
+	movei	.c,.cb2
+	pushj	p,setup
+	movei	.t,.cb1
+	came	.s,.count
+	pushj	p,damn		; counts don't match
+	aos	.count
+        move    r1,.cb1+.ada
+        move    r2,.cb2+.ada
+        return  .ascn2
+
+	ENTRY	.ASCN3
+        DCL     .ascn3,,,4
+	movem	r1,.cb1+.ada
+	movem	r2,.cb2+.ada
+	movem	r3,.cb3+.ada
+	movei	.c,.cb1
+	pushj	p,setup
+	movem	.s,.count
+	movei	.c,.cb2
+	pushj	p,setup
+	movei	.t,.cb1
+	came	.s,.count
+	pushj	p,damn
+	movei	.c,.cb3
+	pushj	p,setup
+	camn	.s,.count
+	jrst	cntok
+	movei	.t,.cb1
+	pushj	p,damn
+	movei	.c,.cb3
+	movei	.t,.cb2
+	pushj	p,damn
+cntok:
+	aos	.count
+        move    r1,.cb1+.ada
+        move    r2,.cb2+.ada
+        return  .ascn3
+
+; Cause defered bounds check error by forcing smaller array to go
+; through element addressing logic.
+damn:
+	camg	.s,.count
+	jrst	damn2		; array 2 is small (.c, .count are ok)
+; damn1:  array 1 is small
+	movem	.s,.count	; force larger count
+	move	.c,.t
+damn2:
+	pushj	p,sinit		; returns r2=1 if slice, else 0
+	jumpn	r2,.+2
+	pushj	p,setslc	; force element addressing code to be used regardless
+	popj	p,
+
+; setup context block
+;	INPUT:	.c:	context block address
+;		.ada(.c):	array descriptor address
+;	OUTPUT:	.s:	element count (size)
+
+setup:
+	pushj	p,sinit
+	pushj	p,@setr(r2)
+	popj	p,
+
+setr:	setact
+	setslc
+
+sinit:
+	; set up .a, .d, and .s
+	; set r1=.aloc (seta may want it)
+	; RETURN R2= if array then 0 else (slice) 1
+
+	move	.a,.ada(.c)	; establish addressibility for descriptor
+	hrrz	.d,.andim(.a)	; number of dimensions
+	hlrz	.s,.absz(.a)	; size (will be adjusted if double-word parent)
+	move	r1,.aloc(.a)
+	setz	r2,
+	tlne	r1,-1		; LH#0 if slice
+	aoj	r2,
+	popj	p,
+
+setact: ; setup actual array
+	hlrz	r2,.atyp(.a)	; next descision will be on elet size
+	caile	r2,2		; skip if logical, integer, or real
+	jrst	seta2		; no: 2 words/elet
+; seta1:  1 word/elet
+	movei	r2,incpz1
+	jrst	setax
+
+seta2: ; 2 words/elet
+	soj	r1,		; back up elet addr
+	lsh	.s,-1		; divide size by 2 to get elet count
+	movei	r2,incpz2
+setax:
+	soj	r1,		; back up elet addr
+	movem	r1,.e.adr(.c)
+	movem	r2,.inccd(.c)
+	popj	p,
+
+setslc:
+	move	r1,.cadr(.d)	; displacement of code from
+	add	r1,.a		; origen of array descriptor
+	movem	r1,.adrcd(.c)
+	movn	r2,.d	; I suppose there's a way to set up an AOBJN
+	hrlz	r2,r2	; loop in less than a million instructions,
+	hrri	r2,.sct1(.c)	; but I haven't found it yet, and
+	movei	.b,bpr0(.a)	; frankly, I'm tired of the whole
+s.loop:	hlrz	r1,(.b)		; question.  We have to initialize the
+	movem	r1,(r2)		; subscripts in the context block from
+	aoj	.b,		; the lower bounds in the array
+	aobjn	r2,s.loop	; descriptor  --  somehow.
+
+	sos	.sct1(.c)	; back up first subscript
+	caie	.d,1	; elegant case stmt on number of dimensions
+	jrst	sets2m	; 2 or more
+; sets1d:  one dimension
+	movei	r2,incs1d
+	jrst	setsx
+
+sets2m: ; 2 or more
+	hlrz	r1,bpr0(.a)	; expand bound pair for
+	movem	r1,.lb1(.c)	; first subscript only
+	hrrz	r1,bpr0(.a)
+	movem	r1,.ub1(.c)
+	caie	.d,2
+	jrst	setsmd
+
+; sets2d: two dimensions
+	movei	r2,incs2d
+	jrst	setsx
+
+setsmd: ; multiple dimensions
+	movei	r2,incsmd
+
+setsx:
+	movem	r2,.inccd(.c)
+	popj	p,
+DEFINE START
+<	sosg	r1,.count	;; loads r1=0 if done
+	popj	p,		;; exit if done
+        ADDI    P,4             ;; SAVE REGISTERS...
+        MOVEM   .A,-3(P)
+        MOVEM   .B,-2(P)
+        MOVEM   .S,-1(P)
+        MOVEM   .C,0(P)
+>
+
+DEFINE DOIT(x)
+<	movei	.c,.cb'x
+	pushj	p,@.inccd(.c)
+>
+
+DEFINE	DONE
+<       MOVE    .A,-3(P)        ;; RESTORE REGISTERS...
+        MOVE    .B,-2(P)
+        MOVE    .S,-1(P)
+        MOVE    .C,0(P)
+        SUBI    P,4
+	popj	p,
+>
+
+	INTERN	.AINC1
+.ainc1:
+	START
+	DOIT(1)
+	move	r1,r2
+	DONE
+
+	INTERN	.AINC2
+.ainc2:
+	START
+	DOIT(1)
+	push	p,r2
+	DOIT(2)
+	pop	p,r1
+	DONE
+
+        INTERN  .AINC3
+.ainc3:
+	START
+	DOIT(1)
+	push	p,r2
+	DOIT(3)
+	push	p,r2
+	DOIT(2)
+	pop	p,r3
+	pop	p,r1
+	DONE
+
+; increment element code -- context block addressed by Reg .c
+
+;	parent array
+
+;		element size = 1
+
+incpz1:
+	aos	r2,.e.adr(.c)
+	popj	p,
+
+;		element size = 2
+
+incpz2:
+	aos	.e.adr(.c)
+	aos	r2,.e.adr(.c)
+	popj	p,
+
+;	sliced array
+
+;		1 dimension
+
+incs1d:
+	aos	r1,.sct1(.c)
+	pushj	p,@.adrcd(.c)
+	popj	p,
+
+;		2 dimensions
+
+incs2d:
+	aos 	r1,.sct1(.c)
+	camg	r1,.ub1(.c)
+	jrst	.x
+	move	r1,.lb1(.c)
+	movem	r1,.sct1(.c)
+	aosa	r2,.sct2(.c)
+.x:	move	r2,.sct2(.c)
+	pushj	p,@.adrcd(.c)
+	popj	p,
+
+;		3 or more dimensions
+;		may have to go into a loop to process overflows
+;		AND may have to transfer subscripts to pseudo-regs
+
+incsmd:
+	move	.a,.ada(.c)	; address of array descriptor
+	aos	r1,.sct1(.c)
+	camg	r1,.ub1(.c)
+	jrst	gotit
+	; OVERFLEW
+	; set up a loop over all subscripts
+	; note that we rely strongly on the fact that there should be
+	; one more element to process: we keep looping until there's
+	; no carry out.
+
+	movei	.b,3(.a)	; set bounds register
+	movei	.s,.sct1(.c)	; set subscripts register
+	jrst	.y	; branch into loop; first sct has been inc'd already
+
+.l:	aos	r1,(.s)
+	hrrz	r2,(.b)
+	camg	r1,r2
+	jrst	gotit
+.y:	hlrz	r1,(.b)
+	movem	r1,(.s)
+	aoj	.s,
+	aoja	.b,.l
+
+gotit:	hrlzi	0,.sct1(.c)	; first source word for BLT
+	hrrz	r1,2(.a)	; number of dimensions
+	caig	r1,.xndr	; compare to number of dimensions transmittable in registers
+	jrst	.k		; fits
+	hrri	0,preg		; must go to pseudo-regs
+	BLT	0,preg-1(r1)
+	jrst	.m
+
+.k:	hrri	0,1		; begin loading r1
+	move	.xndr,r1
+	BLT	0,(.xndr)
+
+.m:	pushj	p,@.adrcd(.c)		; call addressing code
+	popj	p,
+	END
+ 
