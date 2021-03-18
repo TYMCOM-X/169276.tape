@@ -1,0 +1,14 @@
+To add a source file to the world, you must:
+
+1. In CONTROL, say ADD filename
+
+2. Add the file to the appropriate:
+
+   ASM.CMD
+   TBALIB.CMD, TBA.CMD, TBACMP.CMD, TBAREK.CMD, TBALIB.LST
+   COPY1.SRC or COPY2.SRC or COPY3.SRC or COPY4.SRC in alphabetic order
+   COPY.RUN
+   MASTER.SRC
+   MASTER.RUN
+
+3. Copy the file into SPUNKDEV.
