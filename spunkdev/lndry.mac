@@ -1,0 +1,497 @@
+LIST
+;	FILE	LNDRY.MAC
+
+	ifndef ftrun, <ftrun==0>
+	ife ftrun, <	TITLE   LNDRY>
+	ifn ftrun, <	TITLE   .LNDRY>
+	SUBTTL >=<   >=<   >=<   >=<   >=<   >=<   >=<   >=<
+	RADIX   8
+	TWOSEG
+	reloc	0
+sixblk:	block	sxsiz	; block for parsing file names into
+
+sixun=	sixblk+sxun
+sixppn=	sixblk+sxppn
+sixnam=	sixblk+sxnam
+sixext=	sixblk+sxext
+	sixdex=	dexpt(sixext)
+	sixcon= conpt(sixext)
+sixbnd=	.-1
+
+	DEFINE MAC.OK(NAME)
+	<CKCOMN(NAME,<sr1,ufnmag>)
+	ifn $fckt, < ckcomn(name,<FCBAag,RWSWag>)>
+	ifn $fckt, < ckcomn(name,<ERRNag,UFNMag,DEXTag>)>
+	>
+
+
+	MAXPOS==^O377777777777
+
+	reloc	400000
+
+	SUBTTL  confrm
+
+
+EXTERN	UPBUF,GETREP,CXMO,TWBUF
+
+;Registers
+	FCB==r10
+
+EXTERN	.GARYF
+
+	DCL     confrm,<PMPTag>
+
+;+
+; CFM10
+; COPY FILE NAME AND PROMPT STRING TO PROMPT BUFFER FOR GETL CALL
+;-
+CFM10:	CALL    .garyf,<$,fcb,$,<[ point 7,upbuf]>>,<r2>
+cfm11:
+	MOVE    r2,PMPTag		   ;Get addr of real prompt
+	HRLI    r2,(POINT 7,0)	  ;POINTER TO IT
+	ILDB    R3,r2		   ;GET NEXT PROMPT CHAR
+	IDPB    R3,r1		   ;STORE ON PROMPT BUFFER
+	JUMPN   R3,.-2		  ;LOOP UNTIL ZERO BYTE STORED
+
+CFM15:	SETZ    R5,
+                ; Get Response
+CFM20:	CALL    GETREP,<TWBUF,1,UPBUF,0,0,0>
+CFM25:	JUMPL   R1,CFM60
+CFM30:	CALL    YESNO,<TWBUF>
+CFM40:	JUMPGE  R1,CFM60	; V3 IN R1
+CFM50:	CALL    CXMO,<<[ASCIZ  "TYPE YES OR NO ONLY
+"]>,1>
+CFM55:	MOVEI   R5,1
+	jrst    CFM20
+CFM60:
+	trc	r1,1	; 0<=> 1
+	skipe	r1
+	movei	r1,e.onc
+	RETURN  confrm
+	SUBTTL	YESNO
+YNTBL:	ASCIZ   "NO"
+	EXP     0
+	ASCIZ   "YES"
+	EXP     0
+	EXP     MAXPOS
+;************************************************
+dclne     YESNO
+YES10:	EXCH    R1,R0
+	IMULI   R0,7
+	MOVE    R1,0(R1)
+	AND     R1,[BYTE	(7)137,137,137,137,137]
+	CALL    SMATCH,<,,0,YNTBL>
+YES20:	RETURN  YESNO
+;************************************************
+	subttl	.lndry -- parse file name
+
+	EXTERN	pubfer
+
+dcl	.lndry,<UFNMag,DEXTag,BITSag>,<<XCONag,2>,SUBPag>,4
+
+; UFNMag - User File NaMe:  Either a byte pointer or a word
+;		address for the user's file name string.  We must
+;		find a terminating null.  Leading, trailing, and
+;		sometimes medial blanks are legal.
+; DEXTag - Default EXTension: Zero (if never defaulted) or the
+;		actual default extension in asciz.
+; BITSag - BITS as defined in OPND.MAC
+
+ubp==	r10
+bits==r11
+flags==	r12
+	termf==1	; set if file name is TERMINAL
+	gunmf==2	; set if got user name or PPN ( ==> TERM not legal)
+ereg==	r13
+
+	setz	flags,
+	setz	ereg,
+	move	bits,bitsag
+	move	ubp,ufnmag;	 set up input byte pointer
+	tlnn	ubp,-1		; skip if already byte pointer
+	hrli	ubp,( point 7,)	; make pointer from address
+	setzm	sixblk		; zero the output block
+	move	r0,[ xwd sixblk,sixblk+1]
+	blt	r0,sixbnd
+
+		; trim leading blanks
+	call	spaces
+
+		; check for user name or ppn. From here, we ALWAYS pass
+		; through the error check at DIR200.
+	CALL    NXTCHR,<"(">
+	JUMPe   R1,getppn	; No paren found, try for PPN.
+	CALL    IDEN,<$,un.id>
+	JUMPE  R1,DIRok	; jump if no error
+	caie	r1,e.zle	; skip if zero length claimed
+	jrst	direrr		; no, must be too long
+	caie	r3,")"		; skip if paren found
+	movei	r1,3		; no: must be name begins with non-alpha
+direrr:	movei	ereg,pfeu1(r1)
+	jrst	dir200
+
+dirok:	call	spaces
+	CALL    NXTCHR,<")">
+	JUMPN   R1,DIR180	; found
+	MOVEI   ereg,pfeu4	; lacka closing paren
+	jrst	dir200
+
+getppn:		; No paren: try for PPN.
+	call	nxtchr,<"[">
+	jumpe	r1,dir200		; not found
+	call	spaces
+	call	octal
+	jumpn	r1,ppnerr		; jump if error
+	hrlzm	r2,sixppn
+	call	nxtchr,<<",">>
+	jumpn	r1,ppn2			; jump if found
+	movei	r1,pfepp1		; missing comma
+	jrst	ppnerr
+
+ppn2:		; Get second half of PPN
+	call	octal
+	jumpn	r1,ppnerr		; jump if error
+	hrrm	r2,sixppn
+	call	spaces
+	call	nxtchr,<"]">
+	jumpn	r1,dir180		; found: got good PPN
+	movei	r1,pfepp2		; missing close bracket
+
+ppnerr:		; here with error code in r1
+	move	ereg,r1
+	jrst	dir200
+
+DIR180:		; user name or ppn found.  Hang up the gunmf bit and
+		; clear possible spaces before file name.
+	CALL    SPACES
+	tro	flags,gunmf	; set user name seen
+DIR200:
+	jumpn	ereg,parerr	; -->  -->  -->  -->  -->  -->  ==>>
+
+gettrm:
+	call	iden,<$,te.id>
+	caig	r2,2		; one or two chars can't be term
+	jrst	getnm
+	jumpn	r1,getnm		; some kind of non-term
+	imuli	r2,6		; convert char count to bit count
+	move	r0,r2
+	dmove	r1,sixnam
+	call	smatch,<,,,trmtab>
+	jumpn	r1,getnm		; no match
+	trne	flags,gunmf	; have we seen user name?
+	movei	ereg,pfet1	; yes, user name specified for terminal
+	tro	flags,termf	; turn on terminal found
+	move	r0,trmtab	; force full spelling
+	movem	r0,sixnam
+getnm:
+	setzm	sixext		; clear EXT in case we slopped over
+	skipn	sixnam
+	movei	ereg,pfet2	; zero length file name
+	move	r0,sixnam
+	camn	r0,trmtab
+	trne	flags,termf
+	jrst	trmz
+	movei	ereg,pfet3	; looks like TERMIN but not left subset
+trmz:
+	jumpn	ereg,parerr	; -->  -->  -->  -->  -->  -->  ==>>
+	CALL    NXTCHR,<".">
+	jumpn	r1,ext100	; jump if dot found
+	seto	r0,		; indicate we're doing
+	dpb	r0,[sixdex]	;    extension defaulting
+	movem	ubp,subpag;	 save the input pointer
+	movei	ubp,dextag;	 and make a pointer to the
+	hrli	ubp,( point 7,)	;    default extension
+	CALL    IDEN,<$,ex.id>
+	move	ubp,subpag;	 restore input byte pointer
+	jrst    EXT150
+
+ext100:	trne	flags,termf	; do we think this is terminal?
+	movei	ereg,pfet4	; yes, explicit extension on TERMIN
+	CALL    IDEN,<$,ex.id>
+EXT150:	CALL    SPACES
+	jumpn	ereg,parerr	; -->  -->  -->  -->  -->  -->  ==>>
+
+	CALL    NXTCHR,<"-">
+	jumpe	r1,GC145		; jump not found. note r1 contains zero
+	call	spaces
+	setzm	xconag
+	setzm	1+xconag
+	move	r0,co.id	; set up arg to IDEN by hand because
+	hrri	r0,xconag;	 we don't know till runtime where the
+				; output should go.
+	CALL    IDEN
+	JUMPN   R1,GC160
+	IMULI   r2,6		; returns length in r2
+	move	r0,r2
+	dmove	r1,xconag
+	movei	r3,contbl
+	CALL    SMATCH		; returns -1 on no match
+	ADDI    R1,1		; map -1-2 --> 0-3
+	jumpe	r1,gc160	; now bail out on no match
+	dpb	r1,[sixcon]
+gc145:
+	call	spaces
+	CALL    NXTCHR,<0>;	check for terminating null
+	JUMPN   R1,GC200	; jump if found
+GC160:
+	MOVEI   ereg,pfec1(r1)     ; ILLEGAL FILE NAME
+GC200:
+	jumpn	ereg,parerr	; -->  -->  -->  -->  -->  -->  ==>>
+	trnn	flags,termf	; skip if not TERM
+	jrst	parex1
+	trne	bits,o.te
+	jrst	gczot
+	seto	ereg,		; TERM; return -1
+	jrst	parexi
+
+gczot:
+	movei	ereg,pfete
+
+parerr:
+	move	ereg,pfetab(ereg)
+	trnn	bits,o.im
+	jrst	parer1
+	upunit	bits,r2
+	call	pubfer,<$,ufnmag,$,ereg>
+		; BRANCH TO RESUME IF type messages & parse side &
+		;	new error returns requested.
+	ife ftrun, <
+	EXTERN	RESUME
+	ifoff	o.no,RESUME>
+parer1: ifon    o.no
+        setzm   ereg
+        jrst    parexi
+
+parex1: setz    ereg,           ; no error, not terminal
+        ifon    o.no
+        movei   ereg,1
+
+parexi:	return	.lndry,<$,ereg,sixblk>
+
+CONTBL:	SIXBIT  "ANY"
+	EXP     0
+	SIXBIT  "EXISTI"
+	SIXBIT  "NG"
+	SIXBIT  "NEW"
+	EXP     0
+	EXP     MAXPOS
+
+TRMTAB:	SIXBIT  "TERMIN"
+	SIXBIT	"AL"
+	EXP     MAXPOS
+
+pfetab=.-1
+sickfn=pgrmsg+5	; Illegal file name
+pfeu1==.-pfetab
+	sickfn	; empty user name
+	pgrmsg+4; User name more than 12 characters
+	sickfn	; first char of user name not alpha
+pfeu4==.-pfetab
+	sickfn	; illegal char in user anme or ) missing
+pfet1==.-pfetab
+	sickfn	; (user)TERM
+pfet2==.-pfetab
+	sickfn	; empty file name (perhaps bad character)
+pfet3==.-pfetab
+	sickfn	; TERMIN but not left subset of TERMINAL
+pfet4==.-pfetab
+	sickfn	; TERMIN but explicit "." found
+pfec1==.-pfetab
+	sickfn	; confirmation keyword doesn't match anything
+	sickfn	; dash found but conf keyword missing (or bad char)
+	sickfn	; conf keyword over 8 chars
+pfete==.-pfetab
+	rgsmsg+^d10	; terminal is error
+pfepp1==.-pfetab
+	sickfn	; missing comma in PPn
+pfepp2==.-pfetab
+	sickfn	; missing close bracket in PPN
+pfepp3==.-pfetab
+	sickfn	; More than 6 digits in GAN or UUN
+pfepp4==.-pfetab
+	sickfn	; First character of gan or uun missing or not octal
+	SUBTTL  SMATCH
+;+
+;.p
+;SMATCH -- Match a bit string of 0-72 bits.
+;.p
+; Input:
+;.lm +5
+	; r0: string length in bits
+	; r1,r2 : string
+	; r3: match table address
+;.i -5
+; Output:
+	; r1: if no match then -1 else entry number (0,1,2,...)
+;.lm-5
+;-
+dcl     SMATCH
+SMA5:	MOVN    R4,R0
+	SETOM   R5
+	SETOM   R6
+	LSHC    R5,0(R4)
+	OR      R1,R5
+	OR      R2,R6
+SMA10:	MOVE    R4,R3	   ; V0,V1,V2,V3,V4 IN R0,R1,R2,R3,R4
+SMA20:	CAMGE   R1,2(R4)
+	jrst    SMA40
+SMA30:	ADDI    R4,2
+	jrst    SMA20
+SMA40:	XOR     R1,0(R4)
+	XOR     R2,1(R4)
+	MOVE    R5,R0
+	LSHC    R1,-^D72(R5)
+SMA50:	SKIPN   R1
+	JUMPE   R2,SMA70
+SMA60:	SETOM   R1
+	jrst    SMA80
+SMA70:	MOVE    R1,R4
+	SUB     R1,R3
+	LSH     R1,-1
+SMA80:	RETURN SMATCH
+	SUBTTL  NXTCHR
+dclne   NXTCHR
+	ILDB    R3,ubp
+	CAMN    R3,R0
+	jrst    NXT70
+	SETZM   R1	     ; V4 IN R1
+	bkup	ubp
+	jrst    NXT80
+NXT70:	MOVEI   R1,1
+NXT80:	RETURN  NXTCHR
+
+	SUBTTL  SPACES
+dclne   SPACES
+	ildb	r0,ubp
+	cain	r0," "
+	jrst	.-2
+	bkup	ubp
+	RETURN  SPACES
+
+dclne	octal
+; input:	none
+; output:	r1 - error code, zero if error-free
+;		r2 - value
+;
+; working registers:
+;		r1 - output byte pointer
+;		r2 - value
+;		r3 - count of bits not used in r2
+;		r4 - char
+
+	move	r1,[ point 3,2]
+	setz	r2,
+	movei	r3,^d36
+oct.lp:
+	ildb	r4,ubp
+	caig	r4,"7"
+	caige	r4,"0"
+	jrst	octlck
+	idpb	r4,r1
+	subi	r3,3
+	jumpg	r3,oct.lp
+octlck:
+	setz	r1,
+	caige	r3,^d18
+	movei	r1,pfepp3	; number more than 6 digits
+	caile	r3,^d33
+	movei	r1,pfepp4	; number less than one digit
+	movn	r3,r3
+	lsh	r2,(r3)
+	bkup	ubp
+	return	octal
+	SUBTTL  IDEN
+;+
+;.p
+;  IDEN
+;.p .nf
+; Input:  r0:  byte (9)length(9)bits(18)dest addr
+	lenpt:	point	9,0,8
+	bitspt:	point	9,0,17
+		id.fca==1	; first characater must be alpha
+		id.dok==2	; dot ok
+		id.zle==4	; zero length is error
+		id.ose==^o10	; over-size is error
+
+; Local:
+;	r0:  output byte pointer (6 bit)
+;	r1:  error code on return
+;		none - 0
+		e.zle==1
+		e.ose==2
+	ccr==r2	; count chars read
+	char==r3
+	mxlen==r4
+	bits==r5
+
+; Output:  r1:  error code
+;	  r2:  length found
+;-
+
+dclne   IDEN
+	ldb	mxlen,lenpt
+	ldb	bits,bitspt
+	HRLI    r0,(POINT 6,0)	; Make into 6-bit byte pointer
+			; note that pointer is built with zero address
+			; field if no output wanted.
+	SETZ    ccr,	   	; count of valid characters scanned
+	setz	r1,		; clear error code
+
+;	[]  []  []  []  []  []  []  []  []  []
+idloop:	ILDB    char,ubp
+	CAIG    char,^O172	;Check for a
+	CAIGE   char,^O141	;thru z...
+	jrst    .+2	   	;not, next check
+	subi	char,^o40		;valid. Lower case to upper case proc
+	CAIG    char,^O132	;Check for A
+	CAIGE   char,^O101	;thru Z
+	jrst    .+2	   	;Not, next check
+	jrst    idgot1	  	;Valid...
+	
+	; non-alpha. check for restricted first character.
+	jumpn	ccr,id55		; jump if not first char.
+	trne	bits,id.fca	; first char. skip if  alpha not reqd.
+	jrst	id130		; Required. Bail out.
+id55:
+	CAIG    char,^O71	 ;Check for 9
+	CAIGE   char,^O60	 ;thru 0 ...
+	jrst    .+2	   	;Not, next check
+	jrst    idgot1	  	;Valid...
+
+		; not numeric, either. see if dot valid and then if
+		; we have one.
+	trne	bits,id.dok		; skip if dot not valid
+	CAIE    char,56	 	;Dot (.) is a valid character
+	jrst    ID130	 	;Invalid character, stop.
+
+		; Here on valid character
+idgot1:	CAML    ccr,mxlen	; skip if we want more characters
+	setz	r0,		; zap the output pointer
+	ADDI    char,^O40	 ; Convert ascii to sixbit
+	trne	r0,-1		; skip if no output wanted
+	IDPB    char,R0	 	; Store the sixbit character
+	AOJA    ccr,idloop	; Always loop. We don't stop until a
+				; bad character comes along.
+;	[]  []  []  []  []  []  []  []  []  []
+
+id130:
+	jumpg	ccr,idgtsm	; jump if gotsome characters
+	trne	bits,id.zle	; Zero length. Error?
+	movei	r1,e.zle	; Yes indeed.
+idgtsm:
+	trnn	bits,id.ose	; skip if oversize is an error
+	jrst	idx		;   no, no sweat.
+	camle	ccr,mxlen	; skip if within limits
+	movei	r1,e.ose
+
+idx:	bkup	ubp
+	RETURN  IDEN
+
+un.id:	byte	(9)^d12 (9)<id.fca+id.dok+id.zle+id.ose> (18)sixun
+ex.id:	byte	(9)3	(9)0			(18)sixext
+co.id:	byte	(9)8	(9)<id.zle+id.ose>	(18)0
+te.id:	byte	(9)8	(9)<id.zle+id.ose>	(18)sixnam
+
+LIT
+END
+    
