@@ -1,0 +1,220 @@
+TITLE   IOSUB
+SUBTTL  SET UP FOR I/O - FREE FORM
+
+;+
+;.FIRST TITLE .NJ .P 0 .FLAG CAP .FLAG IND
+;.SUBTITLE Set up for I/O - Free form
+;-
+
+; Initial compiler stuff
+        TWOSEG
+        RELOC   ^O400000
+        RADIX   10               ;*** CAUTION !! RADIX 10 FILE !! CAUTION ***;
+
+; Externals
+        EXTERN  INPROMPT, SETFFL, ARRAY, FFID, FILSZC, FILSZW
+        EXTERN  GETSLA, LEFTB, NEWSZW, NOSLIC, SAVREG, SIP, TFR, FILERR, ENDFIL
+
+; Entry points
+        ENTRY   RION, RION1, FFDRVI
+
+;
+;************************************************************
+        SUBTTL  RION  CHART RS96
+        DCL     RION
+;************************************************************
+;
+;       SET UP FOR I/O - FREE FORM
+;
+;       R1,R2,R3(,R5) HAVE PARAMETERS IN THEM,:
+;       R1 - record number
+;       R2 - format string, if any
+;       R3 - file number, if any
+;       R5 - string code for R2
+;
+;       SET R6=FMTFLG, R7=DRVADR, R10=FMTPTR BEFORE
+;       CALLING THE COMMON I/O INIT ROUTINE SETFFL
+;
+;       SET R11=0 IF THIS IS AN I/O STATEMENT.  IF THIS IS A
+;       STR, VAL, OR READ, THEN R11 WILL SO INDICATE, AND R13 WILL
+;       CONTAIN THE DATA WHICH WOULD BE INLINE IN AN I/O STATEMENT.
+;       NOTE THAT STR, VAL AND READ USE THE ENTRY POINT RION1.
+;
+        MOVE    R0,@0(R17)       ; I/O PARAMETER
+        SETZ    R11,
+RION1:  SETZB   R6,R10
+        MOVEI   R7,FFDRVI       ; LOAD INPUT DRIVER ADDRESS
+
+ ; MAKE SURE NO PROMPT AROUND
+        SETZM   INPROMPT        ;NO I/O PROMPT FOR FORM STUFF
+
+        JRST    SETFFL
+
+;************************************************************
+        SUBTTL  FFDRVI
+        DCL     FFDRVI
+;************************************************************
+;
+;       FREE FORM DRIVER FOR INPUT
+;
+        SKIPGE  ,FMTFLG(OCB)    ; SKIP IF NOT BINARY INPUT
+        JRST    FFDR05
+        MOVEI   STAGE,16        ; INDICATE FREE FORM
+        TLNN    OCB,FCBFRL      ; SKIP IF FRL RANDOM FILE
+        JRST    FFDR01
+        CALL    FILERR,<RSJMSG+^D49>
+FFDR01:
+        CALL    SIP
+        CALL    FFID            ; R75
+        SOS     R5,ARRAY
+        JUMPG   R5,FFDR01
+        SETOM   ,ARRAY
+        JRST    FFDR$$
+;
+FFDR05:                         ;RS92.9.5       BINID
+;
+BIN01:                          ;RS92.9.5.1
+                                ;RS92.9.5.2 CHKAS
+        OMOVE   R6,IOTYP        ;RS92.9.5.2.1
+        TLNN    R6,ARYMSK       
+        JRST    CHAS$$
+        SKIPN   ,NOSLIC         ; SKIP IF SLICE
+        JRST    CHAS05
+        CALL    GETSLA          ; GET ADDR OF NEXT ELT
+        JRST    CHAS$$
+;
+CHAS05: OSKIPL  ,ELTSZ          ;RS92.9.5.2.5
+        OAOS    ,BASADR
+        OAOS    ,BASADR
+;
+CHAS$$:                         ;   RETURN CHKAS
+        OHRRZ   R6,IOTYP        ;RS92.9.5.3
+        CAIE    R6,STRING
+        JRST    BIN06           ; leave type in R6
+                                ;RS92.9.5.4  REASTR
+                                ;RS92.9.5.4.1 SETSIZ
+        MOVE    R2,FCBCUR(FCBREG) ;RS92.9.5.4.1.1
+        IN      R1,R2
+        PUSHJ   P,ENDFIL
+        MOVEM   R2,FCBCUR(FCBREG) ;RS92.9.5.4.1.2
+        HLRZM   R1,FILSZC       ;RS92.9.5.4.1.3
+        HRRZM   R1,FILSZW
+                                ;    RETURN SETSIZ
+        SKIPE   ,FILSZC ;RS92.9.5.4.2
+        JRST    REST07
+                                  ;RS92.9.5.4.3
+                                  ;RS92.9.5.4.4
+        OHRRZ   R1,BASADR       ;RS92.9.5.4.5
+        SKIPN   ,@R1            ; SKIP IF STORAGE HAS BEEN ALLOCATED
+        JRST    REST$$
+        REL                     ;  (RELEASE STORAGE)
+        OHRRZ   R1,BASADR       ; (ADDR OF DESCRIPTOR)
+        SETZM   ,@R1            ; (ZERO THE ADDRESS OF THE STRING)
+        ADDI    R1,1            ;  (ADDR OF LENGTH SPECIFICATION)
+        SETZ    R0,
+        HLLM    R0,@R1          ;RS92.9.5.4.6
+        JRST    REST$$
+;
+REST07:                         ;RS92.9.5.4.7  STSTOR
+        OHRRZ   R1,BASADR       ;RS92.9.5.4.7.1
+        SKIPN   ,@R1            ; SKIP IF STORAGE HAS BEEN ALLOCATED
+        JRST    STST4A
+        ADDI    R1,1
+        HLRZ    R2,@R1          ;  (CURRENT LENGTH)
+        IDIVI   R2,5
+        ADDI    R2,1
+        CAME    R2,FILSZW
+        JRST    STST04
+        MOVEM   R2,NEWSZW       ;RS92.9.5.4.7.2
+        OMOVE   R2,@BASADR      ;RS92.9.5.4.7.3 (MAIN STORE ADR OF STR)
+        JRST    STST$$
+;
+STST04: OHRRZ   R1,BASADR       ;RS92.9.5.4.7.4
+        REL
+        OHRRZ   R1,BASADR
+STST4A: ADDI    R1,1            ;RS92.9.5.4.7.5
+        HRRZ    R0,@R1
+        IDIVI   R0,5
+        ADDI    R0,1            ;  (MAX LEN)/5+1
+        CAMLE   R0,FILSZW
+        MOVE    R0,FILSZW
+        MOVEM   R0,NEWSZW
+        OMOVE   R1,BASADR       ;RS92.9.5.4.7.6
+        SETZ    R2,
+        ALLOC                   ;RS92.9.5.4.7.7 (RETURNS R2=MEMORY ADR)
+;
+STST$$:                         ;     RETURN  STSTOR
+        MOVE    R0,NEWSZW       ;RS92.9.5.4.8
+        MOVE    R1,FCBCUR(FCBREG)
+        SETZ    R3,
+        MOVE    R6,[XWD R7,SAVREG+R7] ;  (R2 SET IN STSTOR)
+        BLT     R6,SAVREG+R13
+        CALL    TFR
+        MOVE    R6,[XWD SAVREG+R7,R7]
+        BLT     R6,R13
+        MOVEM   R1,FCBCUR(FCBREG)
+                                ;RS92.9.5.4.9  SETDSC
+        SUBI    R2,1            ; (POINT TO LAST WORD OF STRING)
+        OHRRZ   R3,BASADR
+        ADDI    R3,1
+        HRRZ    R1,@R3          ; (MAX LEN)
+        MOVE    R0,FILSZC
+        MOVE    R5,FILSZW       ;RS92.9.5.4.9.1
+        CAMGE   R5,NEWSZW
+        JRST    SDSC$$
+        CAMG    R5,NEWSZW
+        JRST    SDSC05
+        SUB     R5,NEWSZW       ;RS92.9.5.4.9.2
+        MOVE    R4,FCBCUR(FCBREG)
+SDSC2B: IN      R6,R4           ; (READ A WORD)
+        FILERR
+        SOJG    R5,SDSC2B
+        MOVEM   R4,FCBCUR(FCBREG)
+        MOVE    R4,R1           ;RS92.9.5.4.9.3 (MAX LEN)
+        IDIVI   R4,5            ;  (REM IN R5)
+        MOVE    R5,LEFTB(R5)    ; (PICK UP MASK)
+        ANDM    R5,@R2          ; ('AND' IN ZERO BYTE)
+        MOVE    R0,R1           ;RS92.9.5.4.9.4
+        JRST    SDSC$$
+SDSC05: CAML    R1,FILSZC       ;RS92.9.5.4.9.5 (SKIP IF MAXLEN<FILSZC)
+        JRST    SDSC$$
+        MOVE    R4,R1           ;RS92.9.5.4.9.6
+        IDIVI   R4,5
+        MOVE    R5,LEFTB(R5)
+        ANDM    R5,@R2
+        MOVE    R0,R1           ;RS92.9.5.4.9.7
+SDSC$$: HRLM    R0,@R3          ;RS92.9.5.4.9.8-.9
+                                ;   RETURN SETDSC
+REST$$:                         ;   RETURN REASTR
+        SOS     r1,ARRAY          ;RS92.9.5.5  remaining count in r1
+        JRST    BIN10
+
+BIN06:  ; here from CHAS$$ with type in R6      RS92.9.5.6  REANUM
+        move    r0,array        ; calculate transfer count as
+        skipe   noslic          ;   element count * element size
+        movei   r0,1            ; elet count is 1 if slice
+        cail    r6,dbl
+        add     r0,r0           ; elet size is 2 if dbl or cmplx
+        MOVE    R1,FCBCUR(FCBREG) ;RS92.9.5.6.6
+        OHRRZ   R2,BASADR
+        SETZ    R3,
+        MOVE    R6,[XWD R7,SAVREG+R7]
+        BLT     R6,SAVREG+R13
+        CALL    TFR             ;RS92.9.5.6.7
+        MOVE    R6,[XWD SAVREG+R7,R7]
+        BLT     R6,R13
+        MOVEM   R1,FCBCUR(FCBREG)   ;RS92.9.5.6.8
+        HLRE    R0,R1           ; GET NEG CNT WDS LEFT
+        JUMPG   R0,ENDFIL       ; NOT ENOUGH LEFT - EOF
+                                ;   RETURN REANUM
+                                ;RS92.9.5.7
+        sos     r1,array        ; count in r1 (assuming subarray)
+        skipn   noslice
+        setzb   r1,array        ; if not subarray, we shipped all of it
+bin10:  jumpg   r1,bin01        ; strings join here (from REST$$)
+
+FFDR$$: RETURN  FFDRVI
+;
+
+        lit
+        END
