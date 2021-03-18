@@ -1,0 +1,110 @@
+!;Update the access date for these files for next system startup
+!COPY (SYS)HOME.SYS+(SYS)SAT.SYS,SYS.TMP
+
+!SYS G
+
+TYMSHARE D27-P035/C. 3675B 7-19-87 at  0:45:34 on Wed Sep 30,1987
+6 jobs in use out of 107.
+
+Users=6 Det=0 [1,1], Queues: RUN=1 DIO=0 TIO=2 IO=0 SPC=3
+
+DSKB: 193687 Pages free, 6 users
+
+!ASSIGN DSK TTY	;Put listing in DSK:SZRPT.LST
+DSK assigned
+
+!R SZRPT
+Inhouse separated? (Y,N,I,O,2) Y
+Sort by? NUMACCOUNT
+Working...
+ACCOUNT NUMBER? 3
+
+!DEASSIGN	;Listing back to TTY
+
+!R SZRPT
+Inhouse separated? (Y,N,I,O,2) 6
+Sort by? SIZE
+Working...
+30-SEP-1987	0:45
+
+TOTAL PAGES 279081  FILES 14816
+
+  INHOUSE	QUOTA		  OVER		OUTHOUSE
+
+265267   14009                           13814   807
+
+ 33  89951 2144 250000 TYMACS             53   7374   62 249999 ACCG1
+ 47  35507 1233 100000 SYS                62   1247   41  25000 COPQ
+ 56  24409  228 250000 VINV               70   1149  116  25000 CC
+ 60   9354  599 250000 BILLING10          78   1016  121  25000 RPSTAT
+ 62   5495  399  25000 UPL                84    900   28 250000 COLLECTR
+ 63   4930   40   5000 FTMAGNUM           88    480   68  25000 Q8CATALYSE
+ 65   4263  301   5000 BUSPLN             90    337  125   5000 D32007HS
+ 67   4207   16 100000 CRASH              92    326   40   1250 DCSTRUCK
+ 68   4016   32   5000 MAGNUM             94    257   29  25000 M8045
+ 70   3982 1090   5000 MWALTERS           96    251   29  25000 RPTRES
+ 71   3659  621  15000 SPUNKDEV           97     96   42  10000 SWTAS
+ 72   3594   60   5000 NETCON             97     93   32  25000 RPDEV
+ 74   3297  281 250000 UAS                98     57    9  25000 Q8ANALYSE
+ 75   3202  261  15000 SALTYRON           98     54    6  25000 CAPSW
+ 76   2919  108  20000 SSEREP             99     52   18  25000 Q8LABOFINA
+ 77   2331  155  25000 M33                99     47   13  25000 J6CEBAL
+ 78   2248  117   5000 DIAG10D            99     45   11  25000 P8FABRIS
+ 78   2141  482   4000 SPUNKTEST          99     11    6 250000 ACTGTYMA
+ 79   1985  106   2500 *6NEWS             99     11    6    312 DEGOUT
+ 80   1792  171   2500 UTIL               99      5    2  25000 MSGACCT
+ 81   1711  330  10000 SUBMIT             99      4    2  25000 B9TRW
+ 81   1685  200   2500 UPLCT             100      2    1   1250 LABOGRAF
+ 82   1679  158  10000 MPL               100      0    0   1250 SLILIB203
+ 82   1591   87  50000 FTSYS             100      0    0   1250 SLILIB184
+ 83   1483  366  25000 UFD               100      0    0   1250 SLILIB154
+ 83   1358   81   1250#DIST230B  108     100      0    0   1250 SLILIB004
+ 84   1350   73  25000 1213MGR           100      0    0   2500 LPLEAVA3
+ 84   1299   98   5000 TYMNET            100      0    0  25000 LTITUBE
+ 85   1264  190   7500 DCSMINN           100      0    0  25000 B13TVT
+ 85   1257  123   5000 SPL               100      0    0  25000 B13BODENAN
+ 86   1246   37   1250 CTMKTG7           100      0    0    100 DPI1AFE
+ 86   1197  150   1250 DIST77A           100      0    0   1250 SLILIB202
+ 87   1179  173   1250 SRATECH           100      0    0   1250 SLILIB153
+ 87   1106   11   1250 SPINALE           100      0    0   1250 SLILIB134
+ 88   1104  151   1250 PARPRINT          100      0    0   1250 SLILIB106
+ 88   1099  119   1250 SSDEV             100      0    0   1250 SLILIB010
+ 88   1075  114  50000 TBATLIB           100      0    0   1250 SLILIB003
+ 89   1068    2  20000 SSJREP            100      0    0     10 CRAC08
+ 89    960   91   2000 TUKTOKRC          100      0    0     25 EXPLOIT
+ 90    947  131   2500 ACS0              100      0    0  25000 FISONSPH
+ 90    920   69   1250 WEUSKE            100      0    0   2500 LMICRODAS
+ 90    892  115   1000 UPLCTER           100      0    0   1000 SFI
+ 91    851    4   1250 COSTACCT          100      0    0  15000 D1CBFAB
+ 91    828   92   2500 VALCMC            100      0    0   1250 SLILIB214
+ 91    783   96   1250 DIST181A          100      0    0   1250 SLILIB201
+ 91    772   26  12500 TXSSUP            100      0    0   1250 SLILIB009
+ 92    759   61   1250 LWPRINT           100      0    0   1250 SLILIB002
+ 92    700   19  25000 MAIL              100      0    0   2500 HANSA1C
+ 92    699   79 200000 CARL              100      0    0  25000 LYSHAPEAS
+ 93    642  134   2000 TUKLONRC          100      0    0   2500 LGULFAS
+ 93    640   77   5000 XEXEC             100      0    0  17500 SCG.ODA
+ 93    608   16   6250 ISISDOC           100      0    0    500 SLIFAC7
+ 93    558   84 4378853376 BOBJ          100      0    0   1250 SLILIB213
+ 93    543   87   1250 SAILIB            100      0    0   1250 SLILIB164
+ 94    540   11   1250 DENCOFF           100      0    0   1250 SLILIB114
+ 94    528   57   1250 ACSC              100      0    0   1250 SLILIB008
+ 94    507   62   2000 TUKNYCRC          100      0    0   1250 SLILIB001
+ 94    486   47   2500 SYSNEWS           100      0    0    100 PQTCH
+ 94    460   57  25000 ACT10             100      0    0   2500 PLAN03
+ 95    429   50   1250 ACSI              100      0    0  25000 UCSLMICR
+
+!;SZRPT.LST=GAN:3, SZRPT.LOG=ALL
+!DIRECT SZRPT.*
+
+SZRPT   LST       2  30-SEP-87   45    ALL RD  NO       236
+SZRPT   LOG       1  30-SEP-87   45    ALL RD  NO      1536
+SZRPT   CTL       2   3-AUG-87  130    ALL RD  NO        62
+SZRPT   GAN       8  21-JAN-87 2108    ALL RD  NO      3210
+
+!
+!LOGOUT
+65.26 tru
+terminal time: 0:02:55
+
+; Req #7710 completed
