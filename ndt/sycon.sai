@@ -1,0 +1,405 @@
+BEGIN
+let matrix=array; define array="own safe matrix";
+DEFINE ! = "COMMENT" ; ! TABS 1,4,7,10,13,16,ETC(CODE) & 1,8,68,70(DOC)
+*****                                                              *****
+***    PROGRAM: SYSCON.SAI                                           ***
+*      WRITTEN: 9/2/81 BY CHARLES DEAN                                 *
+*
+*      PURPOSE: PRODUCE SYSTEM MASTERS FOR USE AS INPUT TO "MASTER.SAI".
+*      MASTERS ARE LABELED RKMAST,RKMAS1,.....RKMAS(N). INPUT FILES ARE
+*      LABELED RKMA22,RKMA23,.....RKM930,.....RKMA(N), AND CONTAIN DATA
+*      RELATING TO FILE CHECKSUMS, PROTECTIONS, LICENSES, AND SIZES.
+*      THIS DATA IS ORGANIZED AND STORED ON EACH NEW MASTER IN GROUPS
+*      OF NINE SYSTEMS.
+*
+*                                                                      *
+***                                                                  ***
+*****                                                              *****
+
+*****                                                              *****
+***                    GLOBAL DECLARATIONS                           ***
+*                                                                      ;
+INTEGER TOTAL!SYSTEMS,TOTAL!MASTERS,ODD!SYSTEMS,MASTR!CNTR,FIELD!INDEX,
+   BRKTABLE,OCHAN,SYSTEM!CNTR,COUNT,BRCHAR,EOF,TROUBLE,LAST!SYSTEM,
+   ARRAY!INDEX,RECORD!CNTR,FIRST!SYSTEM,EOF!CNTR,SECOND!SYSTEM;
+INTEGER ARRAY INPUT!CHANS[1:10];
+STRING ARRAY DATA!9SYSTEMS[1:9,1:10];
+PRELOAD!WITH "RKMA22","RKMA23","RKMA25","RKMA26","RKMA27","RKMA28",
+             "RKMA29","RKMA30","RKMA31","RKMA32","RKMA33","RKMA34",
+             "RKMA35","RKMA36","RKMA37","RKMA38","RKMA39","RKMA54",
+    "RKMA56","RKMA65","RKMA70","RKMA83","RKMA88","RKMA90","RKMA24",
+             "RKMA59","RKM118","RKM370","RKM819","RKM930";
+STRING ARRAY INPUT!FILES[1:10,1:9];
+PRELOAD!WITH "RKMAST","RKMAS1","RKMAS2","RKMAS3","RKMAS4",
+             "RKMAS5","RKMAS6","RKMAS7","RKMAS8","RKMAS9";
+STRING ARRAY OUTPUT!FILES[1:10];
+BOOLEAN ARRAY FILE!PROCESSED, READ, WRITE, EOF!TABLE[1:9];
+DEFINE CRLF = ("'15&'12"); !
+*    ** DEFINITIONS **
+*
+*    INTEGERS:
+*      TOTAL!SYSTEMS: NUMBER OF SYSTEMS TO CONSIDER. *** MUST BE UPDATED
+*                        WHEN SYSTEM ADDITIONS AND/OR DELETIONS MADE ***
+*      TOTAL!MASTERS: NUMBER OF OUTPUT MASTERS(PROGRAM GENERATED)
+*      ODD!SYSTEMS: NUMBER OF SYSTEMS ON LAST OUTPUT MASTER
+*      MASTR!CNTR: OUTPUT MASTER COUNTER
+*      FIELD!INDEX: INPUT FILE FIELD INDEX
+*      BRKTABLE: DEFINES INPUT DELIMITERS
+*      OCHAN: OUTPUT CHANNEL
+*      SYSTEM!CNTR: SYSTEM COUNTER
+*      LAST!SYSTEM: NUMBER OF SYSTEMS PER MASTER IN QUESTION(1-9)
+*      FIRST!SYSTEM: CONTAINS NUMBER OF FIRST SYSTEM TO BE PRINTED, IF
+*         FILE NOT FOUND ON ALL SYSTEMS
+*      SECOND!SYSTEM: GUESS
+*    INTEGER ARRAYS:
+*      INPUT!CHANS: INPUT CHANNELS FOR 1-9 SYSTEMS
+*    STRING ARRAYS:
+*      DATA!9SYSTEMS: INPUT ARRAY FOR FROM 1 TO 9 SYSTEMS
+*      INPUT!FILES: INPUT FILE NAMES
+*      OUTPUT!FILES: OUTPUT FILE NAMES
+*
+*                                                                      *
+***                    END GLOBAL DECLARATIONS                       ***
+*****                                                              *****
+
+*****                                                              *****
+***                    PROCEDURE DECLARATIONS                        ***
+*                                                                      *
+
+***                                                                  ***
+**     PROCEDURE: INITIALIZE                                          **
+*      PURPOSE: INITIALIZATION, INCLUDING TOTAL SYSTEMS, ODD SYSTEMS,  *
+*      AND TOTAL MASTER IDENTIFIERS ;
+PROCEDURE INITIALIZE;
+BEGIN
+SETBREAK(BRKTABLE_ GETBREAK,'12&'14&'13,'15,"SIN");
+
+TOTAL!SYSTEMS_ 30; !                      *** MUST BE CHANGED IF
+                                        ADDTIONS OR DELETIONS MADE ***;
+IF TOTAL!SYSTEMS MOD 9 THEN
+BEGIN
+   TOTAL!MASTERS_ TOTAL!SYSTEMS/9 + 1;
+   ODD!SYSTEMS_ TOTAL!SYSTEMS MOD 9
+END
+ELSE TOTAL!MASTERS_ TOTAL!SYSTEMS/9;
+
+PRINT(CRLF,"TOTAL MASTERS = ",TOTAL!MASTERS)
+END; !
+**                                                                    **
+***                                                                  ***
+
+***                                                                  ***
+**     PROCEDURE: OPEN!FILES                                          **
+*      PURPOSE: OPEN FROM 1 TO 9 INPUT CHANNELS AND 1 OUTPUT CHANNEL   ;
+PROCEDURE OPEN!FILES(INTEGER MASTR!NO);
+BEGIN
+STRING GARBAGE;
+
+IF MASTR!NO = TOTAL!MASTERS AND ODD!SYSTEMS THEN 
+     LAST!SYSTEM_ ODD!SYSTEMS
+ELSE LAST!SYSTEM_ 9;
+
+FOR SYSTEM!CNTR_ 1 STEP 1 UNTIL LAST!SYSTEM DO
+BEGIN
+   OPEN(INPUT!CHANS[SYSTEM!CNTR]_ GETCHAN,"DSK",0,4,0,COUNT_ 200,
+      BRCHAR,EOF);
+   LOOKUP(INPUT!CHANS[SYSTEM!CNTR],
+	"(saltyron)" & INPUT!FILES[MASTR!NO,SYSTEM!CNTR],
+      TROUBLE);
+   GARBAGE_ INPUT(INPUT!CHANS[SYSTEM!CNTR],BRKTABLE);
+   WRITE[SYSTEM!CNTR]_ TRUE;
+   READ[SYSTEM!CNTR]_ TRUE;
+   EOF!TABLE[SYSTEM!CNTR]_ FALSE;
+END;
+
+OPEN(OCHAN_GETCHAN,"DSK",0,0,4,0,0,EOF);
+ENTER(OCHAN,OUTPUT!FILES[MASTR!NO] ,TROUBLE);
+END; !
+**                                                                    **
+***                                                                  ***
+
+***                                                                  ***
+**     PROCEDURE: CLOSE!FILES                                         **
+*      PURPOSE: CLOSE FROM 1 TO 9 INPUT FILES AND 1 OUTPUT FILE        ;
+PROCEDURE CLOSE!FILES;
+BEGIN
+
+FOR SYSTEM!CNTR_ 1 STEP 1 UNTIL LAST!SYSTEM DO
+BEGIN
+   CLOSE(INPUT!CHANS[SYSTEM!CNTR]);
+   RELEASE(INPUT!CHANS[SYSTEM!CNTR])
+END;
+
+CLOSE(OCHAN);
+RELEASE(OCHAN)
+END; !
+**                                                                    **
+***                                                                  ***
+
+***                                                                  ***
+**     PROCEDURE: READ!SYSTEMS                                        **
+*      PURPOSE: READ FROM 1 TO 9 SYSTEMS INTO THE TWO DIMENSIONAL      *
+*      ARRAY "DATA!9SYSTEMS" ;
+PROCEDURE READ!SYSTEMS;
+BEGIN
+INTEGER HERE,THERE;
+PRELOAD!WITH 9,9,11,9,11,10,10,6,1,5; !
+  *** INPUT FIELD LENGTHS ***        ;
+OWN INTEGER ARRAY FIELD!LENGTHS[1:10];
+STRING TEMP!STRING;
+
+FOR SYSTEM!CNTR_ 1 STEP 1 UNTIL LAST!SYSTEM DO
+BEGIN 
+   IF EOF!TABLE[SYSTEM!CNTR] THEN CONTINUE; ! ANY MORE RECORDS? ;
+   IF NOT(READ[SYSTEM!CNTR]) THEN CONTINUE; ! WRITTEN YET?      ;
+   TEMP!STRING_ INPUT(INPUT!CHANS[SYSTEM!CNTR],BRKTABLE);
+   IF EOF THEN
+   BEGIN ! END OF FILE FOUND ;
+      EOF!TABLE[SYSTEM!CNTR]_ TRUE;
+      CONTINUE ! WITH NEXT SYSTEM ;
+   END;
+   FILE!PROCESSED[SYSTEM!CNTR]_ FALSE;
+   HERE_ THERE_ FIELD!INDEX_ 1;
+   FOR ARRAY!INDEX_ 1 STEP 1 UNTIL 10 DO
+   BEGIN
+      IF ARRAY!INDEX = 4 OR ARRAY!INDEX = 9 THEN
+      BEGIN
+         HERE_ HERE + FIELD!LENGTHS[ARRAY!INDEX];
+         CONTINUE
+      END;
+      THERE_ HERE + FIELD!LENGTHS[ARRAY!INDEX] - 1;
+      DATA!9SYSTEMS[SYSTEM!CNTR,FIELD!INDEX]_ TEMP!STRING[HERE TO THERE];
+      HERE_ THERE + 1;
+      IF FIELD!INDEX = 4 THEN DATA!9SYSTEMS[SYSTEM!CNTR,4]_ 
+         " "&DATA!9SYSTEMS[SYSTEM!CNTR,4][1 TO 3]&
+             DATA!9SYSTEMS[SYSTEM!CNTR,4][5 TO 11];
+      FIELD!INDEX_ FIELD!INDEX + 1
+   END;
+   DATA!9SYSTEMS[SYSTEM!CNTR,1]_ DATA!9SYSTEMS[SYSTEM!CNTR,8]&
+      DATA!9SYSTEMS[SYSTEM!CNTR,1]
+END
+END; !
+**                                                                    **
+***                                                                  ***
+
+***                                                                  ***
+**     PROCEDURE: WRITE!SYSTEMS                                       **
+*      PURPOSE: WRITE FROM 1 TO 9 SYSTEMS TO OUTPUT MASTER FILE        ;
+PROCEDURE WRITE!SYSTEMS;
+BEGIN
+PRELOAD!WITH 7,6,4,3,5,2;
+OWN INTEGER ARRAY ORDER!OF[1:6];
+PRELOAD!WITH [3]NULL,[7]"     ",NULL,[9]" ",[21]NULL,[9]" ",
+                NULL,[9]"  ";
+! *** BLANKS APPENDED TO OUTPUT FIELDS TO ADJUST LENGTHS **;
+OWN STRING ARRAY BLANKS[1:6,1:10];
+
+FOR RECORD!CNTR_ 1 STEP 1 UNTIL 6 DO 
+BEGIN ! *** SIX OUTPUT RECORDS PER INPUT FILE IDENTIFIER **;
+   FOR SYSTEM!CNTR_ 1 STEP 1 UNTIL LAST!SYSTEM DO
+   BEGIN ! *** WRITE THIS PARTICULAR SYSTEM FILE **;
+      IF RECORD!CNTR = 1 AND SYSTEM!CNTR = 1 THEN
+         CPRINT(OCHAN,DATA!9SYSTEMS[FIRST!SYSTEM,1]);
+      IF SYSTEM!CNTR = 1 AND RECORD!CNTR > 1 THEN
+         CPRINT(OCHAN,"        ");
+      IF WRITE[SYSTEM!CNTR] THEN
+      BEGIN
+         FILE!PROCESSED[SYSTEM!CNTR]_ TRUE;
+         IF RECORD!CNTR = 1 AND SYSTEM!CNTR = 1 THEN
+         BEGIN
+            CPRINT(OCHAN," ",DATA!9SYSTEMS[FIRST!SYSTEM,7]);
+            CONTINUE
+         END;
+         IF RECORD!CNTR = 1 AND SYSTEM!CNTR = 2 THEN
+         BEGIN
+            CPRINT(OCHAN,"   ",DATA!9SYSTEMS[SECOND!SYSTEM,7]);
+            CONTINUE
+         END;
+         CPRINT(OCHAN,BLANKS[RECORD!CNTR,ORDER!OF[RECORD!CNTR]],
+            DATA!9SYSTEMS[SYSTEM!CNTR,ORDER!OF[RECORD!CNTR]])
+      END
+      ELSE
+      BEGIN ! *** ELSE FILE DOESN'T EXIST ON THIS SYSTEM, WRITE
+                  DUMMY RECORDS                                *** ;
+         IF RECORD!CNTR = 1 AND SYSTEM!CNTR = 1 THEN
+         BEGIN
+            CPRINT(OCHAN,"       ");
+            CONTINUE
+         END;
+         IF RECORD!CNTR = 1 AND SYSTEM!CNTR = 2 THEN
+         BEGIN
+            CPRINT(OCHAN,"         ");
+            CONTINUE
+         END;
+         IF RECORD!CNTR = 2 OR RECORD!CNTR = 6 THEN
+         BEGIN
+            CPRINT(OCHAN,"          0");
+            CONTINUE
+         END;
+         CPRINT(OCHAN,"           ")
+      END
+   END;
+   CPRINT(OCHAN,CRLF)
+END
+END; !
+**                                                                    **
+***                                                                  ***
+
+***                                                                  ***
+**     PROCEDURE: GTR!THAN                                            **
+*      PURPOSE: COMPARE TWO STRINGS, RETURN TRUE(-1) IF FIRST STRING   *
+*      GREATER THAN SECOND, ELSE RETURN FALSE 
+*      
+*      ARGUMENTS:
+*        STR1: FIRST STRING
+*        STR2: SECOND STRING ;
+ifcr true thenc
+ boolean simple procedure gtr!than(string str1, str2);
+ begin	integer c1, c2;
+  while (c1_lop(str1)) = (c2_lop(str2)) and length(str1) do;
+  return(c1 > c2);
+ end;
+elsec
+ INTEGER PROCEDURE GTR!THAN(STRING STR1,STR2);
+ BEGIN
+ INTEGER CHAR!INDEX;
+ FOR CHAR!INDEX_ 1 STEP 1 UNTIL 14 DO
+ BEGIN
+   IF STR1[CHAR!INDEX TO CHAR!INDEX] > STR2[CHAR!INDEX TO CHAR!INDEX]
+      THEN RETURN(1); ! *** CONDITION TRUE **;
+   IF STR1[CHAR!INDEX TO CHAR!INDEX] < STR2[CHAR!INDEX TO CHAR!INDEX]
+      THEN RETURN(0)  ! *** CONDITION FALSE **;
+ END;
+ RETURN(0)             ! *** CONDITION FALSE **;
+ END; 
+endc
+!
+**                                                                    **
+***                                                                  ***
+
+***                                                                  ***
+**     PROCEDURE: choose!best					      **
+*      PURPOSE: Selects the "least" name of the active systems,        *
+*      and makes READ[system] true for all systems with that name      *
+*      also sets first!system and second!system to be the best two in  *
+*      the bunch.  (Error if no systems are active).;
+PROCEDURE choose!best;
+BEGIN "choose"
+integer array minlink[1:9];
+string least,second; integer Index;
+
+arrclr(read,false); 
+arrclr(minlink,0);
+for first!system_ 1 step 1 until last!system do
+   if not (eof!table[first!system] and file!processed[first!system])
+	then begin least_ data!9systems[first!system,1]; done; end;
+if first!system > last!system then usererr(0,1,"Program error");
+for second!system_ first!system+1 step 1 until last!system do
+   if not (eof!table[second!system] and file!processed[second!system])
+	then if equ(least, second_ data!9systems[second!system,1])
+		 then begin 
+			minLink[second!system]_ first!system;
+			first!system_ second!system;
+		      end
+		 else done;
+
+if second!system > last!system
+ then second!system_ 2	! a safe value;
+ else if gtr!than(least,second)
+	 then begin
+		least swap second;
+		first!system swap second!system;
+	      end;
+
+for index_ (first!system max second!system)+1 step 1 until last!system
+   do if not (eof!table[Index] and file!processed[Index])
+	and gtr!than(second, data!9systems[index,1])
+	 then begin "better"	string s;
+		s_ data!9systems[index,1];
+		if equ(s,least)
+		 then begin 	! match with best so far;
+			minLink[Index]_ first!system;	! link it in;
+			first!system_ Index;
+		      end
+		else if gtr!than(least,s)
+		 then begin 	! new best so far;
+				! turn current best into second-best;
+			second_ least; second!system_ first!system;
+				! make this one a new (sole) best;
+			least_ s; first!system_ Index; 
+		      end
+		else begin	! just a new second-best;
+			second_ s; 
+			second!system_ Index;
+		     end;
+	     end "better";
+
+read[ first!system ]_ true;
+while index_ minLink[ first!system ] 
+   do begin 
+	second!system_ first!system; 
+	first!system_ index; 
+	read[ first!system ]_ true;
+      end;
+
+END "choose"; ! 
+**                                                                    **
+***                                                                  ***
+
+***                                                                  ***
+**     PROCEDURE: PROGRAM!CONTROL                                     **
+*      PURPOSE: PROCESS FLOW CONTROL, INCLUDING:                       *
+*      1) FLOW FROM 1 TO N MASTERS
+*      2) INITIATING CALLS FOR:
+*         A] OPENING OF I/O FILES
+*         B] READING OF INPUT FILE(S)
+*         C] WRITING OF OUTPUT FILE
+*         D] CLOSING OF I/O FILES
+*      3) DETERMINING END OF FILE(S) CONDITION ;
+PROCEDURE PROGRAM!CONTROL;
+BEGIN
+INTEGER overallCounter, COUNTER,PROCESSED;
+overallCounter_ 0;
+FOR MASTR!CNTR_ 1 STEP 1 UNTIL TOTAL!MASTERS DO
+  BEGIN "a master"
+  PRINT(CRLF,"WORKING ON ",OUTPUT!FILES[MASTR!CNTR]);
+  OPEN!FILES(MASTR!CNTR);
+  for COUNTER_ 1 step 1 while true do
+    BEGIN
+     IF NOT(COUNTER MOD 500)
+	 THEN PRINT(CRLF, counter, " RECORDS PROCESSED");
+     READ!SYSTEMS;
+     EOF!CNTR_ PROCESSED_ 0;
+     FOR SYSTEM!CNTR_ 1 STEP 1 UNTIL LAST!SYSTEM DO
+       BEGIN
+         IF EOF!TABLE[SYSTEM!CNTR] THEN EOF!CNTR_ EOF!CNTR + 1;
+	 IF FILE!PROCESSED[SYSTEM!CNTR] THEN PROCESSED_ PROCESSED + 1
+       END;
+     IF EOF!CNTR GEQ LAST!SYSTEM AND PROCESSED GEQ LAST!SYSTEM 
+	THEN DONE;
+     choose!best;
+     FOR SYSTEM!CNTR_ 1 STEP 1 UNTIL LAST!SYSTEM DO
+         WRITE[SYSTEM!CNTR]_ READ[SYSTEM!CNTR];
+     WRITE!SYSTEMS
+    END;
+  CLOSE!FILES;
+  PRINT(CRLF, counter, " RECORDS IN THAT BATCH.");
+  overallCounter_ overallCounter + counter
+  END "a master";
+PRINT(CRLF, "TOTAL RECORDS PROCESSED: ", overallCounter );
+END; !
+**                                                                    **
+***                                                                  ***
+
+*                                                                      *
+***                   END PROCEDURE DECLARATIONS                     ***
+*****                                                              *****
+
+****************
+****MAINLINE****
+***************;
+INITIALIZE;
+
+PROGRAM!CONTROL;
+
+END
