@@ -1,0 +1,16 @@
+00:00:12 S 01-Oct-87
+00:15:02 S -S- run #1 job 3 Req #7756  Running DSK:(MAIL)MAILER.SAV
+00:15:05 S -R- run #1 job 3 Done-End <0>
+01:15:02 S -S- run #1 job 3 Req #7757  Running DSK:(MAIL)MAILER.SAV
+01:15:05 S -R- run #1 job 3 Done-End <0>
+02:15:03 S -S- run #1 job 3 Req #7758  Running DSK:(MAIL)MAILER.SAV
+02:15:06 S -R- run #1 job 3 Done-End <0>
+02:30:04 S -S- stream #1 Req #7733 DSK:(SRA)QUEUE.PRP
+02:30:13 P Waiting for interlock
+02:30:13 S Given interlock
+02:30:14 P Got interlock
+02:30:14 P EXECX Job Processor %1(201) starting in frame 3
+02:30:14 S Starting job processor in frame 3
+02:30:15 P Stream #1 Req #7733 DSK:(SRA)QUEUE.PRP
+02:30:48 P Stream #1 Req #7733 * completed *
+02:30:52 S -R- stream #1 Done-End <0>
