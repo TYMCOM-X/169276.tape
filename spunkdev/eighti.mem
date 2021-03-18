@@ -1,0 +1,32 @@
+Description:
+
+  The spec states that before any Eighti can be done, the statement
+
+   OPEN "TERMINAL" FOR BINARY INPUT,0
+
+or its equivalent must be executed. While in this mode, network echoing
+is turned off, and normal terminal input is disabled.
+That is, any INPUT or INPUT FROM n where n has been opened as the terminal
+causes a run-time error, with associated message
+
+   "Normal terminal input not allowed during eight-level input".
+
+An attempt to do eight-level input while not in eight-level mode causes
+a run-time error, with associated message
+
+   "Eight-level input requires TERMINAL to be open for binary input".
+
+   Normal terminal output continues in eight-level mode.
+
+   The terminal may be opened for normal Input, Output (and possibly IO)
+on any number of channels, and the Open may be executed either in or out of
+eight-level mode.
+
+Implementation:
+
+  There will be a cell in RUNDAT called IN8MOD which is non-zero (true)
+iff eight-level input is in progress. This cell will be set by OPEN
+and cleared by CLOSE. It will be checked by the INPUT statement and
+by the EIGHTI statement. The binary flag in the terminal FCB
+should not be referenced, since the terminal may be open on
+several channels at once.
