@@ -1,0 +1,98 @@
+        TITLE   PARDAT
+        TWOSEG
+        RELOC 0
+
+        INTERN  WDPRPG
+
+;                       NAME TABLE CONSTANTS
+
+WDPRPG==PSIZE/3           ;NUMBER OF NAMES PER PAGE
+
+;                       THE FOLLOWING STORAGE IS EITHER 1:REQUIRED BY
+;                       BOTH THE PARSER AND THE CODE GENERATOR OR 
+;                       2: MUST NOT BE DISTURBED BETWEEN SUCCESSIVE
+;                       PARSER OVERLAYS OR 3:MUST NOT BE DISTURBED 
+;                       BETWEEN SUCCESSIVE DECLAR AND COMPIL OVERLAYS.
+
+FUN:: 0         ;number of the first user-declarable name
+NSV1::0         ;offset to get from value (of class,value) to varid #
+NSV2::0         ;offset to get from id # into name table page
+RELFLG::0       ;0 = generate .rel file
+
+;                PMC BUFFER FOR CURRENT LINE
+BINCDE:: BLOCK PMCSZ
+
+;                       PARSER VARIABLES
+CDEID:: 0
+CDELN1:: 0
+CDELN2:: 0
+CLRFLG:: 0
+DELH::   0
+ENTR::   0
+HB::     EXP 0,0,0
+HVX::    BLOCK 128
+LNINCR::   0
+LDFLG::  0
+LRTPTR:: 0
+LRTLOC:: 0
+MAXNDX:: 0
+NAMIDX:: 0
+NAMPGS:: 0
+NMSLFT:: 0
+NLINES:: 0
+RNDIZ::  0
+S.MOD::  0
+VNMBAS:: 0
+XN::     0
+QTMDNM:: BLOCK SXSIZ    ;name of module in which execution last terminated
+MDUFG:: 0
+LIBFG:: 0
+SXWORK:: BLOCK SXSIZ
+
+;                DOPE VECTORS FOR V-TYPE TABLES
+
+;                TEXT OF CURRENT LINE (FOR VPUT)
+BUFTXT:: 0
+BUFTCL:: 0
+
+;                TEXT RECOVERED (BY VGET)
+WINTXT:: 0
+WINTCL:: 0
+
+;               TEXT TO BE EDITED
+WINOLN:: 0
+WINOCL:: 0
+
+;                PMCS FOR CURRENT LINE (FOR VPUT)
+BUFPMC:: 0
+BUFPCL:: 0
+
+;                PMCS RECOVERED (BY VGET)
+WINPMC:: 0
+WINPCL:: 0
+
+
+
+
+;                       STORAGE FOR GLOBAL RECOMPILATION
+GCOMSW:: 0
+CERCNT:: 0
+RELNAM:: BLOCK SXSIZ    ;for communicating rel file name from parser to compiler
+WRELNM:: BLOCK SXSIZ    ;as above for workspace rel file name
+GMODNO:: 0
+WRKCMP:: 0
+RWKNM:: BLOCK SXSIZ
+SVDEBG:: 0
+SVSMOD:: 0
+FRSFLG:: 0      ;first-time-thru-NEXMOD-loop flag
+
+;                       CODE GENERATOR STORAGE
+DECLSW:: 0
+ARYCNT:: 0
+
+
+	intern	lowend
+LOWEND=.	; end of region LOSTRT --> LOWEND saved as comlow
+
+
+        END
