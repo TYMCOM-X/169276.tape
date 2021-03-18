@@ -1,0 +1,55 @@
+        subttl  TBADCL - Declare TBA ENTRY procedure
+
+;Macros for setting up procedures with a TBA entry interface.
+
+; for use by tbldcl macro
+;
+define blk(fake)
+<tblk fake>
+
+;
+; for use by tbadcl macro
+;
+define tblk(what,howmuch)
+<ifnb <howmuch>, <what: block howmuch>
+ifb <howmuch>, <what: block 1>>
+
+;
+; set up tba procedure head
+;
+define tbadcl (who,args,vars,%label)
+<entry who
+ifnb <vars>, <reloc
+irp vars
+<blk vars>
+reloc>
+ifnb <args>, <reloc
+%label:
+irp args
+<blk args>
+reloc
+exp %label
+%last==%label>
+ifb <args>, <%last==-1>
+who: push p,r1>
+
+;
+; set up alternate tba procedure entry point
+; note: this macro generates a JRST around the code enclosed by
+; it and the macro endalt.
+;
+define dclalt (who)
+<entry who
+jrst .'who
+ifg %last, <exp %last>
+who: push p,r1>
+
+;
+; end alternate entry point
+;
+define endalt(who),<.'who:>
+
+;
+; return from tba procedure
+;
+define tbaret<popj p,>
