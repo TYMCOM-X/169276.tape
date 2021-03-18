@@ -1,0 +1,183 @@
+.p0
+.rm 70
+.nj
+.nf
+From:   Samuel Feldman
+To:     Sherman Gavette
+Date:   April 23, 1980
+Subject:   Answers to "US POSTAL SERVICE IMMEDIATE ACTION ITEMS"
+
+.f
+.p
+This memo describes my proposed solutions to the 10 items of the above
+correspondence. 
+It only answers those items for whose solutions I will be responsible.
+.list
+.le
+Tymbasic will be enhanced to allow and support multi-job read/write (update)
+access to files.
+.p
+"Multi-access" will be an attribute of the file;
+that is, Tymbasic will determine whether a file is a multi-access
+file by examining this attribute.
+A bit in the UFD for the file will probably be used to indicate
+multi-access.
+.p
+Tymbasic will not have the ability to CREATE a multi-access file;
+however, a stand-alone utility will be provided to set this attribute
+on an already existing file.
+.p
+No syntactical changes will be made to Tymbasic to support multi-access.
+.p
+Read access to data within a multi-access file will cause the page containing
+the data to be locked against all other write attempts; other read attempts
+will be allowed. Write access to a page will inhibit other jobs from both
+reading and writing that page.
+.p
+The page is freed at the termination of the I/O operation, typically
+at the end of a PRINT or INPUT statement.
+No facility will be provided for locking a page for a longer duration.
+If the program accesses data in a record that spans two pages,
+the pages are locked only when they are actually accessed.
+.p
+No facility will be provided to time-out a page lock in case a page remains
+locked while awaiting user input or the freeing of a page in another file.
+.p
+The implementation will rely on either the Tymcom-X Club facility or else
+upon a yet-to-be-implemented UUO that will provide a page-locking
+and enqueueing mechanism.
+.p
+If Clubs are used, then a method of keeping track of all accesses to each page
+of each multi-access file must be implemented.
+There must be a single page (by definition of the Club facility)
+associated with this information.
+If it is a page of the data file itself, then the data file can be manipulated
+only by Tymbasic, and not by any of the normal system utilities.
+If the page is to reside in another file, then a second file would have to
+be opened each time a multi-access file is opened, and a multi-access
+directory structure of some sort would have to be maintained.
+.p
+In any case, access to a multi-access file will require referencing 2 pages
+instead of 1, and possibly 2 files instead of one.
+This additional overhead may significantly impact the performance of operations
+on multi-access files.
+.p
+The other alternative is for the Tymshare Monitor group to provide a method
+for locking a page of a file independently of the Club facility.
+This could have several beneficial effects. First, multi-access files could
+be manipulated normally by all system utilities. Second, no data
+structure needs to be manipulated during I/O operations. Third,
+multi-access file I/O may cost substantially less
+because only one page of one file is referenced during the locking process.
+And fourth, the implementation in Tymbasic becomes almost trivial.
+.p
+If Clubs are used, the implementation can be designed (by 2 people)
+in perhaps two weeks, and implemented in perhaps another two or three.
+If a page-lock UUO is provided, the entire work can be completed within a week.
+.le
+Monitor variables
+.p
+I will provide the following procedures (Tymbasic library subroutines):
+.list
+.le
+CNC(INDEX) where INDEX ranges from 1 to 3,
+returns an integer from a TMPCOR file named "CNC".
+.le
+WCNC(INDEX,VALUE) where VALUE is an integer, writes VALUE to CNC index
+INDEX in TMPCOR file "CNC".
+.le
+CN$ returns a string of length 18 from the "CNC" TMPCOR file.
+.le
+WCN$(STR) writes the string STR to the "CNC" TMPCOR file,
+truncated or padded to 18 characters as appropriate.
+.le
+PICK returns a string of length 18 from the "PIC" TMPCOR file.
+.le
+WPICK(STR) writes the string STR to the "PIC" TMPCOR file,
+truncated or padded to 18 characters.
+.els
+This work can be completed in approximately one week by one person.
+.le
+Linking
+.p
+When merging source and then compiling and running is necessary,
+this can be accomplished through the use of Tymbasic command files and
+a "stuff-input-buffer" facility, as follows:
+.s
+The SBC statement
+.s
+.i5
+COM "RUN P1,P2,P3" WITH "TEXT"
+.s
+would be converted to the sequence:
+.s
+.lm+5
+.nf
+CALL WPICK("TEXT")
+FNAME$ = STR(JOBNO,"DDD") + "CMN.TMP"
+OPEN FNAME$ + "-A", OUTPUT, UN WHERE UN = GET.UN
+PRINT ON UN: "GET P1"
+PRINT ON UN: "MERGE P2"
+PRINT ON UN: "MERGE P3"
+CLOSE UN
+CALL STUFF.INPUT("DO " + FNAME$)
+CALL RUNUUO("(SYS)TBA",0)
+.f
+.lm-5
+.s
+I will provide the procedure STUFF.INPUT, which will take a
+single string argument. This is a one-person half-week job.
+SIMCON can then implement the above conversion,
+either in-line or as a procedure call that is passed the two strings.
+.le
+Command Exec Facility
+.p
+I will investigate the possibility and time required to implement the
+following branching scheme for PERFORM files.
+.p
+When a test is necessary, a line of the following syntax is inserted into the
+PERFORM command file:
+.s
+.i5
+RUN PERTST; <variable> <condition> <value> GOTO <label>
+.s
+where <variable> may be one of
+.s
+.i5
+CNC(1) CNC(2) CNC(3) or CN$
+.s
+and <condition> may be one of
+.s.i5
+=   _#  _<  or _>
+.s
+<value> may be a numeric integer value or a string surrounded by double quotes.
+.s
+<label> is any identifier.
+.s
+Example:
+.s.i5
+RUN PERTST; CNC(2) > 4 GOTO LBL4
+.s
+PERTST will scan all lines of the PERFORM command file,
+beginning at the first line, for a line of the form:
+.s
+.i5
+<command>; <label>
+.s
+where <command> is any legal PERFORM command.
+.le
+Space-delimited I/O and SORT -- no action is necessary by me.
+.le
+ON DIV BY ZERO GOTO nnn
+.p
+I will make a time estimate on this feature by Monday April 28.
+.le; No action
+.le; No action
+.le; No action
+.le
+ON ERROR trapping escapes problem.
+.p
+I will provide a procedure ESCERR(VALUE), where VALUE is either TRUE or FALSE,
+to cause escapes to be trapped or not trapped by ON ERROR.
+The time to implement is approximately 1 person for 1 week.
+.els
