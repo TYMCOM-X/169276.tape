@@ -1,0 +1,258 @@
+	R0==    0
+	R1==    1
+	R2==    2
+	R3==    3
+	R4==    4
+	R5==    5
+	R6==    6
+	R7==    7
+	R10==   ^O10
+	R11==   ^O11
+	R12==   ^O12
+	R13==   ^O13
+	R14==   ^O14
+	R15==   ^O15
+	R16==   ^O16
+	R17==   ^O17
+        P=      ^O17
+	P1==    ^O10
+	P2==    ^O11
+	P3==    ^O12
+	P4==    ^O13
+	P5==    ^O14
+	P6==    ^O15
+	P7==    ^O16
+;************************************************
+subttl	DCL, CALL, and RETURN
+        DEFINE DCL      (NAME,PARAMS<>,LOCALS,REGISTERS<0>)
+        <
+	ENTRY  NAME
+		xcref
+        DCLNE   (<NAME>,<PARAMS>,<LOCALS>,<REGISTERS>)
+	rcref>
+;********************************************
+        DEFINE  DCLNE   (NAME,PARAMS<>,LOCALS,registers<0>)
+<
+		rcref
+NAME:
+		xcref
+	rcnt==registers
+	ifg <rcnt-4>, < printx WARNING: Using registers regs endangers runside context 
+		printx integrity in case we die in your routine NAME>
+	define dclnam <NAME>	;; use this later to check the return
+	DCNT==-rcnt		;; total storage on stack (negative)
+	lcnt==0		;; storage reserved for locals
+	IRP     PARAMS	  <IFNB   <PARAMS>,<	DCNT==DCNT-1	>>
+	IRP     LOCALS	  < peel ( cntlcl,locals) >
+	dcnt==	dcnt-lcnt
+	PCNT==  DCNT
+	REG==0
+	IRP     PARAMS
+	  <IFNB   <PARAMS>, <
+	    PCNT==	PCNT+1
+	    DEFSTK (PARAMS,PARAMS,\<-PCNT>)
+	    DEFREG  (\REG)
+		rcref
+	   Push	   p,r.
+		xcref
+	      >
+	  REG==REG+1
+	  >
+	;; bump the stack for the number of locals wanted.
+	ifg <lcnt-2>, <
+	   deflit(\lcnt)
+		rcref
+	   Add	   p,l.
+		xcref
+	   >
+	ife <lcnt-2>, <
+		rcref
+	   Push	   p,[0]
+	   Push	   p,[0]
+		xcref
+	   >
+	ife <lcnt-1>,<
+		rcref
+	   Push	   p,[0]
+		xcref
+	   >
+
+	IRP     LOCALS	< peel( deflcl,locals) >
+	
+	;; Now push the registers onto the stack.
+	vcnt==P1
+	repeat	rcnt, <
+	   defreg(\vcnt)
+		rcref
+	   Push	   p,r.
+		xcref
+	   vcnt==vcnt+1
+	   >
+
+		rcref
+	>
+;************************************************
+
+define	peel(m,v)<
+	m	v>
+
+;************************************************
+
+define cntlcl( name, size<1>) < lcnt==lcnt+size >
+
+;************************************************
+
+define deflcl( name, size<1>) <
+	defstk(name,name,\<-pcnt-1>)
+	pcnt==pcnt+size>
+
+;************************************************
+
+	define	loadem(params) <
+	VFLAG==0
+	IRP     PARAMS
+	<IFIDN  <$>     <PARAMS>,<
+	  VFLAG==1>
+	IFDIF   <$>     <PARAMS>,<
+	 IFNB    <PARAMS>,<
+	  DEFREG(\REG)
+	  IFN     VFLAG   ,<
+		rcref
+	   Move    R.,PARAMS>
+		xcref
+	  IFE     VFLAG   ,<
+		rcref
+	   Movei   R.,PARAMS>>
+		xcref
+	  REG==REG+1
+	  VFLAG==0>>
+	>
+
+;********************************************
+
+	DEFINE  CALL    (NAME,PARAMS,RESULTS)
+	<
+		xcref
+	REG==0
+	loadem(<params>)
+		rcref
+	   Pushj   p,NAME
+		xcref
+	REG==1
+	IRP     RESULTS
+	<IFNB   <RESULTS>,<
+	      DEFREG(\REG)
+		rcref
+	   Movem   R.,RESULTS>
+		xcref
+	REG==REG+1>
+	rcref>
+;********************************************
+DEFINE DEFREG	(R)
+< DEFINE R. <R>>
+
+;******************************
+
+define	deflit(l)
+	< define l. <[l,,l]>>
+
+;******************************
+
+DEFINE DEFSTK (NAME,CNAME,DISP)
+< if1, < ifdef	NAME, <
+  $fckt==1	;; assume we've had it
+  irpc  cname	;; we only want to look at the first character
+    < ifidn <V> <cname>, < ckcomn name,<V0,V1,V2,V3,V4,V5,V6,V7,V8,V9>>
+    ifidn <S> <cname>, < ckcomn name,<SR0,SR1,SR2,SR3,SR4,SR5,SR6>>
+    stopi >
+ifn $fckt, < ifdef mac.ok, < mac.ok(name)>>
+ifn $fckt, < printx NAME already defined. Fucked again>
+>>
+
+	;; we try to make the def and proceed
+	DEFINE NAME
+	<-DISP(p)>
+>
+
+define ckcomn(name,list)	;; try to turn off $fcktness
+<irp list  < ifidn <name> <list>, < $fckt==0
+   stopi >>>
+
+;******************************
+
+	DEFINE  RETURN  (NAME,RESULTS) <
+		xcref
+	ifn <dclnam-NAME> , <
+		printx malformed return: labeled as being from NAME>
+	REG==1
+	loadem(<results>)
+	PCNT==  -RCNT
+
+	;; recall saved registers from stack
+	repeat rcnt, <
+	   vcnt==vcnt-1
+	   defreg(\vcnt)
+		rcref
+	   Pop	   p,r.
+		xcref
+	   >
+IFN     DCNT+rcnt,<
+	   deflit(\<-dcnt-rcnt>)
+		rcref
+	   Sub     p,l.
+>
+		rcref
+	   Popj    p,>
+
+;************************************************
+subttl	BDCL, BCALL, and BRETURN  +  THOSE AWFUL OPDEF's
+	DEFINE  BCALL   (NAME)
+	<   Jrst   NAME
+%'NAME:!	>
+
+;***********************************************
+
+	DEFINE  BDCL    (NAME)
+<NAME:	>
+
+;***********************************************
+
+	DEFINE  BRETURN (NAME)
+	<   Jrst   %'NAME>
+
+;************************************************
+
+	H4==4
+	OPDEF   M       [Move   0,0]
+	OPDEF   MN      [MOVN   0,0]
+	OPDEF   MI      [Movei  0,0]
+	OPDEF   MNI     [MOVNI  0,0]
+	OPDEF   MM      [Movem  0,0]
+	OPDEF   MNM     [MOVNM  0,0]
+	OPDEF   A       [Add    0,0]
+	OPDEF   AI      [ADDI   0,0]
+	OPDEF   AM      [ADDM   0,0]
+	OPDEF   S       [Sub    0,0]
+	OPDEF   SI      [SUBI   0,0]
+	OPDEF   SM      [SUBM   0,0]
+	OPDEF   J       [Jrst   0,0]
+	OPDEF   JL      [JUMPL  0,0]
+	OPDEF   JE      [JUMPE  0,0]
+	OPDEF   JG      [JUMPG  0,0]
+	OPDEF   JLE     [JUMPLE 0,0]
+	OPDEF   JGE     [Jumpge 0,0]
+	OPDEF   JN      [JUMPN  0,0]
+	OPDEF   SL      [SKIPL  0,0]
+	OPDEF   SLE     [SKIPLE 0,0]
+	OPDEF   SE      [SKIPE  0,0]
+	OPDEF   SGE     [Skipge 0,0]
+	OPDEF   SG      [SKIPG  0,0]
+	OPDEF   SN      [SKIPN  0,0]
+	OPDEF   JMP	[Jrst   0,0]
+
+;************************************************
+
+DEFINE  DOUBLE  (A,B)<
+        A
+        B>
+
