@@ -1,0 +1,1233 @@
+;NOTE: This version of TABLES.MAC was in the development stage
+;when work on TYMBASIC was halted. Walter Main last worked on this
+;file, and he apparently was making some performance improvements
+;as well as documenting and recoding. -Samuel 78/6/28
+	TITLE	TABLES
+	RADIX	8
+	TWOSEG
+	RELOC	^O400000
+	EXTERN	G0,G1,G2
+extern	rdty,rcln
+
+extern	ht0,ht1,ct1	; who belong to the pager and are referanced
+			; here to gain some speed
+
+DEFINE  RED	(REG)
+	<READ	REG
+	HRRZ	REG,REG
+	>
+
+DEFINE  WRIT	(REG)
+	<ORI	REG,PSIZE-1
+	WRITE	REG
+	>
+
+		; H0 thru H3 are segment control information, probably.
+		; See the documentation on page 8 of the table package
+		; flow charts, which discusses H1 thru H4, badly.
+	H0==0
+	H1==1
+	H2==2
+	H3==3
+		; B0 thru Blast are offsets for the fixed portion of
+		; a table control block, for either fixed or variable
+		; length records.
+	B0==2	; Virt addr of last segment in table. Coincides with
+		; field H2 of the header of the seg that contains the
+		; table control block.
+	B1==3	; Virt addr of the first segment in the table.
+		; Coincides with H3 ( v. B0/H2 supra)
+	B2==4	; Always zero. Coincides with H4. If there is any such
+		; thing.
+	B3==6	; Number of the record being accessed by TNEXT or VNEXT.
+	B4==5	; Virt addr of the current record.
+	B6==7	; LEFT HALF	Length of segments in the table,
+		; including control information.
+	B7==7	; RIGHT HALF	Number of the last record in the table.
+	B10==10	; Virtual address of the table control block.
+
+		; The following five words constitute a cache to avoid
+		; doing a read to access the segment containing the last
+		; record of a table.  Used by RAL (Record ALlocate), who
+
+	cavadr==b10
+	cahtx==cavadr+1
+	caht0==cavadr+2
+	caht1==cavadr+3
+	cacadr==cavadr+4
+
+	Blast==cacadr
+		; Thus endth the fixed portion of the TCB.
+
+		; FXx fields define the portion of the TCB special
+		; to fixed-length-record tables.
+	FX0==Blast+1	; words per record, including control info
+	FX1==Blast+1	; records per seg
+	FX2==Blast+2	; virt addr of seg pointer vector
+
+		; FX3 thru FX7 are a cache to avoid doing a read on
+		; the segment pointer vector in TLOC.
+	fx3==Blast+3	; HT index this virt addr last seen
+	fx4==Blast+4	; HT0(	fx3) -- to verify
+	fx5==Blast+5	; HT1(	fx3) -- also to verify
+	fx6==Blast+6	; core addr of seg pointer vector
+	fx7==Blast+7	; virt addr of seg pointer when cache set
+FXlast==fx7	; table control block last word
+
+		; VAx fields define the portion of the TCB special
+		; to variable-length-record tables.
+	VA0==Blast+1
+VAlast==va0	; last word of TCB for VLR's
+
+	DCL	RFRE
+	MOVE	R1,R0
+	call	rdty
+	RETURN  RFRE
+	SUBTTL  TOPN	3.2.0.1
+	DCL	TOPN,<V0>,<V1,V2,V3,V4,V5>
+;  TOPN MAY NOT USE R5,R6
+	MOVE	R1,R0
+	MOVE	R0,0(R1)
+	SETZM	R1
+	LSHC	R0,-^D24
+	MOVEM	R0,V1
+	SETZM	R2
+	LSHC	R1,-^D24
+	MOVEM	R1,V2
+	LSH	R2,-^D24
+	MOVEM	R2,V3
+	CALL	SAL,<<FXlast+4>/4>*4,<V4,V5>
+					;V4 IN R1
+;  TOPN20				V5 WILL STAY IN R2 UNTIL BOX 110
+	MOVEM	R1,B0(R2)
+	MOVEM	R1,B1(R2)
+	MOVEM	R1,B10(R2)
+
+;  TOPN30  
+	SETZM	B2(R2)
+
+;  TOPN40
+	MOVE	R3,V1
+	HRLZM	R3,FX0(R2)
+
+;  TOPN90,100
+TOPN90:	MOVE	R0,V2
+	HRRM	R0,FX1(R2)
+	MOVE	R0,V3
+	HRLOM	R0,B6(R2)
+
+;  TOPN110
+	MOVEI	R0,H4
+	CALL	SAL
+	MOVE	R3,V5
+	MOVEM	R1,FX2(R3)
+	setzm	fx3(r3)
+	setzm	fx4(r3)
+	setzm	fx5(r3)
+	setzm	fx6(r3)
+	setzm	fx7(r3)
+
+;  TOPN120
+	call	rdty,<,$,r2>
+	RETURN  TOPN,<$,R3,$,V4>
+;***
+	SUBTTL  VOPN  3.2.0.2
+	DCL	VOPN,<V0>,<V1,V2,V3,V4>
+;  VOPN MAY NOT USE R5,R6
+	MOVE	R1,R0
+	MOVE	R2,0(R1)
+	HLRZM	R2,V1
+	HRRZM	R2,V2
+	MOVEI	R0,<VAlast+1+H4-1>/H4*H4
+	CALL	SAL
+
+;  VOPN20
+	MOVEM	R1,B0(R2)
+	MOVEM	R1,B1(R2)
+	MOVEM	R1,B10(R2)
+
+;  VOPN30
+	SETZM	B2(R2)
+
+;  VOPN40
+	MOVE	R3,V2
+			;	V3,V4 IN R1,R2
+;  VOPN70,80		;V2 IN R3
+VOPN70:	HRLOM	R3,B6(R2)
+
+;  VOPN90		;	V3,V4,V2 IN R1,R2 ,R3
+	MOVE	R0,V1
+	MOVEM	R0,VA0(R2)
+	EXCH	R1,R2
+	RETURN  VOPN
+;***
+	SUBTTL  TNEW  3.2.1
+	DCL	TNEW,<V0>,<V1,V2,V3,V4>
+			;	TNEW MAY NOT USE R6
+;  TNEW40
+	MOVE	R1,R0
+	MOVE	R5,B0(R1)		;V1 IN R5
+
+;  TNEW50
+	HLRE	R0,FX0(R1)
+	CALL	RAL
+			;	V2,V3 IN R1,R2. USED IN 145
+;  TNEW60		;	V1 REMAINS UNTOUCHED IN R5
+	MOVE	R3,V0
+	CAMN	R5,B0(R3)
+	JRST	TNEW145
+
+;  TNEW70	V2,V3,V0 IN R1,R2,R3
+	MOVEM	R1,V2
+	MOVEM	R2,V3
+	HRRE	R4,B7(R3)
+	HRRE	R5,FX1(R3)
+	IDIV	R4,R5	;	;V4 IN R4
+
+;  TNEW80	V0,V4 IN R3,R4
+	MOVE	R0,FX2(R3)		;V5 IN R0
+
+;  TNEW90
+	MOVE	R1,R0
+	RED	R1	;		; V6 IN R1
+
+;  TNEW100		;	V5,V6,V0,V4 IN R0,R1,R3,R4
+	MOVN	R2,H1(R1)
+
+;  TNEW110	V5,V6,V7,V0,V4 IN R0,R1,R2,R3,R4
+	CAILE	R2,H2(R4)
+	JRST	TNEW130
+
+;  TNEW115	V5,V6,V7,V0,V4 IN R0,R1,R2,R3,R4
+	MOVEM	R4,V4
+	LSH	R2,1
+	CAIG	R2,PSIZE
+	JRST	TNEW120
+	SETZ	R1,
+	SETZ	R2,
+	SETZ	R3,
+	JRST	TNEW$$
+
+;		V5,V6,V7*2 IN R0,R1,R2
+TNEW120:CALL	CHANGE
+	MOVE	R3,V0
+	MOVEM	R1,FX2(R3)
+	MOVE	R1,R2
+	MOVE	R4,V4;		;V0,V4 IN R3,R4
+
+			;	V6,V0,V4 IN R1,R3,R4 FROM 110 OR 120
+TNEW130:MOVE	R2,B0(R3)
+	ADD	R4,R1
+	MOVEM	R2,H2(R4)
+
+;  TNEW140	V6,V0 IN R1,R3
+	WRIT	R1
+	MOVE	R1,V2
+	MOVE	R2,V3
+
+;		V2,V3,V0 IN R1,R2,R3 FROM 60 OR 140
+TNEW145:HLRE	R5,FX0(R3)
+	ADD	R5,R2	;	;(V3+2)+(V0/FX0-3)-1
+	ADDI	R2,1	;	;=V3+V0/FX0-2
+	SETZM	0(R2)
+	HRRI	R4,1(R2)
+	HRL	R4,R2
+	CAIGE	R2,-1(R5)
+	BLT	R4,-1(R5)
+	ADDI	R1,1
+	HRRE	R3,B7(R3)
+	ADDI	R3,1
+	EXCH	R1,R2
+	EXCH	R2,R3
+
+
+TNEW$$:	RETURN  TNEW
+;***
+	SUBTTL  CHANGE  3.2.1.1
+	DCL	CHANGE,<V0,V1,V2>,<V3,V4>
+;  CHANGE MAY NOT USE R5,R6
+;  CHG10
+	MOVE	R0,R2
+	CALL	SAL
+
+;  CHG20		;		V3,V4 IN R1,R2
+	MOVE	R3,V1
+	MOVN	R4,H1(R3)		;-V1/H1 IN R4
+	MOVN	R0,H1(R2)		;-V4/H1 IN R0
+	CAMLE	R4,R0
+
+;  CHG40
+	MOVE	R4,R0	;	;V5 IN R0
+;		V3,V4,V1 IN R1,R2,R3
+			;	V5 IN R4 FROM 20 OR 40
+CHG50:	MOVEM	R1,V3
+	MOVEM	R2,V4
+	ADD	R4,R2	;	;(V4+H2)+(V5-H2)-1
+	ADDI	R2,H2	;	;=V4+V5-1
+	ADDI	R3,H2
+	HRL	R2,R3
+	BLT	R2,-1(R4)
+
+;  CHG60
+	CALL	SDAL,<$,V0,$,V1>
+	RETURN  CHANGE,<$,V3,$,V4>
+;***
+	SUBTTL  TLOC  3.2.2
+	DCL	TLOC,<V0,V1>
+;	TLOC MAY NOT USE R5,R6
+;  TLOC10	V0,V1 IN R0,R1
+	MOVE	R3,R0
+	HRRE	R2,B7(R3)		;V0/B7 IN R2
+	JUMPG	R1,TLOC30;		;USED IN 20,30
+			;		;V0,V1,V0 IN R0,R1,R3
+;  TLOC20		;	V0/B7 IN R2
+	ADD	R1,R2
+	MOVEM	R1,V1
+	JUMPGE  R1,TLOC60
+
+;  TLOC40
+	SETZ	R1,
+	SETZ	R2,
+	SETZ	R3,
+	JRST	TLOC$$
+			;	V0,V1,V0 IN R0,R1,R3
+			;	V0/B7 IN R2
+TLOC30:	SOS	R1,V1
+
+;  TLOC45
+	CAMG	R1,R2
+	JRST	TLOC60
+
+TLOC50:	CALL	TNEW
+
+;  TLOC55
+	MOVE	R4,V1
+	CAIE	R2,1(R4)
+	SKIPN	R3
+	JRST	TLOC$$
+	call	rdty
+	MOVE	R0,V0
+	JRST	TLOC50
+
+			;	V0,V1,V0 IN R0,R1,R3
+TLOC60:	HRRE	R2,FX1(R3)
+	IDIV	R1,R2	;	;V2,V3 IN R1,R2
+
+;	We have to find the segment pointer vector.  It may be in
+;	core, in which case we can fetch its address from our little
+;	cache, or it may have moved since last seen, in which
+;	case we take time out to set up the cache before proceeding.
+
+	;  R3 is a base register for the table control block
+
+	move	r4,fx2(r3)	; Fetch VIRTUAL addr seg ptr vector
+	came	r4,fx7(r3)	; Skip if same as cached
+	jrst	mstred
+
+	move	r4,fx3(r3)	; Fetch cached HT index
+	move	r0,fx4(r3)	; and the cached HT0 entry
+	came	r0,ht0(r4)	; skip if still there
+	jrst	mstred
+
+	move	r0,fx5(r3)	; also verify HT1 entry
+	came	r0,ht1(r4)	;  -- skip if page in same place
+	jrst	mstred
+
+	move	r4,r1
+	jrst	tloc99
+
+mstred:		  ; Must do a read
+	move	r4,fx2(r3)	; (re)fetch virtual addr
+	movem	r4,fx7(r3)	; save in cache
+	exch	r1,r4
+	call	readw;		  do the read
+	hrrz	r1,r1
+	movem	R1,fx6(r3)	; cache core address
+	call	rcln;		  release the page
+	ldb	r1,[ point ^d36-pex, fx6(r3), ^d35-pex];	CT index
+	hrrz	r1,ct1(r1)
+	movem	r1,fx3(r3)	; cache HTX
+	move	r0,ht0(r1)
+	movem	r0,fx4(r3)	; cache HT0
+	move	r0,ht1(r1)
+	movem	r0,fx5(r3)	; cache HT1
+
+tloc99:
+	add	r4,fx6(r3)	; add core addr of seg pointer vector
+	move	r4,h2(r4)
+
+	RED	R4	;	;V6 IN R4
+			;	V5,V3,V0,V6 IN R1,R2,R3,R4
+;  TLOC110
+	HLRE	R0,FX0(R3)
+	ADDI	R2,1	;	;V3+1 IN R2
+	IMUL	R2,R0;	
+	MOVN	R0,H1(R4)
+	SUB	R0,R2	;	;V7 IN R0
+
+;  TLOC120	V7,V5,V6 IN R0,R1,R4
+	MOVE	R3,R1
+	ADD	R3,R0	;	;V8 IN R3
+	ADD	R4,R0	;	;V9 IN R4
+	MOVE	R1,R4	;	;V9 IN R1
+
+			;	V9,V8 IN R1,R3
+	MOVE	R2,V1
+	ADDI	R2,1
+TLOC$$:	RETURN  TLOC
+;***
+	SUBTTL  TPOP  3.2.3
+	DCL	TPOP,<V0>
+;		TPOP MAY NOT USE R6.
+;  TPOP20
+	MOVE	R1,R0
+	MOVE	R5,B0(R1)		;V1 IN R5
+
+;  TPOP30
+	CALL	RDAL
+;		V1 STILL IN R5, UNTOUCHED BY RDAL
+;  TPOP40
+	MOVE	R3,V0;		;V0 IN R3
+	CAMN	R5,B0(R3)
+	JRST	TPOP$$
+
+;  TPOP50
+	HRRE	R4,B7(R3)
+	HRRE	R5,FX1(R3)
+	IDIV	R4,R5	;	;V2 IN R4
+
+;  TPOP60
+	MOVE	R0,FX2(R3)		;V3 IN R0
+
+;  TPOP70
+	MOVE	R1,R0
+	RED	R1	;		;V4 IN R1
+
+;  TPOP80
+	MOVN	R2,H1(R1)		;V5 IN R2
+
+;  TPOP90
+	LSH	R2,-2
+	CAIG	R2,H2(R4)
+	JRST	TPOP105
+
+;  TPOP100
+	LSH	R2,1
+	CALL	CHANGE
+	MOVE	R3,V0
+	MOVEM	R1,FX2(R3)
+	MOVE	R1,R2
+
+	;		;		V0 IN R3
+TPOP105:	call	rdty
+
+
+TPOP$$:	HRRE	R1,B7(R3)
+	ADDI	R1,1
+	RETURN  TPOP
+;***
+	SUBTTL  TRLS  3.2.4.1
+	DCL	TRLS,<V0>
+;  TRLS MAY NOT USE R5,R6
+	CALL	VRLS
+;  TRLS20
+	MOVE	R1,V0
+	MOVE	R0,FX2(R1)
+	MOVE	R1,R0
+	RED	R1
+
+;  TRLS30
+	CALL	CHANGE,<,,H4>
+	MOVE	R3,V0
+	MOVEM	R1,FX2(R3)
+
+;  TRLS40
+	move	r1,r2
+	call	rdty
+	RETURN  TRLS  
+;***
+	SUBTTL  VRLS  3.2.4.2
+	DCL	VRLS,<V0>,<V1,V2>
+;  VRLS MAY NOT USE R5,R6
+
+VRLS10:	MOVE	R1,V0
+	MOVE	R4,B1(R1)
+	MOVE	R0,R4
+	RED	R0
+	MOVEM	R0,V1
+
+;  VRLS20	;	;		V2 IN R4
+	CAMN	R1,R0
+	JRST	VRLS45
+
+;  VRLS30	;	;		V1 IN R0,V2 IN R4
+	CALL	UNLINK
+
+;  VRLS40	;	;		V2 IN R4, UNTOUCHED BY UNLINK
+	MOVE	R0,R4
+	CALL	SDAL,<,$,V1>
+	JRST	VRLS10
+
+	;		;		V0 IN 1 FROM 10
+VRLS45:
+	exch	r0,r1
+	call	rcln
+	move	r1,r0
+	HRREI	R2,-1
+	HRRM	R2,B7(R1)
+	RETURN  VRLS
+;***
+	SUBTTL  VPUT 3.2.6
+	DCL	VPUT,<V0,V1>,<V2,V3,V4>
+;  VPUT MAY NOT USE R5,R6
+;  VPUT5	;	;		V0, V1 IN R0, R1
+	MOVE	R2,R0	;	;V0 IN R0, R2
+	HLRE	R2,TSL(R2)
+	ADD	R2,VA0(R1)
+	SUBI	R2,1
+	IDIV	R2,VA0(R1)
+	MOVEM	R2,V4
+
+;  VPUT10
+	MOVEI	R0,2(R2)
+	CALL	RAL,,<V3,V2>
+	;		;		;V2 IN R2
+;  VPUT 20
+	MOVEI	R0,2(R2)
+	MOVE	R3,V0
+	HRL	R0,TSB(R3)
+	MOVE	R1,R2
+	ADD	R2,V4;		;(V2+1)+V4-1 = V2 + V4
+	ADDI	R2,1
+	SKIPE	V4
+	BLT	R0,(R2)
+
+;  VPUT25
+	HLRE	R0,TSL(R3)
+	MOVEM	R0,1(R1)
+	MOVE	R1,V1
+	CALL	PAD,<,$,VA0(R1),$,V2>
+
+;  VPUT30
+	move	r1,v2
+	call	rdty
+	MOVE	R1,V3
+	ADDI	R1,2
+	RETURN  VPUT
+;***
+	SUBTTL  RAL  3.2.6.1
+
+; input: R0 - RLENag - Record LENgth
+;	 R1 - moved to tcb - Table Control Block core address
+;
+; locals:   VALSag - Virtual Address Last Segment
+;	    CALSag - Core ditto
+;	    VANSag - Virtual Address Next Segment
+;	    CANSag - Core ditto
+
+tcb==	R10
+
+	DCL	RAL,<RLENag>,<VALSag,CALSag,VANSag,CANSag>
+;  RAL MAY NOT USE R5,R6
+	move	tcb,r1
+;  RAL10
+	MOVE	R2,B0(tcb)
+	MOVEM	R2,VALSag
+
+;  RAL20
+	MOVE	R3,R2
+	RED	R3
+	MOVEM	R3,CALSag
+
+;  RAL30
+	HRRE	R3,H4(R3)
+	CAMLE	R3,RLENag;		;CALSag/H4 <= RLENag
+	JRST	RAL90	;	;IFF CALSag/H4<RLENag+1
+
+;  RAL40
+	HLRE	R0,B6(tcb)
+	CALL	SAL
+	MOVEM	R1,VANSag
+	MOVEM	R2,CANSag
+
+;  RAL50
+	CALL	LINK,<$,VALSag,$,CALSag,$,VANSag,$,CANSag>
+
+;  RAL60
+	HLRE	R0,B6(tcb)
+	SUBI	R0,H4+1
+	MOVE	R3,CANSag
+	HRRM	R0,H4(R3)
+
+;  RAL70
+	MOVE	R1,CALSag
+	call	rdty
+
+;  RAL80
+	MOVE	R2,VANSag
+	MOVEM	R2,VALSag;		;VALSag IN R2
+	MOVE	R3,CANSag
+	MOVEM	R3,CALSag
+
+;		tcbAag,VALSag IN R1,R2 FROM 30 OR 80
+RAL90:	HRRE	R4,B7(tcb)
+	ADDI	R4,1
+	HRRM	R4,B7(tcb)
+
+;  RAL100
+	ADDI	R2,H4
+	MOVE	R3,CALSag 
+	ADDI	R3,H4	;	;VALSag,CALSag IN R2 ,R3
+
+;  RAL110
+	HRRE	R4,0(R3)
+	SUB	R4,RLENag;		;(len residual free space) IN R4
+	HRRM	R4,0(R3)
+	ADD	R2,R4	;	;(Virt addr of rec) IN R2
+	ADD	R3,R4	;	;(core addr of rec) IN R3
+	HRLM	R4,(R3)
+
+;  RAL120
+	MOVE	R1,RLENag
+	MOVN	R0,R1
+	HRRM	R0,(R3)
+	ADD	R1,R3	;	;RLENag+(core addr of rec) IN R1
+	HRLM	R0,(R1)
+
+;  RAL130
+	MOVE	R1,R2
+	MOVE	R2,R3
+	RETURN  RAL
+;***
+;	We have to find the segment pointer vector.  It may be in
+;	core, in which case we can fetch its address from our little
+;	cache, or it may have moved since last seen, in which
+;	case we take time out to set up the cache before proceeding.
+
+	;  R3 is a base register for the table control block
+
+	move	r4,fx2(r3)	; Fetch VIRTUAL addr seg ptr vector
+	came	r4,caVADR(r3)	; Skip if same as cached
+	jrst	mstred
+
+	move	r4,caHTX(r3)	; Fetch cached HT index
+	move	r0,caHT0(r3)	; and the cached HT0 entry
+	came	r0,ht0(r4)	; skip if still there
+	jrst	mstred
+
+	move	r0,caHT1(r3)	; also verify HT1 entry
+	came	r0,ht1(r4)	;  -- skip if page in same place
+	jrst	mstred
+
+	move	r4,r1
+	jrst	tloc99
+
+mstred:		  ; Must do a read
+	move	r4,fx2(r3)	; (re)fetch virtual addr
+	movem	r4,caVADR(r3)	; save in cache
+	exch	r1,r4
+	call	readw;		  do the read
+	hrrz	r1,r1
+	movem	R1,caCADR(r3)	; cache core address
+	call	rcln;		  release the page
+	ldb	r1,[ point ^d36-pex, caCADR(r3), ^d35-pex];	CT index
+	hrrz	r1,ct1(r1)
+	movem	r1,caHTX(r3)	; cache HTX
+	move	r0,ht0(r1)
+	movem	r0,caHT0(r3)	; cache HT0
+	move	r0,ht1(r1)
+	movem	r0,caHT1(r3)	; cache HT1
+
+tloc99:
+	add	r4,caCADR(r3)	; add core addr of seg pointer vector
+	move	r4,h2(r4)
+
+	RED	R4	;	;V6 IN R4
+	SUBTTL  VPOP  3.2.7
+	DCL	VPOP,<V0,V1>,<V2>
+;  VPOP MAY NOT USE R5,R6
+;  VPOP10
+	MOVE	R2,B0(R1)
+	RED	R2	;		;V2 IN R2
+
+;  VPOP20
+	HRRE	R3,H4(R2)
+	ADDI	R2,H4(R3)
+	MOVEM	R2,V2
+
+;  VPOP30	;	;		V2 IN R2
+	CALL	COPYR
+
+;  VPOP40
+	call	rdty,<,$,v2>
+
+;  VPOP50
+	CALL	RDAL,<$,V1>
+
+
+	MOVE	R1,V1 
+	HRRE	R1,B7(R1)
+	ADDI	R1,1
+	RETURN  VPOP
+;***
+	SUBTTL  RDAL  3.2.7.1
+	DCL	RDAL,<V0>,<V1,V2>
+;  RDAL MAY NOT USE R5,R6
+;  RDAL10
+	MOVE	R1,R0
+	MOVE	R1,B0(R1)
+	MOVEM	R1,V1
+
+;  RDAL20
+	MOVE	R2,R1
+	RED	R2
+	MOVEM	R2,V2
+
+;  RDAL30
+	MOVE	R3,R2	;	;V2 IN R2, R3
+	HRRE	R1,H4(R2)		;V2/H4 IN R1
+	ADDI	R3,H4(R1)		;V3 IN R3
+
+;  RDAL40
+	HRRE	R3,(R3)
+	SUB	R1,R3
+	HRRM	R1,H4(R2)		;V2/H4 IN R1
+	ADD	R2,R1
+	HRLM	R1,H4(R2)
+
+;  RDAL50	;	;		V2/H4 IN R1
+	MOVNI	R1,H4+1(R1)
+	MOVE	R2,V2
+	CAMN	R1,H1(R2)
+	JRST	RDAL70
+
+;  RDAL60
+	call	rdty,<,$,r2>
+	JRST	RDAL90
+
+
+RDAL70:	CALL	UNLINK,<$,R2>
+
+;  RDAL80
+	CALL	SDAL,<$,V1,$,V2>
+
+
+RDAL90:	MOVE	R1,V0
+	HRRE	R0,B7(R1)
+	SUBI	R0,1
+	HRRM	R0,B7(R1)
+	RETURN  RDAL
+;***
+	SUBTTL  VGET 3.2.8
+	DCL	VGET,<V0,V1,V2>,<V3>
+;  VGET MAY NOT USE R5,R6
+;  VGET10
+	SUBI	R2,2
+	RED	R2
+
+;  VGET20
+	MOVEM	R2,V3
+	CALL	COPYR
+
+;  VGET30
+	call	rcln,<,$,v3>
+	RETURN  VGET
+;***
+	SUBTTL  VRPL 3.2.9
+	DCL	VRPL,<V0,V1,V2>,<V3>
+;  VRPL MAY NOT USE R4,R5,R6
+;  VRPL10
+	MOVE	R3,R2
+	RED	R3	;		;V3+1 IN R3
+
+;  VRPL20
+	MOVE	R2,R0	;	;V0 IN R2
+	MOVE	R0,R3
+	HRL	R0,TSB(R2)		;V0/TSB IN R0 LEFT
+	HRRE	R1,-2(R3)
+	MOVN	R1,R1
+	ADD	R1,R3
+	BLT	R0,-3(R1)
+
+;  VRPL25
+	HLRE	R0,TSL(R2)
+	MOVEM	R0,-1(R3)
+	MOVE	R1,V1
+	CALL	PAD,<,$,VA0(R1),-2(R3)>
+
+;  VRPL30
+	call	rdty,<,$,v3>
+	RETURN  VRPL
+;***
+	SUBTTL  PAD  3.2.10
+	DCL	PAD
+
+;  PAD10
+	HRRE	R3,0(R2)		;V0, V1, V2 IN R0, R1, R2
+	MOVN	R3,R3
+	SUBI	R3,2
+	IMUL	R3,R1
+	SUB	R3,R0	;	;V3 IN R3
+
+;  PAD20
+	JUMPLE  R3,PAD$$
+
+;  PAD30
+	MOVEI	R4,^D36
+	IDIV	R4,R1	;	;V4 IN R4
+
+;  PAD40
+	IDIV	R0,R1
+	ADD	R2,R0
+	ADDI	R2,2	;	;V2 IN R2
+
+;  PAD50
+	IMUL	R1,R4
+	MOVN	R1,R1
+	ADDI	R1,^D36	;V5 IN R1
+
+;  PAD60
+	LSH	R1,6	;	;P IN R1
+	ADD	R1,R4	;	;S IN R4
+	LSH	R1,6	;	;E IN R2
+	HRLM	R1,R2	;	;BYTE POINTER IN R2
+	SETZM	R0
+
+PAD70:	IDPB	R0,R2
+
+;  PAD80
+	SOJN	R3,PAD70
+
+PAD$$:	RETURN  PAD
+;****
+	SYN	RSTART,TSTART
+	SYN	RSTART,VSTART
+	SUBTTL  RSTART  3.3.3
+	DCL	RSTART
+
+;  RSTART10
+	CALL	TSET,<,1>
+
+
+RSTA$$:	RETURN  RSTART
+;***
+	SUBTTL  TSET
+	DCL	TSET,,<V0>
+
+;  SET10
+	SOJE	R1,SET60;		; V0, V1 IN R0, R1
+
+;  SET20
+	MOVEM	R0,V0
+	CALL	TLOC
+	FREE	R1;	actually requires virt file addr
+	MOVE	R4,V0	;	; V2, V3, V4 IN R1, R2, R3
+
+;  SET30
+	SUBI	R2,1
+	HRLM	R2,B3(R4)
+
+;  SET40
+	SUBI	r1,1
+	MOVEM	r1,B4(R4)
+
+;  SET50
+	JMP	SET80
+
+
+SET60:	MOVE	R1,R0
+	SETOM	B3(R1)
+
+;  SET70
+	MOVE	R2,B10(R1)
+	ADDI	R2,B2
+	MOVEM	R2,B4(R1)
+
+
+SET80:	RETURN  TSET
+;***
+	SUBTTL  TNEXT  3.3.5
+	DCL	TNEXT,<V0>
+;  TNXT MAY NOT USE R4,R5,R6
+;TNXT10
+	MOVE	R1,R0	;	;V0 IN R1
+	HLRE	R2,B3(R1)
+	HRRE	R3,B7(R1)
+	CAMGE	R2,R3
+	JRST	TNXT40
+
+;  TNXT30
+	SETZ	R1,
+	SETZ	R2,
+	JRST	TNXT$$
+
+	;		;		V0 IN R1
+TNXT40:	MOVE	R0,B4(R1)		;V1 IN R0
+	MOVE	R2,R0
+	RED	R2	;		;V2 IN R2
+
+;  TNXT50
+	HLRE	R3,(R2)	;	;..V2 LEFT IN R3
+	JUMPL	R3,TNXT120
+
+;  TNXT60		Here if no more records this segment
+	SUBI	R2,H4(R3)		;V4 IN R2
+
+;  TNXT70
+	MOVE	R3,H3(R2)		;V3 IN R3
+
+;  TNXT80
+	exch	r1,r2
+	call	rcln
+	exch	r2,r1	; must have R1 set right for TNXT120+2 ff.
+
+;  TNXT90
+	MOVE	R2,R3
+	RED	R2	;		;V4 IN R2
+
+;  TNXT100
+	SUB	R3,H1(R2)		; V1 IN R3
+	SUBI	R3,1
+
+;  TNXT110
+	SUB	R2,H1(R2)		;V2 IN R2
+	SUBI	R2,1
+	MOVE	R0,R3	;	;V1 IN R0
+
+	;		;		V1 IN R0,V2 IN R2 FROM 50 OR 110
+TNXT120:HLRE	R3,(R2)
+	ADD	R0,R3	;	;V1 IN R0
+	MOVEM	R0,B4(R1)
+
+;  TNXT130
+	ADD	R2,R3	;	;V2 IN R2
+
+;  TNXT140
+	HLRE	R3,B3(R1)
+	ADDI	R3,1
+	HRLM	R3,B3(R1)
+	ADDI	R2,1	;	;V2+1 IN R2
+	ADDI	R0,1
+	MOVE	R1,R0	;	;V1+1 IN R1
+
+
+TNXT$$:	EXCH	R1,R2
+	RETURN  TNEXT
+;***
+	SUBTTL  VNEXT  3.3.7
+	DCL	VNEXT,<V0,V1>,<V2,V3>
+	;		;		VNXT MAY NOT USE R5,R6
+;  VNXT10
+	MOVE	R0,R1
+	CALL	TNEXT,,<V3>
+	;		;		V2 IN R1,V3 IN R2
+;  VNXT20
+	JUMPE	R1,VNXT$$
+
+;  VNXT30
+	MOVEM	R2,V2
+	SUBI	R1,1
+	MOVE	R2,R1
+	CALL	COPYR,<$,V0,$,V1>
+
+;  VNXT35
+	MOVE	R1,V3
+	call	rcln
+	MOVE	R1,V2
+
+
+VNXT$$:	RETURN  VNEXT
+;***
+	SUBTTL  COPYR  3.3.8
+	DCL	COPYR,<V0,V1,V2>,<V3>
+;		COPYR MAY NOT USE R5,R6
+;  COPYR10	V0,V1,V2 IN R0,R1,R2
+	HRRE	R3,(R2)
+	MOVN	R3,R3
+	SUBI	R3,2
+	MOVEM	R3,V3
+	MOVE	R3,1(R2)
+	MOVE	R4,R0	;	;V0 IN R4
+	HRLM	R3,TSL(R4)		;V0/TSL IN R3
+
+;  COPYR20
+	HRRE	R0,TVL(R4)		;V0/TVL IN R0
+	CAML	R0,R3
+	JRST	COPYR40
+
+;	COPYR30
+	HRLM	R0,TSL(R4)
+	ADD	R0,VA0(R1)
+	SUBI	R0,1
+	IDIV	R0,VA0(R1)
+	MOVEM	R0,V3
+
+COPYR40:MOVE	R3,TSB(R4)
+	MOVE	R4,R3
+	ADD	R4,V3
+	ADDI	R2,2
+	HRL	R3,R2
+	BLT	R3,-1(R4)
+	RETURN  COPYR
+;***
+	SUBTTL  LALOC  3.4.2
+	DCL	LALOC,<V0>
+;LALOC DOES NOT USE R5,R6
+;  LALOC10	VO IN R0
+	ADDI	R0,H2+3
+	LSH	R0,-2
+	LSH	R0,R2
+
+;  LALOC20
+	CALL	SAL
+	ADDI	R1,H2
+	ADDI	R2,H2
+	EXCH	R1,R2
+	RETURN  LALOC
+;***
+	SUBTTL  SAL 3.4.3
+	DCL	SAL,<V0>,<V1,V2,V3>
+;  SAL MAY NOT USE R5, R6
+; SAL20	VO IN R0
+	MOVE	R1,G1
+	MOVE	R2,H3(R1)		;V2 IN R2
+
+;	V2 IN R2 FROM 20 OR 50
+SAL30:	MOVE	R3,R2
+	RED	R3	;		;V3 IN R3
+
+;  SAL40
+	MOVE	R1,H1(R3)		;V3/H1 IN R1
+	CAML	R1,R0
+	JRST	SAL90
+	JUMPLE  R1,SAL140
+
+;  SAL50
+	MOVE	R2,H3(R3)		;V2 IN R2
+
+;  SAL60
+	exch	r1,r3
+	call	rcln
+	exch	r1,r3
+	JRST	SAL30
+
+
+SAL90:	MOVEM	R2,V2
+	MOVEM	R3,V3
+	MOVE	R4,H2(R3)		;V3/H2 IN R4
+	CAMN	R4,G0
+	JRST	SAL200
+
+;  SAL100
+	UNLINK,<$,G1>
+;		V3/H2 REMAINS IN R4, UNTOUCHED BY UNLINK.
+;  SAL110
+	MOVE	R1,R4
+	RED	R1	;		;V4 IN R1
+
+;  SAL120
+	MOVE	R0,R4	;	;V3/H2 IN R0
+	MOVE	R4,R1	;	;V4 IN R4
+	CALL	LINK,<,,$,G0,$,G1>
+
+;  SAL130
+	exch	r1,r4
+	call	rdty
+	exch	r1,r4
+	JRST	SAL200
+
+	;		;		V3 IN R3
+SAL140:
+	exch	r1,r3
+	call	rdty
+	exch	r1,r3
+
+;		Get a new VMF page
+	extern	nvmfpg
+	call	nvmfpg
+	movem	r1,r3		; core address of page
+	movem	r1,v3		; incase we lose it, I suppose
+	move	r2,g2		; also save the VMF address
+	movem	r2,v2		; (and set R2 for following call to LINK!(?))
+
+;  SAL170
+	HRREI	R1,-4
+	MOVEM	R1,H0(R3)
+	MOVEM	R1,PSIZE-4+H1(R3)
+
+;SAL180
+	MOVEI	R1,PSIZE-4
+	MOVEM	R1,H1(R3)
+
+;  SAL190
+	CALL	LINK,<$,G0,$,G1>
+
+
+SAL200:	MOVE	R3,V3
+	MOVE	R1,H1(R3)
+	CAMN	R1,V0
+	JRST	SAL260
+
+;  SAL220	V3 IN R3, V3/H1 IN R1
+	SUB	R1,V0;		;V1 IN R1
+
+;  SAL230
+	MOVEM	R1,H1(R3)
+
+;  SAL240,250	V1 IN R1,V3 IN 3
+	ADD	R3,R1
+	MOVEM	R3,V3
+	MOVEM	R1,H0(R3)
+	ADD	R1,V2
+	MOVEM	R1,V2
+	JRST	SAL270
+
+;	V3 IN R3
+SAL260:	MOVE	R0,R3
+	CALL	UNLINK
+
+
+SAL270:	MOVN	R0,V0;		;-V0 IN R0
+	MOVE	R3,V3
+	MOVEM	R0,H1(R3)
+	SUB	R3,R0	;	;.V3+.V0 IN R3
+	MOVEM	R0,H0(R3)
+
+;  SAL280
+	RETURN  SAL,<$,V2,$,V3>
+;***
+	SUBTTL  LFREE  3.4.4
+	DCL	LFREE
+;  LFREE DOES NOT USE R5,R6	
+;  LFREE10
+	SUBI	R0,H2
+	SUBI	R1,H2
+	EXCH	R0,R1
+	CALL	SDAL
+	RETURN  LFREE
+;***
+	SUBTTL  SDAL  3.4.5
+	DCL	SDAL,<V0,V1>
+;  SDAL MAY NOT USE R5,R6
+
+;  SDAL10	VO, V1 IN R0, R1
+	MOVE	R3,H0(R1)		;V1/H0 IN R3
+	JUMPGE  R3,SDAL40
+
+;  SDAL20
+	CALL	LINK,<$,G0,$,G1,$,V0,$,V1>
+	MOVE	R0,V0
+	MOVE	R1,V1
+	MOVNS	R2,H1(R1)
+	JRST	SDAL70
+
+;		V0, V1 STILL IN R0, R1
+SDAL40:	MOVN	R2,H1(R1)		;V2 IN R2
+
+;  SDAL50	V1/H0 STILL IN 3 FROM BOX 10
+	SUB	R0,R3
+	SUB	R1,R3
+	MOVEM	R0,V0
+	MOVEM	R1,V1
+
+;  SDAL60	V2 IN R2 FROM 40
+	ADDB	R2,H1(R1)
+
+;		V1/H1 IN 2 FROM 20 OR 60
+SDAL70:	ADD	R2,R1	;	;V1+V1/H1 IN R2
+	MOVE	R4,H1(R2)		;V2 IN R4
+
+;  SDAL80
+	JUMPL  R4,SDAL120
+
+;  SDAL90
+	MOVE	R0,R2	;	;V1+V1/H1 IN R2 FROM 70
+	CALL	UNLINK
+
+;SDAL110
+	MOVE	R0,V0
+	MOVE	R1,V1
+	ADDM	R4,H1(R1)	;UNLINK DOES NOT USE R4.
+
+SDAL120:MOVE	R2,H1(R1)
+	ADD	R1,R2
+	MOVEM	R2,H0(R1)
+
+
+        MOVE	R1,V1
+	call	rdty
+	RETURN  SDAL
+;***
+	SUBTTL  LINK  3.4.5.1
+	DCL	LINK,<V0,V1,V2,V3>,<V4>
+;  LINK MAY NOT USE REGISTERS R4,R5,R6
+;  LINK10	;	;		V1,V2,V3 IN R1,R2,R3
+	MOVE	R0,H3(R1)
+	MOVEM	R0,V4
+
+;  LINK20
+	MOVEM	R0,H3(R3)
+
+;  LINK30
+	MOVE	R0,V0
+	MOVEM	R0,H2(R3)
+
+;  LINK40
+	MOVEM	R2,H3(R1)
+
+;  LINK50
+	MOVE	R3,V4
+	RED	R3	;V5 NOW IN R3
+
+;  LINK60
+	MOVEM	R2,H2(R3)
+
+;  LINK70
+	exch	r1,r3
+	call	rdty
+	exch	r1,r3
+	RETURN  LINK
+;***
+	SUBTTL  UNLINK  3.4.5.2
+	DCL	UNLINK,,<V0,V1,V2,V3>
+;  UNLINK MAY NOT USE REGISTERS R4,R5,R6
+;  UNLINK10
+	MOVEM	R0,R1	;	;V0 IN R1
+	MOVE	R0,H3(R1)
+	MOVEM	R0,V3
+
+;  UNLINK20
+	MOVE	R2,R0
+	RED	R2	;		;V4 IN R2
+
+;  UNLINK30
+	MOVE	R0,H2(R1)
+	MOVEM	R0,V1
+
+;  UNLINK40
+	MOVE	R3,R0
+	RED	R3	;		;V2 IN R3
+
+;  UNLINK50
+	MOVE	R0,V3
+	MOVEM	R0,H3(R3)
+
+;  UNLINK 60
+	MOVE	R0,V1
+	MOVEM	R0,H2(R2)
+
+;  UNLINK70
+	exch	r1,r3
+	call	rdty
+	exch	r1,r3
+
+;  UNLINK80
+	exch	r1,r2
+	call	rdty
+	exch	r1,r2
+	RETURN  UNLINK
+;***
+
+	lit
+	END
+    L@	_¬
