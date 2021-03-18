@@ -1,0 +1,193 @@
+        TYMBASIC NOTES AND PROBLEMS
+
+1.  The loader
+
+        Since the loader destroys the user's entire core image (low
+        and high segments) and deallocates all I/O channels, the
+        TYMBASIC processor is split into two distinct sections which
+        cannot directly communicate with each other.  The parser and
+        code generator comprise one section, and the run side the 
+        other.  These sections will be referred to as "compile" and
+        "run", respectively.  The parser and code generator are 
+        considered as a unit because they share a common low segment 
+        and maintain I/O channels between high segment overlays.  The
+        problems caused by compile/run transitions are the source
+        of most of what follows.
+
+2.  Paging and the Virtual Memory File (VMF)
+
+        A.  The base address and size of the paging areas at compile
+            and run time differ.  This necessitates relocation of
+            pages which are to be used by both sections of the
+            processor.   Each section is required to keep track of 
+            pages which are not needed by the other section, but which will
+            be needed after completing a full transition cycle.  Reasons
+            for the difference in paging area size and location are:
+
+            1.  The name table - 26 pages are reserved in the VMF for the
+                name table.  As the table expands at compile time, these
+                pages become locked in core occupying up to 26 pages
+                of space.  This data is never needed at run time.
+            2.  The "reentrant" user file I/O structure used at run time
+                requires that one page of each open user file be locked
+                in core.  This data is of no use at compile time.
+
+            Information which must be maintained in the paging areas across
+            transition boundaries is:
+
+                Command input and terminal output file pages (DO, TOUT
+                features).
+
+        B.  The monitor allocates and zeros space for null areas in a
+            file.  When writing the nth page of a file where pages
+            1 to n-1 have not yet been written, the monitor allocates
+            disc space for n pages, zero-fills pages 1 to n-1 and
+            writes page n as desired.  The extra work done by the monitor
+            in the case of the VMF is very costly (as will be seen in 
+            what follows) and should be eliminated.  This could be done
+            by page mapping the VMF internally, or by changing the
+            monitor disc allocation procedure (fat chance!).
+
+        C.  The current contents of the VMF are:
+
+            1.  The compile side name table
+            2.  The compile side low segment image (used in the run
+                to compile transition)
+            3.  The run side low segment image (to be used for compile to
+                run transitions in the GO, STEP, and some direct statement
+                cases)
+            4.  The table package data area
+            5.  A buffer area used in code generation
+            6.  The run time program load map
+            7.  Miscellaneous data which must be carried from compile
+                to run time and back (RUNDAT)
+
+3.  The transitions  (Currently unimplemented items are marked with "*")
+
+        The following transitional functions must perform the tasks
+        noted:
+
+        A.  COMLOD (compiler to loader)
+
+          * 1.  If DO and/or TOUT files are being used, then free and/or
+                write their respective pages.  The write/free operations
+                convert byte cursors to virtual corsors.  These cursors
+                reside in RUNDAT and are therefore maintained across
+                transition "boundaries".
+            2.  Write TBL package pages back to the VMF (UNLKTB).
+            3.  Save the compile side low segment image in the VMF.
+            4.  Write (or free if not modified) all pages in the
+                paging area belonging to all files except the VMF.  Close
+                all files except the VMF (CLSALL).
+          * 5.  If the current run is a direct statement execution and no
+                data structure or source modifications have taken place
+                since the last runside transition cycle, then do nothing.
+                In all other cases, scan the user file table and delete 
+                the non-zero user file table entries and zero their
+                corresponding entries in the channel table.  (User file
+                table is to be maintained in RUNDAT.)
+            6.  Write out all pages in the paging area belonging to the
+                VMF.
+            7.  Close the VMF.
+
+        B.  LODRUN (loader to run side)
+
+            1.  Setup the pager tables, paging area, and segment
+                swapping routine.
+            2.  Open the VMF.
+            3.  Read the RUNDAT information from the VMF.
+            4.  Open all files which were closed for the "trip" through
+                the loader (OPNALL).
+          * 5.  Using the cursor information in RUNDAT, check if DO/TOUT
+                files are being used.  If so then read the indicated pages
+                converting the virtual cursors to "real" byte cursors.
+          * 6.  If this is a direct statement execution, then recover
+                the user's file context from user file table information
+                saved in C.6 below.
+            7.  Initialize the dynamic storage area (DSA) functions.
+            8.  Initialize UUO handling for errors and tracing.
+
+        C.  RUNCOM (run side to compiler)
+
+            1.  Dump the terminal output buffer.
+            2.  Check if this is a save binary segment.  If it is, EXIT
+                to monitor command level.
+            3.  Save the run side low segment image in the VMF.
+          * 4.  Save the break address and continuability flags in RUNDAT.
+          * 5.  If DO and/or TOUT fils are being used, then free and/or
+                write their respective pages (see A.1 above)).
+          * 6.  Scan the user file table and write (or free) pages of all
+                open user files.  Record the page positioning so the user
+                file context may be reconstructed if this run side is
+                reentered.
+            7.  Read the compile side low segment image from the VMF file
+                (saved in A.3 above or D.3 below).
+            8.  Overlay the run side segment with the parser overlay.
+          * 9.  Update the DO/TOUT file pages by reading pages released
+                in C.5 above.
+
+        D.  COMRUN (compiler to run side)
+
+          * 1.  See A.1 above.
+            2.  See A.2 above.
+            3.  See A.3 above.
+          * 4.  Write (or free) all pages in the paging area not 
+                belonging to the VMF.
+            5.  See A.6 above.
+          * 6.  Read in the run side low segment image saved in C.3 above.
+          * 7.  Read the run side core image (from binary save file) into
+                the high segment.
+          * 8.  See B.5 above.
+          * 9.  Recover the user's file context from the user file table
+                information saved in C.6 above.
+           10.  See B.7 above.
+           11.  See B.8 above.
+
+        E.  LODCOM (loader to compiler)
+
+            Used only for loader failure recovery.
+
+          * 1.  Type out an error message indicating loader failure.
+            2.  See C.7 above.
+            3.  See C.8 above.
+          * 4.  Update DO/TOUT file pages by reading pages released in
+                A.1.
+
+4.  Miscellaneous
+
+        A.  Files are currently written on page boundaries; therefore,
+            the final page of a file is zero-filled if data does not occupy
+            the entire page.  For this reason the data length and the actual
+            word length of TBA-created files differ in almost all cases.
+
+        B.  The channel table, as it stands, can only provide for up to 13
+            simultaneously open user files.  The reasons for not being
+            able to use all 16 channels are:
+
+            1.  The GETSEG and RUNSEG monitor calls use channel 0.  Thus,
+                without cumbersome store and recovery routines, TBA cannot
+                maintain an open file on channel 0 during an overlay
+                transition.
+            2.  Although undocumented in the systems literature, it
+                appears that channel 1 is also "clobbered" during
+                overlay transitions.
+            3.  The Virtual Memory File requires one channel.
+
+        C.  The channel use table is not documented in the DEC (or
+            TYMSHARE) systems documentation.
+
+        D.  Temporary files created by TBA should be deleted when a TBA
+            session is terminated.
+
+        E.  The TYMSHARE-supplied GETLIN terminal input package internally
+            enables recognition of ESCAPE characters, thus preventing 
+            processing of ESCAPE characters by the run side interrupt
+            routines in a straightforward manner.  It is not clear whether
+            this is due to the current installation of an obsolete
+            GETLIN package or whether there is a more fundamental conflict
+            between GETLIN and the rest of the run side.
+
+        F.  The "DO" file subroutines used on the compile side should
+            be duplicated on the run side for implementation of the
+            "OPEN *" feature.
+ 
