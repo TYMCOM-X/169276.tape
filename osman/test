@@ -1,0 +1,40 @@
+
+
+From: JENGLISH
+Date: MARCH 13,1987 23:53
+OSMAN;
+HOW ARE YOU DOING? TONIGHT I RAN THE WEEKLY ASP FOR
+D27, ANDN RAN ACROSS SOMETHING THAT CONFUSED ME. OUR NORMAL
+ASP RUN IS AS FOLLOWS.
+1. R TAKEIT AND BRING SYSTEM TO BOOTS.
+2. BRING SYSTEM UP MANUAL AND LOGIN AS OPER,
+   SETTING SCHEDULE TO 600000 AND VERIFYING THAT NO
+   ONE ELSE IS ON SYSTEM, WE R DSKCLN, GIVING IT A
+   MODE CODE OF 7.
+3. AFTER DSKCLN COMPLETES, WE RUN ASP AND SAVE STRUCTURE.
+
+Continuing.....
+
+4. After the ASP save is complete, and successful,
+   we simply Run CHKPNT, and re-login to Oper 
+   setting status, RUN (UTIL)GOPJ and open system 
+   up to schedule 000000.
+5. What my concern is, that we never initiate the
+   user: PERPOPER running XEXEC. 
+6. Tonight what I did was to run TAKEIT, hang system,
+   and bring it up normally (system did NOT force a
+   DSKCLN (since TAKEIT had taken care of the SAT
+   pages right?)
+7. I guess what I'm asking is that we probably should
+   change our procedures to insure XEXEC is running.
+
+Something else you might like to know is that Paul Miller has run
+the ASP through the CONSOLE mode sucessfully a few times, and in fact
+feels it runs safer and better this way (safer meaning we are not
+susceptible to TYMNET drops). He figures also that we save upwards
+of 30 minutes running it this way.
+
+Well, hope you had a nice weekend, I will be talking to Leland and
+Ed concerning our conversation this monday afternoon.
+
+Take care.....Jim English
