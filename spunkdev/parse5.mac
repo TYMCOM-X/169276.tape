@@ -1,0 +1,2489 @@
+        TWOSEG
+        RELOC   ^O400000
+        TITLE   PARSE5
+
+        EXTERN  BPBGN,BPTR,BYFLG,C,CBYT18,CBYT27,CBYT9,CC,CCHR,CPKT,CV
+        EXTERN  CVPTR,DCEC,DCECID,DCFLGS,DELH,DFG,DIMARG,DIMCDE,DIMFLG
+        EXTERN  DIMID,ESCFLG,FCVPTR,FDN,FILV,FILV1,FLRNG,FNC,FNPTR,FNTYPE
+        EXTERN  FNUM,FNV,FORCDE,FORCNT,FORVAR,FVAR,HIGHLN,HOP,IBYFG,ICONF
+        EXTERN  IFRCD,IFRST,IFSW,ITOFG,KILFLG,LINPTR,LLC,LNMB,LNMB1,LOWLN
+        EXTERN  LPOINT,LPONT1,LSTFIL,MKCCHR,MKLNPT,MODCDE,NARGS,NCHR,NLINES
+        EXTERN  NLP,NN,NRP,NSV1,NUMB,NXTLC,OPC,OPPTR,OPV,PBYT18,PBYT27,PBYT36
+        EXTERN  PBYT9,PCOP,PMCPTR,PMCWRT,PRCPTR,PSOP,PSW,S.MOD,SAVEA,SAVLLC
+        EXTERN  SAVPTR,SCID,SCOLON,SCVAL,SLICED,SNMBR,SOPC,SOPV,SXWORK,TOFLG
+        EXTERN  TSTFLG,V,VARFLG,VARID,VARID1,VARPTR,VEE1
+
+        EXTERN  ERROR,EXPR,FSTLN,GTLNUM,IISC,MSGOUT,MSTATE,NXTLN,ESCCHK
+        EXTERN  PTRDF9,SETMOD,SIMPLV,STKOP,SYMBOL,VAR,VAR2,WINSYM
+        EXTERN  WLC1,WLC18,WLC27,WLC9,LINOUT,XERROR,SVNXLN,STRCON,CAT
+
+        EXTERN  CXER1
+
+       EXTERN   TOPN,VOPN,TNEW,TLOC,TPOP,TRLS,VRLS
+        EXTERN  VPUT,VPOP,VGET,VRPL,TSTART,TNEXT
+        EXTERN  VSTART,VNEXT,LALOC,LFREE,RFRE,CXTDO
+        EXTERN  MATFLG
+
+
+        SUBTTL   NOIF     CHART P24
+        DCL      NOIF
+
+;                         NOIF 1
+        SKIPN    0,IFSW
+        JRST     NOIF$$
+
+;                         NOIF 2
+        CALL     ERROR,<31>
+
+;                         EXIT NOIF
+NOIF$$: RETURN   NOIF
+
+
+        SUBTTL   VARDIM   CHART P25
+        DCL      VARDIM
+
+;                         VARDIM 1
+        MOVEM    0,DIMCDE
+        MOVEM    1,DFG
+
+;                         VARDIM 2-3
+VARD3:  BCALL    VDIM
+
+;                         VARDIM 4
+        SKIPE    0,FVAR
+        JRST     VARD6
+
+;                         VARDIM 5
+        CALL     ERROR,<29>
+
+;                         VARDIM 6
+VARD6:  MOVE     1,VARID
+        CAML    1,NSV1
+        JRST     VARD9
+        JUMPN    1,VARD8
+        MOVE     2,VARID1
+        CAMGE   2,NSV1
+        JRST     VARD8
+
+;                         VARDIM 7
+        BCALL    ARYVAR
+        JRST     VARD10
+
+;                         VARDIM 8
+VARD8:  CALL     ERROR,<65>
+
+;                         VARDIM 9
+VARD9:  BCALL    SIMVAR
+
+;                         VARDIM 10
+VARD10: SKIPE    0,DFG
+        JRST     VARD11
+        MOVE     1,C
+        CAIE     1,5
+        JRST     VARD11
+        MOVE     1,V
+        CAIN     1,1
+        JRST     VARD3
+
+;                         VARDIM 11
+VARD11: MOVEI    1,2
+        MOVEM    1,DCFLGS
+
+;                         EXIT VARDIM
+        RETURN   VARDIM
+
+
+        SUBTTL   VDIM     CHART P25.3
+        BDCL     VDIM
+
+;                         VDIM 1
+        MOVEI    1,1
+        MOVEM    1,VARFLG
+        MOVEM    1,DIMFLG
+
+;                         VDIM 2
+        MOVE     1,DFG
+        CAIN     1,2
+        JRST     VDIM4
+
+;                         VDIM 3
+        CALL     SYMBOL
+
+;                         VDIM 4
+VDIM4:  CALL     VAR2
+
+;                         EXIT VDIM
+        BRETURN  VDIM
+
+
+        SUBTTL   ARYVAR CHART P25.7
+        BDCL     ARYVAR
+
+;  ARYVAR 0-0A
+        MOVE     1,NARGS
+        CAIG     1,10
+        JRST     ARYV1
+        CALL     ERROR,<11>
+
+;                         ARYVAR 1
+ARYV1:  MOVE     1,C
+        CAIE     1,5
+        JRST     ARYV9
+        MOVE     1,V
+        CAIE     1,2
+        JRST     ARYV9
+
+;                         ARYVAR 2
+        MOVE     1,DIMCDE
+        CAIN     1,6
+        JRST     ARYV4
+
+;                         ARYVAR 3
+        CALL     ERROR,<53>
+
+;                         ARYVAR4
+ARYV4:  MOVE     1,VARID1
+        MOVEM    1,DIMID
+        MOVE     1,NARGS
+        MOVEM    1,DIMARG
+
+;                         ARYVAR 5
+        CALL     EXPR
+
+;                         ARYVAR 6
+        CALL     WLC1,<22>
+
+;                         ARYVAR 7
+        CALL     WLC18,<$,DIMID>
+
+;                         ARYVAR 8
+        CALL     WLC9,<$,DIMARG>
+        JRST     ARYV$$
+
+;                         ARYVAR 9
+ARYV9:  MOVE     0,DIMCDE
+        LSH      0,1
+        ADDI     0,8
+        CALL     WLC1
+
+;                         ARYVAR 10
+        CALL     WLC18,<$,VARID1>
+
+;                         ARYVAR 11
+        CALL     WLC9,<$,NARGS>
+
+;                         EXIT ARYVAR
+ARYV$$: BRETURN  ARYVAR
+
+
+        SUBTTL   SIMVAR CHART P25.9
+        BDCL     SIMVAR
+
+;                         SIMVAR 1
+        MOVE     1,C
+        CAIE     1,5
+        JRST     SIMV8
+        MOVE     1,V
+        CAIE     1,2
+        JRST     SIMV8
+
+;                         SIMVAR 2
+        MOVE     1,DIMCDE
+        CAIN     1,6
+        JRST     SIMV4
+
+;                         SIMVAR 3
+        CALL     ERROR,<53>
+
+;                         SIMVAR 4
+SIMV4:  MOVE     1,VARID
+        MOVEM    1,DIMID
+
+;                         SIMVAR 5
+        CALL     EXPR
+
+;                         SIMVAR 6
+        CALL     WLC1,<23>
+
+;                         SIMVAR 7
+        CALL     WLC18,<$,DIMID>
+        JRST     SIMV$$
+
+;                         SIMVAR 8
+SIMV8:  MOVE     0,DIMCDE
+        LSH      0,1
+        ADDI     0,9
+        CALL     WLC1
+
+;                         SIMVAR 9
+        CALL     WLC18,<$,VARID>
+
+;                         EXIT SIMVAR
+SIMV$$: BRETURN  SIMVAR
+
+
+        SUBTTL   FOR CHART P26
+        DCL      FOR
+
+;                         FOR 1
+        BCALL    FORNDX
+
+;                         FOR 2-3
+FOR3:   SETZM    0,FORCDE
+        SETZM    0,BYFLG
+        SETZM    0,TOFLG
+
+;                         FOR 4
+        CALL     EXPR
+
+;                         FOR 5
+        CALL     WLC1,<98>
+
+;                         FOR 6-7
+FOR7:   MOVE     1,C
+        MOVE     2,V
+        CAIE     1,3
+        JRST     FOR7A
+        CAIN     2,8
+        JRST     FOR11
+        CAIN     2,7
+        JRST     FOR10
+FOR7A:  CAIE     1,4
+        JRST     FOR7B
+        CAIN     2,2
+        JRST     FOR9
+        CAIN     2,3
+        JRST     FOR8
+FOR7B:  JUMPN    1,FOR12
+        CAIE     2,18
+        JRST     FOR12
+
+;                         FOR 8
+FOR8:   BCALL    BYFOR
+        JRST     FOR13
+
+;                         FOR 9
+FOR9:   BCALL    TOFOR
+        JRST     FOR13
+
+;                         FOR 10
+FOR10:  BCALL    WHLFOR
+        JRST     FOR13
+
+;                         FOR 11
+FOR11:  BCALL    UNTFOR
+        JRST     FOR13
+
+;                         FOR 12
+FOR12: BCALL    VALFOR
+
+;                         FOR 13
+FOR13:  SKIPN    0,FDN
+        JRST     FOR7
+
+;                         FOR 14
+        MOVE     1,C
+        CAIE     1,5
+        JRST     FOR15
+        MOVE     1,V
+        CAIN     1,1
+        JRST     FOR3
+
+;                         FOR 15
+FOR15:  CALL     WLC1,<60>
+
+;                         EXIT FOR
+        RETURN   FOR
+
+
+        SUBTTL   FORNDX CHART P26.1
+        BDCL     FORNDX
+
+;                         FORNDX 1
+        CALL     VAR
+
+;                         FORNDX 2
+        SKIPE    0,VARID
+        JRST     FORN4
+
+;                         FORNDX 3
+        CALL     ERROR,<69>
+
+;                         FORNDX 4
+FORN4:  MOVE     1,VARID
+        MOVEM    1,FORVAR
+
+;                         FORNDX 5
+        MOVE     1,C
+        CAIE     1,8
+        JRST     FORN6
+        MOVE     1,V
+        CAIN     1,10
+        JRST     FORN7
+
+;                         FORNDX 6
+FORN6:  CALL     ERROR,<70>
+
+;                         FORNDX 7
+FORN7:  CALL     WLC1,<51>
+
+;                         FORNDX 8
+        CALL     WLC18,<$,FORVAR>
+
+;                       FORNDX 9
+        AOS     0,FORCNT
+
+;                         EXIT FORNDX
+        BRETURN  FORNDX
+
+
+        SUBTTL   BYFOR CHART P26.8
+        BDCL     BYFOR
+
+;                         BYFOR 1
+        SKIPE    0,BYFLG
+        JRST     BYFR3
+
+;                BYFOR 2
+        MOVEI    1,1
+        MOVEM    1,BYFLG
+        JRST     BYFR4
+
+;                         BYFOR 3
+BYFR3:  CALL     ERROR,<71>
+
+;                         BYFOR 4
+BYFR4:  CALL     EXPR
+
+;                         BYFOR 5
+        AOS      0,FORCDE
+
+;                         BYFOR 6
+        SETZM    0,FDN
+
+;                         EXIT BYFOR
+        BRETURN  BYFOR
+
+
+        SUBTTL   TOFOR CHART P26.9
+        BDCL     TOFOR
+
+;                         TOFOR 1
+        SKIPE    0,TOFLG
+        JRST     TOFR3
+
+;                         TOFOR 2
+        MOVEI    1,1
+        MOVEM    1,TOFLG
+        JRST     TOFR4
+
+;                         TOFOR 3
+TOFR3:  CALL     ERROR,<72>
+
+;                         TOFOR 4
+TOFR4:  CALL     EXPR
+
+;                         TOFOR 5
+        SKIPE    0,BYFLG
+        JRST     TOFR7
+
+;                         TOFOR 6
+        AOS      0,FORCDE
+        JRST     TOFR8
+
+;                         TOFOR 7
+TOFR7:  MOVEI    1,2
+        ADDM     1,FORCDE
+
+;                         TOFOR 8
+TOFR8:  SETZM    0,FDN
+
+;                         EXIT TOFOR
+        BRETURN  TOFOR
+
+
+        SUBTTL   WHLFOR CHART P26.10
+        BDCL     WHLFOR
+
+;                         WHLFOR 1
+        SKIPN    0,TOFLG
+        JRST     WHLF3
+
+;                         WHLFOR 2
+        CALL     ERROR,<73>
+
+;                         WHLFOR 3
+WHLF3:  MOVEI    1,4
+        ADDM     1,FORCDE
+
+;                         WHLFOR 4
+        CALL     WLC1,<117>
+
+;                         WHLFOR 5
+        CALL     EXPR
+
+;                         WHLFOR 6
+        CALL     WLC1,<27>
+
+;                         WHLFOR 7
+        MOVEI    0,52
+        ADD      0,FORCDE
+        CALL     WLC1
+
+;                         WHLFOR 8
+        CALL     WLC1,<1>
+
+;                         WHLFOR 9
+        MOVEI    1,1
+        MOVEM    1,FDN
+
+;                         EXIT WHLFOR
+        BRETURN  WHLFOR
+
+
+        SUBTTL   UNTFOR CHART P26.10
+        BDCL     UNTFOR
+
+;                         UNTFOR 1
+        SKIPN    0,TOFLG
+        JRST     UNTF3
+
+;;                        UNTFOR 2
+        CALL     ERROR,<74>
+
+;                         UNTFOR 3
+UNTF3:  MOVEI    1,6
+        ADDM     1,FORCDE
+
+;                         UNTFOR 4
+        CALL     WLC1,<117>
+
+;                         UNTFOR 5
+        CALL     EXPR
+
+;                         UNTFOR 6
+        CALL     WLC1,<28>
+
+;                         UNTFOR 7
+        MOVEI    0,52
+        ADD      0,FORCDE
+        CALL     WLC1
+
+;                         UNTFOR 8
+        CALL     WLC1,<1>
+
+;                         UNTFOR 9
+        MOVEI    1,1
+        MOVEM    1,FDN
+
+;                         EXIT UNTFOR
+        BRETURN  UNTFOR
+
+
+        SUBTTL   VALFOR CHART P26.12
+        BDCL     VALFOR
+
+;                         VALFOR 1
+        SKIPN    0,BYFLG
+        JRST     VALF4
+
+;  VALFOR 2
+        SKIPE    0,TOFLG
+        JRST     VALF4
+
+;                         VALFOR 3
+        CALL     ERROR,<75>
+
+;                         VALFOR 4
+VALF4:  MOVEI    0,52
+        ADD      0,FORCDE
+        CALL     WLC1
+
+;                         VALFOR 5
+        MOVEI    1,1
+        MOVEM    1,FDN
+
+;                         EXIT VALFOR
+        BRETURN  VALFOR
+
+
+        SUBTTL   INDRCT CHART P27
+        DCL      INDRCT
+
+;                         INDRCT 1
+        SETO     1,0
+        CAME     1,NUMB
+        JRST     INDR$$
+
+;                         INDRCT 2
+        CALL     ERROR,<26>
+
+
+;;                        EXIT INDRCT
+INDR$$: RETURN   INDRCT
+
+
+        SUBTTL   NOMOD CHART P28
+        DCL      NOMOD
+
+;                         NOMOD 1
+        MOVE     1,C
+        CAIE     1,3
+        JRST     NOMD$$
+        MOVE     1,V
+        CAIG     1,2
+        JRST     NOMD$$
+
+;                         NOMOD 2
+        CALL     ERROR,<27>
+
+;                         EXIT NOMOD
+NOMD$$: RETURN NOMOD
+
+
+        SUBTTL   SAVE9 CHART P29
+        DCL      SAVE9
+
+;                         SAVE9 1
+        MOVE     1,LLC
+        MOVEM    1,SAVLLC
+
+;                         SAVE9 2
+        CALL     WLC9
+
+;                         EXIT SAVE9
+        RETURN   SAVE9
+
+
+        SUBTTL   FILL9 CHART P30
+        DCL      FILL9
+
+;                         FILL9 1
+        MOVEM    0,SAVEA
+
+;                         FILL9 2
+        MOVE     0,LLC
+        EXCH     0,SAVLLC
+        MOVEM    0,LLC
+
+;                         FILL9 3
+        CALL     WLC9,<$,SAVEA>
+
+;                         FILL9 4
+        MOVE     1,SAVLLC
+        MOVEM    1,LLC
+
+;                         EXIT FILL9
+        RETURN   FILL9
+
+
+        SUBTTL   NEWPKT CHART P31
+        DCL      NEWPKT
+
+;                         NEWPKT 1
+        CALL     WPMCSZ
+
+;                         NEWPKT 2
+        MOVEI    1,DW
+        ADDB     1,BPTR
+        MOVE     2,LLC
+        MOVEM    2,0(1)
+        MOVEM    1,CPKT
+
+;                         EXIT NEWPKT
+        RETURN   NEWPKT
+
+
+        SUBTTL   CONMOD CHART P32
+        DCL      CONMOD
+
+;                         CONMOD1
+        MOVEM    0,MODCDE
+
+;                         CONMOD 2
+        CALL     WLC1,<97>
+
+;                         CONMOD 3
+        CALL     EXPR
+
+;                         CONMOD 4
+        CALL     WLC1,<$,MODCDE>
+
+;                         CONMOD 5
+        CALL     NEWPKT
+
+;                         CONMOD 6
+        CALL     WLC1,<1>
+
+;;                        EXIT CONMOD
+        RETURN   CONMOD
+
+
+        SUBTTL   NAMECV CHART P33
+        DCL      NAMECV
+
+;                         NAMECV 1
+        MOVE     1,CVPTR
+        ADD      1,NN
+        SUBI     1,1
+        MOVE     2,0(1)
+        HLRZM    2,C
+        HRRZM    2,V
+
+;                         EXIT NAMECV
+        RETURN   NAMECV
+
+
+        SUBTTL   WLC36    CHART P34
+        DCL      WLC36
+
+;                         WLC36 1
+        ROT      0,9
+        IDPB     0,LLC
+        ROT      0,9
+        IDPB     0,LLC
+        ROT      0,9
+        IDPB     0,LLC
+        ROT      0,9
+        IDPB     0,LLC
+
+;                         EXIT WLC36
+        RETURN   WLC36
+
+
+        SUBTTL   STKFN CHART P35
+        DCL      STKFN
+
+;                         STKFN 1
+        MI      1,FNFLD
+        ADDB    1,FNPTR
+
+;                       STKFN 2
+        M       2,C
+        CAIE    2,27
+        J       STKF7
+
+;                       STKFN 3
+        M       2,LLC
+        FPUT    2,1,ITID        ;R1 SET ABOVE
+        MI      2,0
+        FPUT    2,1,FORCD
+        FPUT    2,1,BYFG
+        FPUT    2,1,TOFG
+        FPUT    2,1,FRSTAT
+        FPUT    2,1,CONFG
+
+;                       STKFN 4-6
+        CALL    WLC9,<124>
+        CALL    WLC9,<124>
+        CALL    WLC9,<124>
+
+;                       STKFN 7
+STKF7:  M       1,FNPTR
+        MI      2,0
+        FPUT    2,1,ARYSLC
+        FPUT    2,1,DIMSLC
+        FPUT    2,1,CCT
+        M       2,C
+        FPUT    2,1,FNCLS
+        M       2,V
+        FPUT    2,1,FNVAL
+        M       2,NLP
+        SUB     2,NRP
+        FPUT    2,1,PCT
+
+;                         EXIT STKFN
+        RETURN   STKFN
+
+
+        SUBTTL   USTKFN CHART P36
+        DCL      USTKFN
+
+;                         USTKFN 1
+        M       1,FNPTR
+        FGET    3,1,FNCLS
+        MM      3,FNC
+        FGET    2,1,FNVAL
+        MM      2,FNV
+        FGET    2,1,CCT
+        ADDI    2,1
+        MM      2,NARGS
+        FGET    2,1,ARYSLC
+        MM      2,SLICED
+        FGET    2,1,DIMSLC
+        MM      2,SCOLON
+
+;                       USTKFN 2
+        CAIE    3,27    ;R3 SET ABOVE
+        J       USTK4
+
+;                       USTKFN 3
+        FGET    2,1,FORCD       ;R1 SET ABOVE
+        MM      2,IFRCD
+        FGET    2,1,BYFG
+        MM      2,IBYFG
+        FGET    2,1,TOFG
+        MM      2,ITOFG
+        FGET    2,1,FRSTAT
+        MM      2,IFRST
+        FGET    2,1,CONFG
+        MM      2,ICONF
+
+;                       USTKFN 4
+USTK4:  SUBI    1,FNFLD
+        MM      1,FNPTR
+
+;                         EXIT USTKFN
+        RETURN   USTKFN
+
+
+        SUBTTL   EMPTY CHART P37
+        DCL      EMPTY
+
+;                         EMPTY 1
+        CALL     TSTSTK,<8,1>
+
+;                         EXIT EMPTY
+        RETURN   EMPTY
+
+
+        SUBTTL   TSTSTK CHART P38
+        DCL      TSTSTK
+
+;                         TSTSTK 1
+        MOVEM    0,OPC
+        MOVEM    1,OPV
+        SETZM    0,TSTFLG
+
+;                         TSTSTK 2-3
+TSTK3:  CALL     GETOP
+
+;                         TSTSTK 4
+        BCALL    TSTOPS
+
+;                         TSTSTK 5
+        MOVE     1,PCOP
+        CAMLE    1,PSOP
+        JRST     TSTK11
+
+;                         TSTSTK 6
+        CALL     USTKOP
+
+;                         TSTSTK 6.5
+        MOVE    1,MATFLG
+        JUMPE   1,TSTK7
+        MOVE    1,SOPV
+        CAIN    1,27
+        ADDI    1,2
+        CAIN    1,31
+        SUBI    1,1
+        MOVEM   1,SOPV
+;                         TSTSTK 7
+TSTK7:  MOVE    1,SOPC
+        CAIE     1,6
+        JRST     TSTK9
+
+;                         TSTSTK 8
+        CALL     WLC1,<235>
+        JRST     TSTK10
+
+;                         TSTSTK 9
+TSTK9:  CALL     WLC1,<236>
+
+;                         TSTSTK 10
+TSTK10: CALL     WLC9,<$,SOPV>
+        JRST     TSTK14
+
+;                         TSTSTK 11
+TSTK11: MOVE     1,OPC
+        CAIE     1,8
+        JRST     TSTK12
+        MOVE     1,OPV
+        CAIN     1,1
+        JRST     TSTK13
+
+;                         TSTSTK 12
+TSTK12: CALL     STKOP
+
+;                         TSTSTK 13
+TSTK13: MOVEI    1,1
+        MOVEM    1,TSTFLG
+
+;                         TSTSTK 14
+TSTK14: SKIPN    0,TSTFLG
+        JRST     TSTK3
+
+;                         EXIT TSTSTK
+        RETURN   TSTSTK
+
+
+        SUBTTL   TSTOPS CHART P38.4
+        BDCL     TSTOPS
+
+;                         TSTOPS 1
+        MOVE     1,SOPC
+        CAIE     1,6
+        JRST     TSTP6
+
+;                         TSTOPS 2
+        MOVE     1,S        CAIN     1,5
+        JRST     TSTP5
+        CAIE     1,2
+        JRST     TSTP4
+
+;                         TSTOPS 3
+        MOVEI    1,2
+        MOVEM    1,HOP
+        JRST     TSTP7
+
+;                         TSTOP5 4
+TSTP4:  MOVEI    1,32
+        MOVEM    1,HOP
+        JRST     TSTP7
+
+;                         TSTOPS 5
+TSTP5:  MOVEI    1,9
+        MOVEM    1,HOP
+        JRST     TSTP7
+
+;                         TSTOPS 6
+TSTP6:  MOVE     1,SOPV
+        MOVEM    1,HOP
+
+;                         TSTOPS 7
+TSTP7:  MOVE     1,PRCPTR
+        ADD      1,HOP
+        MOVE     2,0(1)
+        MOVEM    2,PSOP
+
+;  TSTOPS 8
+        MOVE     1,PRCPTR
+        ADD      1,OPV
+        MOVE     2,0(1)
+        MOVEM    2,PCOP
+
+;                         EXIT TSTOPS
+        BRETURN  TSTOPS
+
+
+        SUBTTL   USTKOP CHART P39
+        DCL      USTKOP
+
+;                         USTKOP 1
+        SOS      0,OPPTR
+
+;                         EXIT USTKOP
+        RETURN   USTKOP
+
+
+        SUBTTL   FNCDE CHART P40
+        DCL      FNCDE
+
+;                         FNCDE 1
+        MOVE     1,FCVPTR
+        FGET     0,1,FC1
+
+;                         FNCDE 2
+        CALL     WLC1
+
+;                         FNCDE 3
+        MOVE     1,FCVPTR
+        FGET     0,1,FV1
+
+;                         FNCDE 4
+        CALL     WLC9
+
+;                         EXIT FNCDE
+        RETURN   FNCDE
+
+
+        SUBTTL   FNCDE1 CHART P41
+        DCL      FNCDE1
+
+;                         FNCDE1 1
+        MOVE     1,FCVPTR
+        FGET     0,1,FC2
+
+;                         FNCDE1 2
+        CALL     WLC1
+
+;                         FNCDE1 3
+        MOVE     1,FCVPTR
+        FGET     0,1,FV2
+
+;                         FNCDE1 4
+        CALL     WLC9
+
+;                         EXIT FNCDE1
+        RETURN   FNCDE1
+
+
+        SUBTTL   GETOP CHART P42
+        DCL      GETOP
+
+;                         GETOP 1-2
+        MOVE     1,OPPTR
+        MOVE     2,0(1)
+        HRRZM    2,SOPV
+        HLRZM    2,SOPC
+
+;                         EXIT GETOP
+        RETURN   GETOP
+
+
+        SUBTTL   CKLNUM CHART P43
+        DCL      CKLNUM
+
+;                         CKLNUM 1
+        CALL     SYMBOL
+
+;                         CKLNUM 2
+        MOVE     1,C
+        CAIE     1,11
+        JRST     CKLN7
+
+;                         CKLNUM 3
+        MOVE     1,V
+        JUMPL    1,CKLN6
+        CAILE    1,99999
+        JRST     CKLN6
+
+;                         CKLNUM 4
+        MOVEI    1,1
+        MOVEM    1,FNUM
+        MOVE     1,V
+        MOVEM    1,LNMB
+
+;                         CKLNUM 5
+        CALL     SYMBOL
+        JRST     CKLN$$
+
+;                         CKLNUM 6
+CKLN6:  CALL     ERROR,<25>
+
+;                         CKLNUM 7
+CKLN7:  SETZM    0,FNUM
+
+;                         EXIT CKLNUM
+CKLN$$: RETURN   CKLNUM
+
+
+        SUBTTL   PLNRNG   CHART P44
+        DCL      PLNRNG
+
+;                         PLNRNG 1
+        CALL     CKLNUM
+
+;                         PLNRNG 2
+        SKIPN    0,FNUM
+        JRST     PLNR$$
+
+;                         PLNRNG 3
+        MOVE     1,C
+        MOVE     2,V
+        CAIE     1,7
+        JRST     PLNR3A
+        CAIN     2,4
+        JRST     PLNR4
+PLNR3A: CAIE     1,5
+        JRST     PLNR9
+        CAIE     2,2
+        JRST     PLNR9
+
+;                         PLNRNG 4
+PLNR4:  CALL     GTLNUM
+
+;                         PLNRNG 5
+        MOVE     1,V
+        CAMGE    1,LNMB
+        JRST     PLNR8
+
+;                         PLNRNG 6
+        MOVE     1,V
+        MOVEM    1,LNMB1
+
+;                         PLNRNG 7
+        CALL     SYMBOL
+        JRST     PLNR$$
+
+;                         PLNRNG 8
+PLNR8:  CALL     ERROR,<57>
+
+;                         PLNRNG 9
+PLNR9:  MOVE     1,LNMB
+        MOVEM    1,LNMB1
+
+;                         EXIT PLNRNG
+PLNR$$: RETURN   PLNRNG
+
+
+        SUBTTL   WLNRNG CHART P45
+        DCL      WLNRNG
+
+;                         WLNRNG 1 
+        SETZM    0,FLRNG
+
+;                         WLNRNG 2-3
+WLNR3:  CALL     PLNRNG
+
+;                         WLNRNG 4
+        SKIPE    0,FNUM
+        JRST     WLNR7
+
+;                         WLNRNG 5
+        SKIPN    0,FLRNG
+        JRST     WLNR10
+
+;                         WLNRNG 6
+        CALL     ERROR,<57>
+
+;                         WLNRNG 7
+WLNR7:  MOVEI    1,1
+        MOVEM    1,FLRNG
+
+;                         WLNRNG 8
+        CALL     WLC27,<$,LNMB>
+
+;                         WLNRNG 9
+        CALL     WLC27,<$,LNMB1>
+
+;                         WLNRNG 10
+WLNR10: MOVE     1,C
+        CAIE     1,5
+        JRST     WLNR11
+        MOVE     1,V
+        CAIN     1,1
+        JRST     WLNR3
+
+;                         WLNRNG 11
+WLNR11: SKIPE    0,FLRNG
+        JRST     WLNR$$
+        SKIPE    0,SCID
+        JRST     WLN11A
+        MOVE     1,SCVAL
+        CAIN     1,2
+        JRST     WLNR$$
+WLN11A: MOVE     1,C
+        CAIE     1,4
+        JRST     WLNR$$
+        MOVE     1,V
+        CAIE     1,17
+        JRST     WLNR$$
+
+;                         WLNRNG 12
+        CALL     SYMBOL
+
+;                         WLNRNG 13
+        MOVEI    1,1
+        MOVEM    1,FLRNG
+
+;                         EXIT WLNRNG
+WLNR$$: RETURN   WLNRNG
+
+
+        SUBTTL   GTFNAM   CHART P46
+        DCL      GTFNAM
+
+;                         GTFNAM 1
+        CALL     GTFNM1
+
+;                         GTFNAM 2
+        CALL     SYMBOL
+
+;                         EXIT GTFNAM
+        RETURN   GTFNAM
+
+
+        SUBTTL   USTKVR CHART P47
+        DCL      USTKVR
+
+;                         USTKVR 1
+        MOVE     1,VARPTR
+        MOVE     2,0(1)
+        MOVEM    2,VARID
+
+;                         USTKVR 2
+        SOS       0,VARPTR
+
+;                         EXIT USTKVR
+        RETURN   USTKVR
+
+
+        SUBTTL   MARK     CHART P48
+        DCL      MARK
+
+;                         MARK 1
+        MOVE     1,LINPTR
+        MOVEM    1,MKLNPT
+
+;                         MARK 2
+        MOVE     1,CCHR
+        MOVEM    1,MKCCHR
+
+;                         EXIT MARK
+        RETURN   MARK
+
+
+        SUBTTL   RESET CHART P49
+        DCL      RESET
+
+;                         RESET 1
+        MOVE     1,MKLNPT
+        MOVEM    1,LINPTR
+
+;                         RESET 2
+        MOVE     1,MKCCHR
+        MOVEM    1,CCHR
+
+;                         EXIT RESET
+        RETURN   RESET
+
+
+        subttl  LSTRNG
+        DCL      LSTRNG
+        extern  cancel,savadr
+
+        MOVEM    0,LSTFIL
+        call    rdrng
+        skipe   allflg
+        jrst    lstr1
+        call    ckrng,<0,-1,0>
+lstr1:  skipe   lstfil
+        jrst    lstr3
+
+;                       LSTRING 1/2
+        CALL    CXTDO,<^O15>    ;CR
+        CALL    CXTDO,<^O12>    ;LF
+
+;                         LSTRNG 1
+LSTR3:  call    nxtlin
+        jumpe   r1,lstr$$
+
+        BCALL    PRTLIN
+        skipn   escflg
+        jrst    lstr3
+        CALL    RFRE,<$,LPOINT>
+        skipn   lstfil
+        jrst    lstr4
+        call    cancel,<$,savadr>
+lstr4:  CALL    ESCCHK
+
+lstr$$: return  lstrng
+
+
+        SUBTTL   PRTLIN CHART P50.6.7
+        BDCL     PRTLIN
+
+;                         PRTLIN 1
+        CALL     WINSYM,<$,LPOINT>
+
+;                       PRTLIN 1A
+        BCALL   FFCHEK
+
+;                         PRTLIN 2
+        SKIPE    0,LSTFIL
+        JRST     PRTL4
+
+;                         PRTLIN 3
+        MOVE     0,1
+        MOVEI   1,-1(2)
+        CALL     MSGOUT
+        JRST     PRTL$$
+
+;                         PRTLIN 4
+PRTL4:  CALL     LINOUT
+
+;                         EXIT PRTLIN
+PRTL$$: BRETURN  PRTLIN
+
+
+        SUBTTL  FFCHEK CHART P50.6.7.1A
+        BDCL    FFCHEK
+
+;                       0
+        PUSH    ^O17,1
+        PUSH    ^O17,2
+
+;                       1
+        M       1,LPOINT
+        FGET    2,1,LTOFFG
+        JUMPE   2,FFCH5
+
+;                       2
+        SKIPE   0,LSTFIL
+        J       FFCH4
+
+;                       3
+        CALL    CXTDO,<^O14>
+        J       FFCH5
+
+;                       4
+FFCH4:  M       1,SAVPTR
+        MI      2,^O14
+        IDPBV   2,1
+        MI      2,^O15
+        IDPBV   2,1
+        MI      2,^O12
+        IDPBV   2,1
+        MM      1,SAVPTR
+
+;                       5
+FFCH5:  POP     ^O17,2
+        POP     ^O17,1
+
+;                       EXIT FFCHEK
+        BRETURN FFCHEK
+
+
+        SUBTTL   GETC9 CHART P51
+        DCL      GETC9
+
+;                         GETC9 1
+        ILDB     1,NXTLC
+        MOVEM    1,CBYT9
+
+
+                          EXIT GETC9
+        RETURN   GETC9
+
+
+        SUBTTL   GETC18 CHART P52
+        DCL      GETC18
+
+;                         GETC18 1
+        ILDB     0,NXTLC
+        MOVE     1,0
+        LSH      1,9
+        ILDB     0,NXTLC
+        IOR      1,0
+
+;                         GETC18 2
+        MOVEM    1,CBYT18
+
+;                         EXIT GETC18
+        RETURN   GETC18
+
+
+        SUBTTL   GETC27 CHART P53
+        DCL      GETC27
+
+;                         GETC27 1
+        MOVEI    1,0
+        MOVEI    2,3
+
+;                         GETC27 2
+GTC272: LSH      1,9
+        ILDB     0,NXTLC
+        IOR      1,0
+        SOJG     2,GTC272
+
+;                         GETC27 3
+        MOVEM    1,CBYT27
+
+;                         EXIT GETC27
+        RETURN   GETC27
+
+
+        SUBTTL   LOHIGH CHART P54
+        DCL      LOHIGH
+
+;                         LOHIGH 1
+        CALL     GETC18
+
+;                         LOHIGH 2
+        HRLZ     1,CBYT9
+        ADD      1,CBYT18
+        MOVEM    1,LOWLN
+
+;                         LOHIGH 3
+        CALL     GETC27
+
+;                         LOHIGH 4
+        MOVE     1,CBYT27
+        MOVEM    1,HIGHLN
+
+;                         LOHIGH 5
+        CALL     GETC9
+
+;                         EXIT LOHIGH
+        RETURN   LOHIGH
+
+
+        SUBTTL   LRTNMB CHART P55
+        DCL      LRTNMB
+
+;                         LRTNMB 1-2
+        MOVE     1,LPOINT
+        FGET     2,1,LNUMB
+        MOVEM    2,SNMBR
+        CAIN     2,100002
+        JRST     LRTN3
+        CAIE     2,100003
+        JRST     LRTN$$
+
+;                         LRTNMB 3
+LRTN3:  MOVE     1,SNMBR
+        SUBI     1,100004
+         MOVEM   1,SNMBR
+
+;                         EXIT LRTNMB
+LRTN$$: RETURN   LRTNMB
+
+
+        SUBTTL   DECENC CHART P56
+        DCL      DECENC
+
+;                         DECENC 1
+        MOVEM    0,DCEC
+        MOVEI    1,1
+        MOVEM    1,KILFLG
+
+;                         DECENC 2
+        CALL     SIMPLV
+
+;                         DECENC 3
+        MOVE     1,VARID
+        MOVEM    1,DCECID
+
+;                         DECENC 4
+        MOVE     1,C
+        CAIE     1,5
+        JRST     DCNC5
+        MOVE     1,V
+        CAIN     1,1
+        JRST     DCNC6
+
+;                         DECENC 5
+DCNC5:  CALL     ERROR,<133>
+
+;                         DECENC 6
+DCNC6:  CALL     EXPR
+
+;                         DECENC 7
+        MOVEI    0,76
+        ADD      0,DCEC
+        CALL     WLC9
+
+;                         DECENC 8
+        CALL     WLC18,<$,DCECID>
+
+;                         DECENC 8A
+        CALL     SETMOD
+
+;                         DDECENC 9
+        BCALL    DCECVS
+
+;                         EXIT DECENC
+        RETURN   DECENC
+
+
+        SUBTTL   DCECVS CHART P56.9
+        BDCL     DCECVS
+
+;                         DCECVS 1
+        MOVE     1,C
+        CAIE     1,5
+        JRST     DCEC2
+        MOVE     1,V
+        CAIN     1,2
+        JRST     DCEC3
+
+;                         DCECVS 2
+DCEC2:  CALL     ERROR,<32>
+
+;                         DCECVS 3-4
+DCEC3:  SKIPE   0,DCEC
+        JRST    DCEC9
+        CALL     VAR
+
+;                         DCECVS 5
+        SKIPE    0,VARID
+        JRST     DCEC7
+
+;                         DCECVS 6
+        CALL     ERROR,<136>
+
+;                         DCECVS 7
+DCEC7:  CALL    WLC9,<78>
+
+;                         DCECVS 8
+        CALL     WLC18,<$,VARID>
+        JRST    DCEC11
+
+;                       DCECVS 9
+DCEC9:   CALL  EXPR
+
+;                       DCECVS 10
+        CALL    WLC9,<79>
+
+
+;                         DCECVS 11
+DCEC11: MOVE     1,C
+        CAIE     1,5
+        JRST     DCEC$$
+        MOVE     1,V
+        CAIN     1,1
+        JRST     DCEC3
+
+;                         EXIT DCECVS
+DCEC$$: BRETURN  DCECVS
+
+
+        SUBTTL   IZGETC CHART P57
+        DCL      IZGETC
+
+;                         IZGETC 1
+        MOVE     1,BPBGN
+        MOVE     0,0(1)
+        MOVEM    0,NXTLC
+
+;                         EXIT IZGETC
+        RETURN   IZGETC
+
+        subttl  delrng
+
+        dcl     delrng
+        extern  yn.fnm,cxer2,resume,mdufg
+
+        call    rdrng
+        call    ckrng,<-1,-1,-1>
+        skipe   allflg
+        jrst    doall1
+
+del1:   call    nxtlin
+        jumpe   r1,delr$
+        call    dellin
+        jrst    del1
+
+doall1: skipg   allflg
+        jrst    doall2
+        call    yn.fnm,<<[asciz/Delete all? /]>,0>
+        jumpn   r1,doall2
+        type    error,</Command aborted./>,<g.cr.b,cr.a>
+        jrst    resume
+
+doall2: skipn   mdufg
+        call    mstate
+        clrfn   sxwork
+        setzm   s.mod
+        movei   r1,^d10
+        movem   t1,psw
+        setom   freflg
+delr$:  return  delrng
+        subttl  CKRNG
+;
+;
+;       The purpose of this routine is to check line ranges
+;       specified for a DELETE, LIST, EDIT or similiar command.
+;
+;       Arguments are: ALLCHK, RNGCHK and FATAL. If ALLCHK is true (-1) then
+;       the line ranges are checked for being equal to ALL lines and
+;       ALLFLG is set to zero if not ALL lines, -1 if the word ALL
+;       was used, and one if the line ranges were equal to ALL.
+;       If RNGCHK is true then a check is made for null line ranges and
+;       if any are found then we issue the appropriate error message and
+;       if FATAL is true then we promptly die (branch to RESUME).
+;
+;       If either ALLCHK or RNGCHK are true then the caller must
+;       first make a call to RDRNG. If both ALLCHK and RNGCHK are false
+;       then CKRNG acts like the old CHKPRG routine, that is, it checks
+;       only for the existance of some lines in the workspace.
+;
+;       First a check is made for NO PROGRAM and we die with the
+;       appropriate error message if this is true.
+;
+;       The following TBA code is intended to represent what is
+;       happening in this routine.
+;
+;
+;
+;     call fstln
+;     call mynxt
+;
+;     if snmbr > 99999 then call xerror(63)
+;
+;     if allflg # true and (allchk or rngchk) then
+;
+;       if allchk then allflg = true    ! allflg = 1 ...
+;
+;       for i = 0 to rngcnt-1
+;
+;         tlow = lh(rngbuf(i))
+;         thgh = rh(rngbuf(i))
+;         usdflg = false
+;
+;         for j = 1 while true
+;           if snmbr < tlow then
+;             allflg = false
+;             if not rngchk then exit
+;             call mynxt
+;           next j
+;         endif
+;
+;         for j = 1 while true
+;           if snmbr <= thgh then
+;             usdflg = true
+;             if (i >= rngcnt-1) and not (allflg and allchk) then exit
+;             call mynxt
+;           next j
+;         endif
+;
+;         if rngchk and not usdflg then
+;           call cxer2(rngerr(tlow,thgh))
+;           goto resume
+;         endif
+;
+;       next i
+;
+;       if snmbr <= 99999 then allflg = false
+;
+;     endif
+;
+;
+;     exit
+;
+;
+;     def mynxt
+;       call svnxln
+;       call lrtnmb
+;       call rfre(lpoint)
+;     endf mynxt
+
+
+        dcl     ckrng,<allchk,rngchk,fatal>,<usdflg>
+
+tlow==0 ; a CALL later on assumes this is in r0.
+thgh==1 ; a CALL later on assumes this is in r1.
+i==2
+t1==3
+
+        call    fstln
+        call    mynxt
+
+        move    t1,snmbr
+        caig    t1,^d99999
+        jrst    ckrng1
+        call    xerror,<^d63>
+
+ckrng1: skipe   allflg
+        jrst    ckrng$
+        skipn   allchk
+        skipe   rngchk
+        jrst    .+2
+        jrst    ckrng$
+
+        skipe   allchk
+        aos     allflg
+
+        setz    i,
+        jrst    ckrng8
+
+ckrng2: hlrz    tlow,rngbuf(i)
+        hrrz    thgh,rngbuf(i)
+        setzm   usdflg
+
+ckrng3: camg    tlow,snmbr
+        jrst    ckrng4
+        setzm   allflg
+        skipn   rngchk
+        jrst    ckrng$
+        call    mynxt
+        jrst    ckrng3
+
+ckrng4: camge   thgh,snmbr
+        jrst    ckrng6
+        setom   usdflg
+        move    t1,rngcnt
+        subi    t1,1
+        camge   i,t1
+        jrst    ckrng5
+        skipe   allflg
+        skipn   allchk
+        jrst    ckrng$
+ckrng5: call    mynxt
+        jrst    ckrng4
+
+ckrng6: skipe   rngchk
+        skipe   usdflg
+        jrst    ckrng7
+        push    p,i
+        call    rngerr
+        skipe   fatal
+        jrst    resume
+        pop     p,i
+
+ckrng7: addi    i,1
+ckrng8: camge   i,rngcnt
+        jrst    ckrng2
+
+        move    t1,snmbr
+        caig    t1,^d99999
+        setzm   allflg
+
+ckrng$: return  ckrng
+
+
+        dclne   mynxt
+        push    p,tlow
+        push    p,thgh
+        push    p,i
+        push    p,t1
+        call    svnxln
+        call    lrtnmb
+        call    rfre,<$,lpoint>
+        pop     p,t1
+        pop     p,i
+        pop     p,thgh
+        pop     p,tlow
+        return  mynxt
+        subttl  RDRNG
+;
+;       This routine is in the business of reading line ranges (or the
+;       word ALL) from the terminal and making sense out of it.
+;
+;       In the case where the input consists of line ranges, the ranges
+;       are stored in the buffer RNGBUF. Each range occupies one
+;       word. The left half contains the starting line number and the
+;       right half contains the ending line number. Ranges are sorted
+;       in ascending order. Overlapping (but not adjacent) ranges
+;       are collapsed. The global variable RNGCNT contains the
+;       number of ranges stored. The flag ALLFLG is set to false (0).
+;
+;       In the case where the input consists of the word ALL, the
+;       flag ALLFLG is set to true (-1).
+;
+;       In both cases, the flag FSTFLG is set to true for use
+;       in initializing the routine NXTLIN.
+;
+;
+;       The following TBA code (minus statement labels), is intended
+;       to represent what is happening in this routine.
+;
+;
+;
+;
+;     fstflg = true
+;
+;     call getc9
+;
+;     if cbyt9 = 255 then
+;
+;       allflg = true
+;
+;     else
+;
+;       allflg = false
+;       rngcnt = 0
+;
+;       for dummy = 1 while true
+;
+;         call lohigh
+;
+;         for i = 0 to rngcnt-1
+;
+;           tlow = lh(rngbuf(i))
+;           thgh = rh(rngbuf(i))
+;
+;           if thgh < tlow then
+;           next i
+;           rngbuf(rngcnt) = packit(lowln,highln)
+;           rngcnt=rngcnt+1
+;
+;         else
+;
+;           rngbuf(j) = rngbuf(j-1)  for j = rngcnt to i+1 by -1
+;           rngcnt = rngcnt + 1
+;           svecnt = rngcnt
+;
+;           tlow = lowln
+;           thgh = highln
+;
+;           t = i+1
+;           for j = i+1 to svecnt-1
+;             if thgh >= lh(rngbuf(j)) then
+;               thgh = max(thgh,rh(rngbuf(j)))
+;               tlow = min(tlow,lh(rngbuf(j))
+;               rngcnt = rngcnt-1
+;             else
+;               rngbuf(t) = rngbuf(j)
+;               t = t+1
+;             endif
+;           next j
+;           rngbuf(i) = packit(tlow,thgh)
+;
+;         endif
+;
+;         if cbyt9 # 255 then
+;         next dummy
+;       endif
+;     endif
+
+
+
+
+
+
+        dcl     rdrng
+
+t1==1
+t2==2
+i==3
+j==4
+t==5
+tlow==6
+thgh==7
+svecnt==^o10
+
+        setom   fstflg
+
+        call    getc9
+
+        setom   allflg
+        move    t1,cbyt9
+        cain    t1,^d255
+        return  rdrng
+        setzm   allflg
+
+        setzm   rngcnt
+
+rdrg1:  call    lohigh
+
+        setz    i,
+        jrst    rdrg3
+
+rdrg2:  hlrz    tlow,rngbuf(i)
+        hrrz    thgh,rngbuf(i)
+
+        caml    thgh,lowln
+        jrst    rdrg4
+
+        addi    i,1
+rdrg3:  camge   i,rngcnt
+        jrst    rdrg2
+
+        hrl     t1,lowln
+        hrr     t1,highln
+        aos     t2,rngcnt
+        movem   t1,rngbuf-1(t2)
+        jrst    rdrg11
+
+rdrg4:  move    j,rngcnt
+        jrst    rdrg6
+
+rdrg5:  move    t1,rngbuf-1(j)
+        movem   t1,rngbuf(j)
+
+        subi    j,1
+rdrg6:  camle   j,i
+        jrst    rdrg5
+
+        aos     svecnt,rngcnt
+
+        move    tlow,lowln
+        move    thgh,highln
+
+        movei   t,1(i)
+        movei   j,1(i)
+        jrst    rdrg10
+
+rdrg7:  hlrz    t1,rngbuf(j)
+        camge   thgh,t1
+        jrst    rdrg8
+        hrrz    t1,rngbuf(j)
+        camge   thgh,t1
+        move    thgh,t1
+        hlrz    t1,rngbuf(j)
+        camle   tlow,t1
+        move    tlow,t1
+        sos     rngcnt
+        jrst    rdrg9
+
+rdrg8:  move    t1,rngbuf(j)
+        movem   t1,rngbuf(t)
+        addi    t,1
+
+rdrg9:  addi    j,1
+rdrg10: camge   j,svecnt
+        jrst    rdrg7
+
+        hrl     thgh,tlow
+        movem   thgh,rngbuf(i)
+
+rdrg11: move    t1,cbyt9
+        caie    t1,^d255
+        jrst    rdrg1
+
+        return  rdrng
+
+        reloc
+        intern  rngbuf,rngcnt,allflg,fstflg
+rngbuf: block   80
+rngcnt: block   1
+allflg: block   1
+fstflg: block   1
+        reloc
+        subttl  NXTLIN
+;
+;
+;       The function of this routine is to step through the lines
+;       specified to a DELETE, EDIT, LIST or similiar command.
+;       It is assumed that a call has been made to RDRNG or CHKRNG.
+;
+;       NXTLIN returns false (0) if there are no more lines. It returns
+;       true (-1) if another line is found. In the event that another
+;       line is found, the global variables LPOINT and LPONT1 contain
+;       the TABLE package pointers to the current and previous
+;       lines, respectively.
+;
+;       NXTLIN attempts to do all of the calls to RFRE that are needed.
+;       If an intervening call to RFRE is made to release LPOINT then
+;       LPONT1 should be moved to LPOINT and the global variable
+;       FREFLG should be set to true. The routine DELLIN takes care
+;       of doing all of this if it is called.
+;
+;       If the calling routine decides to pack it up and go home prior
+;       to getting a false return from NXTLIN then the caller must
+;       make call to RFRE to release LPOINT.
+;
+;       After each call, the global variable SNMBR contains the
+;       current line number.
+;
+;       Note: This code believes that the global variables LOWLN and
+;       HIGHLN belong to it!!
+;
+;
+;       The following TBA code is intended to represent what is
+;       happening in this routine.
+;
+;
+;
+;     if fstflg then
+;       fstflg = false
+;       call fstln
+;       if not allflg then
+;         sveptr = 0
+;         call nxtrng
+;       endif
+;     else
+;       if not freflg then call rfre(lpoint)
+;     endif
+;
+;     freflg = false
+;
+;     call svnxln
+;     call lrtnmb
+;
+;     if snmbr <= 99999 then
+;
+;       if allflg then exit true
+;
+;       for i = 1 while true
+;
+;         for j = 1 while snmbr < lowln
+;           call rfre(lpoint)
+;           call svnxln
+;           call lrtnmb
+;         next j
+;
+;         if snmbr <= highln then exit true
+;
+;         if sveptr < rngcnt then
+;           call nxtrng
+;         next i
+;
+;     endif
+;
+;     call rfre(lpoint)
+;     exit false
+;
+;
+;     def nxtrng
+;       lowln = lh(rngbuf(sveptr))
+;       highln = rh(rngbuf(sveptr))
+;       sveptr = sveptr+1
+;     endf nxtrng
+
+
+        dcl     nxtlin
+
+t1==1
+t2==2
+
+        skipn   fstflg
+        jrst    nxtl2
+        setzm   fstflg
+        call    fstln
+        skipe   allflg
+        jrst    nxtl1
+        setzm   sveptr
+        call    nxtrng
+        jrst    nxtl2
+nxtl1:  skipe   freflg
+        jrst    nxtl2
+        call    rfre,<$,lpoint>
+
+nxtl2:  setzm   freflg
+
+        call    svnxln
+        call    lrtnmb
+
+        move    t1,snmbr
+        caile   t1,^d99999
+        jrst    nxtl$
+
+        skipn   allflg
+        jrst    nxtl3
+        movni   r1,1
+        return  nxtlin
+
+nxtl3:  move    t1,snmbr
+        caml    t1,lowln
+        jrst    nxtl4
+        call    rfre,<$,lpoint>
+        call    svnxln
+        call    lrtnmb
+        jrst    nxtl3
+
+nxtl4:  camle   t1,highln
+        jrst    nxtl5
+        movni   r1,1
+        return  nxtlin
+
+nxtl5:  move    t1,sveptr
+        caml    t1,rngcnt
+        jrst    nxtl$
+        call    nxtrng
+        jrst    nxtl3
+
+nxtl$:  call    rfre,<$,lpoint>
+        setz    r1,
+        return  nxtlin
+
+
+
+        dclne   nxtrng
+        move    t2,sveptr
+        hlrz    t1,rngbuf(t2)
+        movem   t1,lowln
+        hrrz    t1,rngbuf(t2)
+        movem   t1,highln
+        aos     sveptr
+        return  nxtrng
+
+        intern  freflg
+        reloc
+freflg: block   1
+sveptr: block   1
+        reloc
+        subttl  dellin
+        dcl      DELLIN
+
+
+;                       DELLIN 0
+        CALL    MSTATE
+
+;                         DELLIN 1-4
+        AOS      0,DELH
+        SOS     0,NLINES
+        MOVEI   1,1
+        MOVEM   1,S.MOD
+        MOVE     1,LPOINT
+        FGET     2,1,LNXT
+        MOVE     3,LPONT1
+        FPUT     2,3,LNXT
+        MOVEI    2,100003
+        FPUT     2,1,LNUMB
+        CALL    RFRE,<$,LPOINT>
+        MOVE    3,LPONT1
+        MOVEM    3,LPOINT
+        setom   freflg
+
+;                         EXIT DELLIN
+        return   DELLIN
+        subttl  rngerr
+        dclne   rngerr,<line1,line2>,<<ebuff,10>>
+t1==1
+        move    0,[point 7,0]
+        addi    0,ebuff
+
+        move    t1,line1
+        came    t1,line2
+        jrst    rng1
+
+        move    t1,[point 7,[asciz/no line /]]
+        call    shipit
+        jrst    rng2
+
+rng1:   move    t1,[point 7,[asciz/empty line range /]]
+        call    shipit
+        call    ascdig,<,$,line1>
+        movei   t1,"-"
+        idpb    t1,0
+rng2:   call    ascdig,<,$,line2>
+
+        movei   t1,^o15
+        idpb    t1,0
+        movei   t1,^o12
+        idpb    t1,0
+        setz    t1,
+        idpb    t1,0
+
+        call    cxer1,<ebuff>
+
+        return  rngerr
+
+        dclne   shipit
+        ildb    t2,t1
+        skipn   t2
+        return  shipit
+        idpb    t2,0
+        jrst    .-4
+SUBTTL ASCDIG
+DCL     ASCDIG
+;       R0 BYTE POINTER TO WHERE YOU WNAT THE ASCII REP. OF THE NUMBER
+;       R1 THE NUMBER TO BE TRANSLATED INTO ASCII
+
+        MOVE    3,[^D10000000000]
+
+ASCD01: IDIV    1,3
+        JUMPG   1,ASCD03
+        MOVE    1,2
+        IDIVI   3,^D10
+        JUMPG   3,ASCD01
+        MOVEI   1,"0"
+        IDPB    1,0
+        JRST    ASCD$$
+
+ASCD02: IDIV    1,3
+ASCD03: ADDI    1,"0"
+        IDPB    1,0
+        MOVE    1,2
+        IDIVI   3,^D10
+        JUMPG   3,ASCD02
+
+ASCD$$: RETURN ASCDIG
+        SUBTTL   CONST CHART P61
+        DCL      CONST
+
+;                         CONST 1
+        MOVE     1,C
+        JRST     .-10(1)
+        JRST     CONS2
+        JRST     CONS3
+        JRST     CONS5
+        JRST     CONS8
+        JRST     CONS9
+        JRST     CONS10
+        JRST    CONS9A          ; AN AKA NAME
+
+;                CONST 2
+CONS2:  BCALL    ICONST
+        JRST     CONS$$
+
+;                         CONST 3
+CONS3:   CALL     WLC1,<241>
+
+;                         CONST 4
+        CALL     WLC36,<$,V>
+        JRST     CONS$$
+
+;                         CONST 5
+CONS5:  CALL     WLC1,<242>
+
+;                         CONST 6
+        CALL     WLC36,<$,V>
+
+;                         CONST 7
+        CALL     WLC36,<$,VEE1>
+        JRST     CONS$$
+
+;                         CONST 8
+CONS8:  CALL     ERROR,<1>
+
+;                         CONST 9
+CONS9:  BCALL    SCONST
+        JRST     CONS$$
+
+CONS9A: CALL    WLC1,<^D257>    ;AKA PMC
+        JRST    SCON2
+
+;                         CONST 10
+CONS10: CALL     WLC1,<244>
+
+;                         CONST 11
+        CALL     WLC9,<$,V>
+
+;                         EXIT CONST
+CONS$$: RETURN   CONST
+
+
+        SUBTTL   ICONST CHART P61.2
+        BDCL     ICONST
+
+        MOVE    1,V
+        CAMN    1,[1B0]
+        JRST    ICON4           ;fullword
+
+;                         ICONST 1
+        MOVM     1,V
+        CAILE    1,255
+        JRST     ICON4
+
+;                         ICONST 2
+        CALL     WLC1,<239>
+
+;                         ICONST 3
+        CALL     WLC9,<$,V>
+        JRST     ICON$$
+
+;                         ICONST 4
+ICON4:  CALL     WLC1,<240>
+
+;                         ICONST 5
+        CALL     WLC36,<$,V>
+
+;                         EXIT ICONST
+ICON$$: BRETURN  ICONST
+
+
+        SUBTTL   SCONST CHART P61.9
+        BDCL     SCONST
+
+;                         SCONST 1
+        CALL     WLC1,<243>
+
+;                         SCONST 2
+SCON2:  MOVE     1,VEE1
+        CAIG     1,255
+        JRST     SCON4
+
+;                         SCONST 3
+        CALL     ERROR,<55>
+
+;                         SCONST 4
+SCON4:  CALL     WLC9,<$,VEE1>
+
+;                         SCONST 5
+        CALL     MARK
+
+;                         SCONST 6
+        MOVE     1,V
+        MOVEM    1,LINPTR
+
+;                         SCONST 7
+SCON7:  SKIPN    0,VEE1
+        JRST     SCON11
+
+;                         SCONST 8
+        GET
+
+;                         SCONST 9
+        CALL     WLC9,<$,CCHR>
+
+;                         SCONST 10
+        SOS      0,VEE1
+        JRST     SCON7
+
+;                         SCONST 11
+SCON11: CALL     RESET
+
+;                         EXIT SCONST
+        BRETURN  SCONST
+
+
+        SUBTTL   STFNTP CHART P62
+        DCL      STFNTP
+
+;                         STFNTP 1-8
+        MOVE     1,V
+        MOVE     2,STFNTB-21(1)
+        MOVEM    2,FNTYPE
+        JRST     STFN$$
+
+;                         TABLE OF FNTYPE VALUES
+STFNTB: EXP 5,4,6,6,3,2,1
+
+;                         EXIT STFNTP
+STFN$$: RETURN   STFNTP
+
+
+        SUBTTL   GTFNM1 CHART P67
+        DCL      GTFNM1
+
+;                         GTFNM1 1
+        CALL    CAT
+
+;                       GTFNM1 2
+        M       1,CC
+        CAIE    1,5
+        J       GTF15
+        SKIPN   0,CV
+        J       GTF15
+
+;                       GTFNM1 3
+        CALL    STRCON
+
+;                       GTFNM1 4
+        M       1,V
+        MM      1,FILV
+        M       1,VEE1
+        MM      1,FILV1
+        J       GTF111
+
+;                       GTFNM1 5
+GTF15:  CAIN    1,1
+        J       GTF16
+        CAIE    1,3
+        J       GTF110
+        SKIPE   0,CV
+        J       GTF110
+
+;                       GTFNM1 6
+GTF16:  M       1,LINPTR
+        SUBI    1,1
+        MI      2,4
+        IBP     0,1
+        SOJG    2,.-1
+        MM      1,FILV
+        MI      1,1
+        MM      1,FILV1
+
+;                       GTFNM1 7
+GTF17:  GET
+
+;                       GTFNM1 8
+        CAIN    0,^O15
+        J       GTF111
+        CAIN    0," "
+        J       GTF111
+        CAIN    0,","
+        J       GTF111
+
+;                       GTFNM1 9
+        AOS     0,FILV1
+        J       GTF17
+
+;                       GTFNM1 10
+GTF110: SETZM   0,FILV
+        SETZM   0,FILV1
+
+;                       GTFNM1 11
+GTF111: M       1,FILV1
+        CAIGE   1,50
+        J       GTF1$$
+
+;                       GTFNM1 12
+        CALL    XERROR,<56>
+
+;                         EXIT GTFNM1
+GTF1$$: RETURN   GTFNM1
+
+
+        SUBTTL   WPMCSZ CHART P68
+        DCL      WPMCSZ
+
+;                         WPMCSZ 1
+        CALL     WLC1,<255>
+
+;                         WPMCSZ 2
+        MOVE     1,CPKT
+        MOVE     0,0(1)
+        MOVE     1,LLC
+        CALL     PTRDF9   ;SET R0=PTRDF9($CPKT,LLC)
+        MOVE     2,CPKT
+        MOVEM    1,W(2)
+
+;                         EXIT WPMCSZ
+        RETURN   WPMCSZ
+
+
+        SUBTTL   GETP9 CHART P69
+        DCL      GETP9
+
+;                         GETP9 1
+        ILDB     0,PMCPTR
+        MOVEM    0,PBYT9
+
+;                         EXIT GETP9
+        RETURN   GETP9
+
+
+        SUBTTL   GETP18   CHART P70
+        DCL      GETP18
+
+;                         GETP18 1
+        ILDB     0,PMCPTR
+        MOVE     1,0
+        LSH      1,9
+        ILDB     0,PMCPTR
+        IOR      1,0
+
+;                         GETP18 2
+        MOVEM    1,PBYT18
+
+;                         EXIT GETP18
+        RETURN   GETP18
+
+
+        SUBTTL   GETP27 CHART P71
+        DCL      GETP27
+
+;                         GETP27 1
+        MOVEI    1,0
+        MOVEI    2,3
+
+;                         GETP27 2
+GTP272: LSH      1,9
+        ILDB     0,PMCPTR
+        IOR      1,0
+        SOJG     2,GTP272
+
+;                         GETP27 3
+        MOVEM    1,PBYT27
+
+;                         EXIT GETP27
+        RETURN   GETP27
+
+
+        SUBTTL   GETP36 CHART P72
+        DCL      GETP36
+
+;                         GETP36 1
+        MOVEI    1,0
+        MOVEI    2,4
+
+;                         GETP36 2
+GTP362: LSH      1,9
+        ILDB     0,PMCPTR
+        IOR      1,0
+        SOJG     2,GTP362
+
+;                         GETP36 3
+        MOVEM    1,PBYT36
+
+;                         EXIT GETP36
+        RETURN   GETP36
+
+
+        SUBTTL   DECBF CHART P73
+        DCL      DECBF
+
+;                         DECBF 1
+        MOVEI    1," "
+        IDPB     1,PMCWRT
+        AOS      0,NCHR
+
+;                         DECBF 2
+        CALL     IISC,<,$,PMCWRT>
+
+;                         DECBF 3
+        ADDM     1,NCHR
+        MOVEM    2,PMCWRT
+
+;                         EXIT DECBF
+        RETURN   DECBF
+
+
+        SUBTTL   NDEC CHART P74
+        DCL      NDEC
+
+;                         NDEC 1
+        MOVE     1,0
+        JRST     .(1)
+        JRST     NDEC2
+        JRST     NDEC4
+        JRST     NDEC6
+
+;                         NDEC 2
+NDEC2:  CALL     GETP9
+
+;                         NDEC 3
+        CALL     DECBF,<$,PBYT9>
+        JRST     NDEC$$
+
+;                         NDEC 4
+NDEC4:  CALL     GETP18
+
+;                         NDEC 5
+        CALL     DECBF,<$,PBYT18>
+        JRST     NDEC$$
+
+;                         NDEC 6
+NDEC6:  CALL     GETP27
+
+;  NDEC 7
+        CALL     DECBF,<$,PBYT27>
+;                         EXIT NDEC
+NDEC$$: RETURN   NDEC
+
+
+        SUBTTL   NOCT CHART P75
+        DCL      NOCT,<NOCTCT>,<CODEWD>
+
+        CAILE   R0,4
+        MOVEI   R0,4
+        MOVEM   R0,NOCTCT
+        SETZM   CODEWD
+
+NOCT1:  CALL    GETP9
+        MOVE    R1,CODEWD
+        LSH     R1,9
+        ADD     R1,PBYT9
+        MOVEM   R1,CODEWD
+        SOSLE   NOCTCT
+        JRST    NOCT1
+        CALL    OCTBF,<$,CODEWD>
+
+        RETURN   NOCT
+
+
+        SUBTTL   OCTBF CHART P76
+        DCL      OCTBF
+
+;                         OCTBF 1
+        MOVEI    1," "
+        IDPB     1,PMCWRT
+        AOS      0,NCHR
+
+;                         OCTBF 2
+        MOVE     1,0
+        SETZ     0,0
+        MOVEI    2,12
+
+;                         OCTBF 3-4
+OCBF4:  LSHC     0,3
+
+;                         OCTBF 5
+        SUBI     2,1
+
+;                         OCTBF 6
+        JUMPN    0,OCBF7
+        JUMPG    2,OCBF4
+
+;                         OCTBF7
+OCBF7:  ADDI    0,48
+        IDPB    0,PMCWRT
+        AOS     0,NCHR
+
+;                         OCTBF 8
+OCBF8:  JUMPE    2,OCBF$$
+
+;                         OCTBF 9
+        SETZ     0,0
+        LSHC     0,3
+
+;                         OCTBF 10
+        SUBI     2,1
+
+;                         OCTBF 11
+        ADDI    0,48
+        IDPB    0,PMCWRT
+        AOS     0,NCHR
+        JRST     OCBF8
+
+;                         EXIT OCTBF
+OCBF$$: RETURN   OCTBF
+
+        END
+
+.U:Yï
