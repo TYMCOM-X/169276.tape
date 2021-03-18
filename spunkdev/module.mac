@@ -1,0 +1,2021 @@
+        TITLE   MODULE
+
+        RADIX   10              ;*** BEWARE - Here be dragons ***
+        TWOSEG
+
+        RELOC   0
+TMPFNM: BLOCK   5
+
+        RELOC   ^O400000
+
+        extern  lastnm
+        EXTERN  WRELNM,RELNAM,QTMDNM,QTMDNO,STRTNM
+        EXTERN  MDUFG,CANCEL,RUNFNM,RLFSYN,FLRNG,PUBFER
+        EXTERN  CXMO,TDO,XERROR,LOOKMD,SX.FNQ
+        EXTERN  CXR1,CXR2,ENDPAG,ESCCHK,FILV,FILV1,FSTREP
+        EXTERN  GETREP,GETSW,LDFLG,LSTRNG,NLINES
+        EXTERN  P.MOD,PSW,S.MOD,SAVADR,SAVPTR
+        EXTERN  TWBUF,UPBUF,SXWORK,CBYT9,GETC9
+        EXTERN  DEBGSW,FCAND,FNOMCT,MDUT,MSTATE,RDTY,RCLN
+        EXTERN  LIBFG,LIBT,TNEXT,TSTART,TLOC,TNEW,TPOP
+        EXTERN  .GARYS,XJOBNO,WRKMOD,PGCNFG,RESUME
+        EXTERN  NXTLC,RWKNM,SVDEBG,SVSMOD
+        EXTERN  DSMDFG,FRSFLG,GMODNO,LLC
+        EXTERN  CKRNG,EXECSW,MOVEC,SAVBNM,SAVNAM,SVBFLG
+        EXTERN  VPUT,VGET,VRLS,WRKCMP,WRKMOD,PGCNFG
+        EXTERN  BUFPMC,CERCNT,CLOSEF,DIRP,GCOMSW,GETADR,GETNAM,GETPTR
+
+
+        CRLF==   1
+        NOCRLF== 2
+
+
+        SUBTTL  MODULE  1.5.6.36
+        DCL     MODULE,,<FIRSLP,OLDNM1,NEWNM1,SVKEY1>
+;
+;
+;This routine performs the actions required by the MODULE command:
+;for every filename specified, it adds the filename to the module list.
+;If there was previously a filename on the module list with the same
+;module name (filename with username & extension deleted), then that
+;old filename is deleted from the module list, and a user diagnostic
+;is printed.  This add/delete scheme will often rearrange the
+;module list - note that this is NOT a rename in place!!
+;
+; algol/simpl equivalent of this routine - new version 17 oct 76 ptz
+;
+; firslp _ true   !true=-1, false=0
+; while fnomct > 0 do
+;    gtfnpm   !get filename from PMC's into FCAND
+;    conopn(fcand,-1,ascii "tba",0)   !verify correct filename syntax
+;                                     !r1_condition code; r3_addr of clean filename
+;    newnm1 _ r3   !save clean filename addr to add to module list later
+;    if r1 = 0 then  xerror(79)   !some error has occurred,message already typed,abort
+;    else if r1 = -1 then  xerror(80)   !terminal illegal,abort
+;    else
+;       mstate   !ask user 'destroy data?' if appropriate.
+;                !if response is 'n', abort
+;       lookmd(newnm1)   !r1_-1 if NEWNM1 not on module list,else record #
+;       if r1 # -1 then   !found match
+;          tloc(mdut,r1)   !turn module list record # into core addr
+;          oldnm1 _ r1   !save core addr to print name with later
+;          if firslp then  cxmo("replacing ",nocrlf)   !CXMO prints
+;          else   cxmo(", ",nocrlf)  fi
+;          cxmo(oldnm1)
+;          delmod(oldnm1)   !delete OLDNM1 from module list. NOTE THIS MAY REARRANGE MODULE LIST!
+;          rfre(oldnm1)   !unlock record
+;          firslp _ false
+;       fi
+;       addmod(newnm1)   !add NEWNM1 to module list
+;    fi
+;    fnomct _ fnomct-1
+; od
+;
+;
+        SETOM   FIRSLP
+MODLE1: CALL     GTFNPM
+;
+        LNDRY   FCAND,[ASCIZ /TBA/],<MESSAGES,NO.TER,OLD>
+        JUMPN   R1,MODLE4       ;jump if no error in laundrification
+
+        CALL    CXMO,<0,CRLF>   ;.LNDRY messages have no CRLF
+        SETOM   FIRSLP          ;restore initial situation
+        JRST    MODLE9          ;..and go on to next filename
+
+MODLE4: MOVEM   R2,NEWNM1       ;no .LNDRY error
+        CALL    MSTATE          ; may not return
+;
+        CALL    LOOKMD,<$,NEWNM1>
+        JUMPL   1,MODLE8
+;
+        CALL    TLOC,<$,MDUT>,<OLDNM1>   ;also uses R1 - returns core addr in R1
+        SKIPN   FIRSLP
+        JRST    MODLE6
+        CALL    CXMO,<[ASCIZ/Replacing /],NOCRLF>
+        JRST    MODLE7
+MODLE6: CALL    CXMO,<<[ASCIZ/, /]>,NOCRLF>
+;
+MODLE7: CALL    SXCXMO,<$,OLDNM1,NOCRLF>
+;
+        CALL    DELMOD,<$,OLDNM1>
+        CALL    RDTY,<,$,OLDNM1> ;because of way DELMOD works
+;
+        SETZM   FIRSLP
+;
+MODLE8: CALL    ADDMOD,<$,NEWNM1>
+;
+MODLE9: SOSLE   FNOMCT
+        JRST    MODLE1
+;
+        RETURN  MODULE
+;
+;
+        SUBTTL  NOMDL   1.5.6.37
+        DCL     NOMDL,,<REMMSG,CRLFFG,OLDNM2,NEWNM2,SVKEY2>
+;
+;
+;This routine performs the actions required by the NO MODULE command:
+;for every filename specified, it deletes the filename previously on the
+;module list having the same module name - filename with username &
+;extension deleted.  Note that the filename deleted need not exactly match
+;the filename present in the command (usernames and/or extensions may
+;differ)!!  If there is no matching filename, no action is performed, and
+;processing continues with the next filename, if any.  In either case, the
+;user is informed of the action taken.
+;
+; algol/simpl equivalent of this routine - new version 18 oct 76 ptz
+;
+; remmsg _ true   !indicates we are in the midst of a 'removing' message
+; crlffg _ 2   !no crlf - for passing to CXMO
+; while fnomct > 0 do
+;    gtfnpm   !get filename from PMC's into FCAND
+;    conopn(fcand,-1,ascii "tba",0)   !verify correct filename syntax
+;                                     !r1_condition code; r3_addr of clean filename
+;    newnm2 _ r3   !save clean filename to print if it's not found
+;    if r1 = 0 then  xerror(79)   !some error has occurred,message already printed,abort
+;    else if r1 = -1 then  xerror(80)   !terminal illegal,abort
+;    else
+;       mstate   !ask user 'destroy data?' if appropriate
+;                !if response is 'n',abort
+;       lookmd(newnm2)   !r1_-1 if NEWNM2 not found,else record #
+;       if r1 = -1 then   !not found
+;          if remmsg then   !need to start 'cannot find' message
+;             cxmo("cannot find",crlffg)   !CXMO prints
+;             remmsg _ false   !true=-1, false=0
+;          else  cxmo(", ",2)  fi
+;          cxmo(newnm2)
+;       else   !found match
+;          tloc(mdut,r1)   !turn module list record # into core addr
+;          oldnm2 _ r1   !save core addr to print & delete with later
+;          if not(remmsg and crlffg#2) then   !need to start 'removing' message
+;             cxmo("removing ",crlffg)
+;             remmsg _ true
+;          else  cxmo(", ",2)  fi
+;          cxmo(oldnm2)
+;          delmod(oldnm2)   !delete OLDNM2 from module list
+;          rfre(oldnm2)   !unlock record
+;       fi
+;       crlffg _ 1   !crlf
+;    fi
+;    fnomct _ fnomct-1
+; od
+;
+;
+        SETOM   REMMSG
+        MOVEI   0,2
+        MOVEM   0,CRLFFG
+;
+NOMD1:  CALL    GTFNPM
+;
+        LNDRY   FCAND,[ASCIZ /TBA/],<MESSAGES,NO.TER,OLD>
+        JUMPN   R1,NOMD4        ;jump if no error in laundrification
+
+        CALL    CXMO,<0,CRLF>   ;because .LNDRY messages have no CRLF
+        SETOM   REMMSG          ;restore initial situation
+        MOVEI   R0,2
+        MOVEM   R0,CRLFFG
+        JRST    NOMD14
+
+NOMD4:  MOVEM   R2,NEWNM2       ;no .LNDRY error
+        CALL    MSTATE          ; may not return
+;
+        CALL    LOOKMD,<$,NEWNM2>
+        JUMPGE  1,NOMD8
+;
+        SKIPN   REMMSG
+        JRST    NOMD6
+        CALL    CXMO,<[ASCIZ/Cannot find /],$,CRLFFG>
+        SETZM   REMMSG
+        JRST    NOMD7
+NOMD6:  CALL    CXMO,<<[ASCIZ/, /]>,NOCRLF>
+;
+NOMD7:  CALL    SXCXMO,<$,NEWNM2,NOCRLF>
+        JRST    NOMD13
+;
+NOMD8:  CALL    TLOC,<$,MDUT>,<OLDNM2>
+;
+        SKIPN   REMMSG
+        JRST    NOMD9
+        MOVEI   0,2
+        CAME    0,CRLFFG
+        JRST    NOMD11
+;
+NOMD9:  CALL    CXMO,<[ASCIZ/Removing /],$,CRLFFG>
+        SETOM   REMMSG
+        JRST    NOMD12
+NOMD11: CALL    CXMO,<<[ASCIZ/, /]>,NOCRLF>
+;
+NOMD12: CALL    SXCXMO,<$,OLDNM2,NOCRLF>
+;
+        CALL    DELMOD,<$,OLDNM2>
+        CALL    RDTY,<,$,OLDNM2> ;because of way DELMOD works
+;
+NOMD13: MOVEI   0,1
+        MOVEM   0,CRLFFG
+
+NOMD14: SOSLE   FNOMCT
+        JRST    NOMD1
+;
+        RETURN  NOMDL
+
+
+                                SUBTTL  DELMOD  CHART UX
+        DCL     DELMOD,<DELMAD>
+
+;input: R0 = core addr of first word of record to be deleted.
+;            caller should do LOOKMD, TLOC, RDTY.
+
+;deletes entry by copying last record into record being deleted and
+;then throwing away last record.  this rearranges the module list,
+;but a module list deletion is a p.mod anyway, so it doesn't matter
+
+        CALL    TLOC,<$,MDUT,$,MDUFG>
+
+        COPYFN  <(R1)>,@DELMAD
+        FGET    R2,R1,MDUMD             ;debug state
+        MOVE    R3,DELMAD
+        FPUT    R2,R3,MDUMD
+
+        CALL    RCLN            ;free old last record - uses R1
+
+        CALL    TPOP,<$,MDUT>   ;throw away old last record
+        SOS     MDUFG
+
+DLMD$$: RETURN  DELMOD
+
+                                SUBTTL  ADDMOD  CHART UX
+        DCL     ADDMOD,<ADDMAD>
+;
+;input: R0 = addr of filename to be added to module list.
+;caller is presumed to have checked (via LOOKMD) to make sure that the
+;module name does not already appear on the module list. the new entry
+;is appended.
+;
+        CALL    TNEW,<$,MDUT>
+
+        COPYFN  @ADDMAD,<(R1)>
+        MOVE    R2,DEBGSW
+        FPUT    R2,R1,MDUMD     ;enter debug state
+
+        AOS     MDUFG
+        CALL    RDTY            ;core addr in R1
+
+        MOVE    R1,MDUFG
+        RETURN  ADDMOD
+
+
+        SUBTTL  LIBRAR  1.5.6.38
+
+
+        DCL     LIBRAR,,<LIBNAM>
+;
+LIBRR1: CALL    GTFNPM
+        LNDRY   FCAND,[ASCIZ/REL/],<NO.TER,MESSAGES,OLD>
+        JUMPE   R1,LIBRR2       ;jump if error in .LNDRY
+
+        SETZ    R0,             ;turn off default extension flag
+        DPB     R0,[DEXPT(SXEXT(R2))]   ;(primarily for LODSTR)
+        MOVEM   R2,LIBNAM
+        CALL    MSTATE
+        CALL    ADDLIB,<$,LIBNAM>
+;
+;                               LIBRAR 7-8
+LIBRR2: SOSE    FNOMCT
+        JRST    LIBRR1
+;
+;                               EXIT LIBRAR
+        RETURN  LIBRAR
+;
+;
+        SUBTTL  NOLIBR  1.5.6.39
+        DCL     NOLIBR,,<FRSTLP,NLBNAM,ALO>
+
+;similar to NOMDL, except that a library name must be specified to within a
+;default extension to be removed.  note that library list routines handle
+;default extensions differently also - if no extension is typed, the
+;extension REL is forced, and the default flag is turned off.
+;if a filename cannot be found on the library list, a user message is given
+;and processing continues with the next filename, if any.  no message is
+;given for a successful delete.
+
+        SETOM   FRSTLP          ;to control printing of 'Cannot find '
+
+NOLIB1: CALL    GTFNPM          ;get filename from PMC's into FCAND
+        LNDRY   FCAND,[ASCIZ/REL/],<MESSAGES,NO.TER,OLD>
+        JUMPN   R1,NOLB1A       ;jump if no error in .LNDRY
+
+        CALL    CXMO,<0,CRLF>   ;.LNDRY messages have no CRLF
+        SETOM   FRSTLP          ;restore initial situation
+        JRST    NOLIB5          ;..and go on to next filename
+
+NOLB1A: SETZ    R0,             ;no .LNDRY error
+        DPB     R0,[DEXPT(SXEXT(R2))]   ;turn off default extension flag
+        MOVEM   R2,NLBNAM
+
+        CALL    MSTATE          ;ask 'Destroy data?' abort if 'no'
+        setzm   alo
+
+nolb1b: CALL    LOOKLB,<$,NLBNAM>       ;R1_record # if found, else -1
+        JUMPL   R1,NOLIB2               ;is NLBNAM there?
+
+        setom   alo
+        CALL    DELLIB
+        JRST    nolb1b
+
+nolib2: skipe   alo
+        jrst    nolib5
+        SKIPN   FRSTLP  ;NLBNAM not there. is this the first one we couldn't find?
+        JRST    NOLIB3          ;NO
+
+        CALL    CXMO,<[ASCIZ/Cannot find /],NOCRLF>     ;YES.
+        SETZM   FRSTLP
+        JRST    NOLIB4
+
+NOLIB3: CALL    CXMO,<<[ASCIZ/, /]>,NOCRLF>
+
+NOLIB4: CALL    SXCXMO,<$,NLBNAM,NOCRLF>        ;print unfindable name
+
+NOLIB5: SOSLE   FNOMCT
+        JRST    NOLIB1          ;go on to next filename if there are any more
+
+        RETURN  NOLIBR
+
+
+                                SUBTTL  ADDLIB  CHART UX
+        DCL     ADDLIB,<ADDLAD>
+
+;input: R0 = addr of sixbit filename to be added to library list.
+;caller is presumed to have checked (via LOOKLB) to make sure that the
+;filename does not already appear on the library list.
+;the new entry is appended.
+
+        CALL    TNEW,<$,LIBT>   ;returns R1=core addr of new record start
+
+        COPYFN  @ADDLAD,<(R1)>
+
+        AOS     LIBFG
+        CALL    RDTY            ;unlock record whose core addr is in R1
+
+        MOVE    R1,LIBFG
+
+        RETURN  ADDLIB
+
+
+        subttl  dellib
+        dclne   dellib,<,f.num>,<f.addr,s.addr>
+
+        call    tloc,<$,libt,$,f.num>,<f.addr>
+
+dllb1:  aos     r1,f.num
+        camle   r1,libfg
+        jrst    dllb2
+
+        call    tloc,<$,libt>,<s.addr>
+
+        copyfn  <(r1)>,@f.addr
+
+        call    rcln,<,$,f.addr>
+
+        move    r0,s.addr
+        movem   r0,f.addr
+        jrst    dllb1
+
+dllb2:  call    rcln,<,$,f.addr>
+        call    tpop,<$,libt>
+        sos     libfg
+        return  dellib
+
+
+                                SUBTTL  LOOKLB  CHART UX
+        DCL     LOOKLB,<LKLBNM>,<LIBLFT>
+
+
+        MOVE    R0,LIBFG                ; # of library list records
+        JUMPLE  R0,LKLB3                ;list empty - record can't be found
+
+        MOVEM   R0,LIBLFT
+
+        CALL    TSTART,<$,LIBT>
+
+LKLB1:  CALL    TNEXT,<$,LIBT>          ;R1_core addr of next record
+
+        HRL     R1,LKLBNM
+        CALL    SX.FNQ          ;R0_0 IFF filenames equal
+        TLZ     R1,             ;core addr of record left in R1
+        JUMPN   R0,LKLB2        ;filenames equal?
+
+        CALL    RCLN             ;YES. unlock found record - uses R1
+
+        MOVE    R1,LIBFG
+        SUB     R1,LIBLFT
+        ADDI    R1,1            ;R1_record # of found record
+        JRST    LKLB$$
+
+LKLB2:  CALL    RCLN             ;NO. unlock non-desired record - uses R1
+
+        SOSLE   LIBLFT
+        JRST    LKLB1           ;go on to next record if there are more
+
+LKLB3:  SETO    R1,
+
+LKLB$$: RETURN  LOOKLB
+
+        SUBTTL  LSTMOD CHART 1.5.6.6.3
+        DCL     LSTMOD,,<LSTCT1,MDULOC,WRKNUM>
+
+        SKIPE   0,MDUFG
+        JRST    LSTM2
+
+        CALL    TDO,<[ASCIZ/Module list empty/],NOCRLF>
+        JRST    LSTM$$
+
+LSTM2:  SETZM   WRKNUM
+        CALL    LOOKMD,<SXWORK> ;to fix up default extensions, if any
+        JUMPN   R2,LSTM3
+
+        MOVE    R2,MDUFG
+        SUB     R2,R1           ;...and R1=record number
+        ADDI    R2,1            ;so can compare WRKNUM with LSTCT1 to find wksp
+        MOVEM   R2,WRKNUM
+
+LSTM3:  CALL    TSTART,<$,MDUT>
+;
+        MOVE    1,MDUFG
+        MOVEM   1,LSTCT1
+
+LSTM5:  CALL    TNEXT,<$,MDUT>,<MDULOC>
+
+        CALL    .GARYS,<$,R1,0>         ;convert filename to ASCIZ
+        CALL    TDO,<$,R1,NOCRLF>
+
+        MOVE    R1,MDULOC       ;print debug state
+        FGET    R2,R1,MDUMD
+        JUMPE   R2,LSTM6
+        CALL    TDO,<[ASCIZ/          DEBUG/],NOCRLF>
+        JRST    LSTM7
+LSTM6:  CALL    TDO,<[ASCIZ/          NO DEBUG/],NOCRLF>
+
+LSTM7:  MOVE    R0,WRKNUM
+        CAME    R0,LSTCT1
+        JRST    LSTM9
+        CALL    TDO,<[ASCIZ/     ** WORKSPACE **/],NOCRLF>
+
+LSTM9:  MOVE    R0,@MDULOC
+        CAME    R0,STRTNM+SXNAM         ;skip if module name =  startpoint name
+        JRST    LSTM10
+        CALL    TDO,<[ASCIZ/      * STARTPOINT * /],NOCRLF>
+
+LSTM10: CALL    TDO,<0,CRLF>
+        CALL    RCLN,<,$,MDULOC>
+
+        SKIPE   ESCFLG##
+        CALL    ESCCHK          ;Apparently, check and see
+        SOSE    0,LSTCT1
+        JRST    LSTM5
+
+LSTM$$: RETURN  LSTMOD
+
+
+        SUBTTL  LSTLIB CHART 1.5.6.6.4
+        DCL     LSTLIB,,<LSTCT2,LIBLOC>
+;
+;                       LSTLIB 1
+        SKIPE   0,LIBFG
+        JRST    LSTL3
+;
+;                       LSTLIB 2
+        CALL    TDO,<[ASCIZ/Library list empty/],NOCRLF>
+        JRST    LSTL$$
+;
+;                       LSTLIB 3
+LSTL3:  CALL    TSTART,<$,LIBT>
+;
+;                       LSTLIB 4
+        MOVE    1,LIBFG
+        MOVEM   1,LSTCT2
+;
+;                       LSTLIB 5
+LSTL5:  CALL    TNEXT,<$,LIBT>,<LIBLOC>
+
+        CALL    .GARYS,<$,R1,0>         ;convert filename to ASCIZ
+        CALL    TDO,<$,R1,NOCRLF>
+        CALL    TDO,<0,CRLF>
+
+        CALL    RCLN,<,$,LIBLOC>
+;
+;                       LSTLIB 10-11
+        SKIPE   ESCFLG##
+        CALL    ESCCHK          ;Escape flag set - check and see
+        SOSE    0,LSTCT2
+        JRST    LSTL5
+;
+;                       EXIT LSTLIB
+LSTL$$: RETURN  LSTLIB
+;
+;
+        SUBTTL  XGET
+
+
+        DCL     XGET
+
+
+        SKIPE   FILV1
+        JRST    XGT1
+        CALL    XERROR,<^D108>
+XGT1:
+
+        call    tstget
+        SKIPE   NLINES
+        SKIPN   S.MOD
+        JRST    XGT2
+        CALL    GETSAV
+XGT2:
+        call    reget
+
+        SKIPE   MDUFG
+        JRST    XGT3
+        CALL    QDSTRY
+        JUMPN   R1,XGT3
+        CALL    CLOSEF,<$,GETADR>
+        CALL    CXMO,<[ASCIZ/Command aborted/],NOCRLF>
+        MOVEI   R0,^D10
+        MOVEM   R0,PSW
+        SETZM   LDFLG
+        JRST    RESUME
+XGT3:
+
+        setzm   lastnm
+        MOVEI   R0,1
+        MOVEM   R0,GETSW
+        MOVEI   R0,^D10
+        MOVEM   R0,PSW
+
+        RETURN  XGET
+
+        SUBTTL  TSTGET
+        dclne   tstget
+        call    setgop
+        open    getnam,,read,,<messages,retry.ext,ret.zero,old,seq,close>
+        jumpn   r1,tstop2
+        setzm   gcomsw
+        jrst    resume
+tstop2: return  tstget
+
+        subttl  reget
+        dclne   reget
+        open    getnam,,read,,<messages,retry.ext,ret.zero,old,seq>
+        jumpn   r1,regt2
+        setzm   gcomsw
+        jrst    resume
+regt2:  movem   r2,getadr
+        movei   r0,1
+        movem   r0,ldflg
+        pushj   p,xchg.i##
+        move    r1,getadr
+        readcr  1,7
+        movem   r1,getptr
+        return  reget
+
+        SUBTTL  setgop
+        dclne   setgop
+
+        MOVE    0,[POINT 7,TWBUF]
+        CALL    MOVEC,<,$,FILV,$,FILV1>
+        SETZ    R0,
+        IDPB    R0,R1
+        LNDRY   TWBUF,[ASCIZ/TBA/],<MESSAGES,NO.TER>
+        COPYFN  <(R2)>,GETNAM
+        return  setgop
+
+        subttl  getopn
+        dcl     getopn
+        call    setgop
+        call    reget
+        return  getopn
+
+        SUBTTL GETSAV
+        DCLNE   GETSAV
+
+        skipn   sxwork+sxnam
+        jrst    gtsv5
+        SKIPE   MDUFG
+        SKIPL   PGCNFG
+      T    GTSV4
+        SKIPN   WRKMOD
+        JRST    GTSV4
+
+        CALL    SXCXMO,<SXWORK,CRLF>
+        CALL    CXMO,<[ASCIZ/ must be saved in order to preserve data/],NOCRLF>
+
+GTSV4:  CALL    MODMSG,<[ASCIZ/Save /],SXWORK,[ASCIZ/? /]>
+        CALL    YN.FNM,<UPBUF,[ASCIZ/AS/]>
+        SETZM   WRKMOD
+        JRST    .+1(R1)
+        JRST    GTSV$$
+        JRST    GTSV5
+
+        LNDRY   <(R2)>,[ASCIZ/TBA/],<MESSAGES,NO.TER>
+        COPYFN  <(R2)>,SXWORK
+
+GTSV5:  SETZM   FILV1
+        CALL    SAVSRC
+
+GTSV$$: RETURN  GETSAV
+
+        SUBTTL  GETCLS
+
+
+
+        DCL     GETCLS
+
+	EXCH	R1,GETPTR
+        FREECR  R1
+	EXCH	R1,GETPTR
+
+        CALL    CLOSEF,<$,GETADR>
+
+        SKIPN   RUNFNM
+        SKIPN   GCOMSW
+        JRST    GETC1
+        BCALL   GCMCLS
+        JRST    GETC4
+
+GETC1:  SKIPN   GETSW
+        JRST    GETC3
+        COPYFN  GETNAM,SXWORK
+
+;now, if the user has a module list and the file he's just finished GETting
+;is on it EXACTLY, set the system debug state to match that of the new 
+;workspace, giving a user message if the debug state changes.
+
+        SKIPN   MDUFG
+        JRST    GETC3
+        CALL    LOOKMD,<SXWORK> ;R1_-1 if not found,else record #. R2_0 iff exact match
+        JUMPL   R1,GETC3
+        JUMPN   R2,GETC3
+        CALL    TLOC,<$,MDUT>
+        FGET    R2,R1,MDUMD     ;get module's debug state
+        HRRE    R2,R2
+        PUSH    P,R2
+        CALL    RCLN             ;unlock record whose core addr is in R1
+        POP     P,R2
+        CAMN    R2,DEBGSW       ;system state same as mdl state?
+        JRST    GETC3          ;yes - nothing to change
+        MOVEM   R2,DEBGSW       ;no - change system state to mdl state,give msg
+        JUMPE   R2,GETC2
+        type    message,</DEBUG mode set from module list/>,<g.cr.b,cr.a>
+        JRST    GETC3
+GETC2:  type    message,</NO DEBUG mode set from module list/>,<g.cr.b,cr.a>
+
+GETC3:  SETZM   S.MOD
+GETC4:  SETZM   GETSW
+        SKIPN   RUNFNM          ;are we processing a RUN filename?
+        JRST    GETC$$          ;no
+
+        MOVE    R0,SXWORK+SXNAM
+        MOVEM   R0,WRELNM+SXNAM ;FIX UP WRELNM  (ORIGINALLY SET IN RUNINT)
+        SETZM   RUNFNM          ;yes
+        SETZM   FILV1
+        CALL    GNONAM
+
+GETC$$: RETURN  GETCLS
+
+                                SUBTTL  GCMCLS CHART P117.3.12
+        BDCL    GCMCLS
+;
+;                       1
+        MOVE    R0,SVSMOD
+        MOVEM   R0,S.MOD
+
+        SKIPE   0,WRKCMP
+        JRST    GCMC3
+;
+;                       2
+        MOVEI   1,3
+        MOVEM   1,PSW
+        JRST    GCMC$$
+;
+;                       3
+GCMC3:  MOVE    1,GCOMSW
+        CAIE    1,1
+        JRST    GCMC6
+;
+;                       4
+        CALL    VGET,<BUFPMC,$,DIRP,1>
+;
+;                       5
+        CALL    VRLS,<DIRP>
+;
+;                       6-7
+GCMC6:  SKIPE   0,CERCNT
+        SETOM   0,GCOMSW
+;
+;                       8
+        SKIPL   0,GCOMSW
+        JRST    GCMC10
+;
+;                       9
+        MOVEI   1,1
+        MOVEM   1,WRKCMP
+        MOVEI   1,3
+        MOVEM   1,PSW
+        JRST    GCMC11
+;
+;                       10
+GCMC10: MOVE    1,GCOMSW
+        MOVEM   1,PSW
+;
+;                       11
+GCMC11: SETZM   0,GCOMSW
+;
+;                       EXIT
+GCMC$$: BRETURN GCMCLS
+
+
+        SUBTTL  SAVE CHART 1.5.6.10
+
+        DCL     SAVE
+;
+;                       SAVE 1
+        SKIPN   0,SVBFLG
+        JRST    SAVE3
+;
+;                       SAVE 2
+        SKIPE   MDUFG
+        SKIPN   STRTNM
+        jrst    .+2
+        jrst    save2
+        CALL    CKRNG,<0,0>
+save2:  CALL    CHKDBG          ;requests DEBUG confirmation - may abort
+        CALL    SAVBIN
+        JRST    SAVE$$
+;
+;                       SAVE 3
+SAVE3:  MOVEI   0,63
+        SKIPG   NLINES
+        PUSHJ   P,XERROR
+
+        CALL    SAVSRC
+;
+;                       EXIT  SAVE
+SAVE$$: RETURN  SAVE
+
+                                SUBTTL  CHKDBG
+        DCLNE   CHKDBG,,<MDLFT>
+
+;checks at start of SAVE BINARY to see whether the workspace or any
+;module is in debug mode.  if so, informs user will cost more & requests
+;confirmation.  returns only if positive confirmation is given.
+
+;one known problem with this routine:
+;a user with a debug wksp & no debug mdls (wksp not on mdl list) will 
+;receive message even if he intends to exclude his wksp from his program, 
+;since the wksp add logic occurs in ADDWRK, called from GNONAM in global
+;recompilation, which is called after save binary file confirmation,etc.
+
+        SKIPE   DEBGSW          ;system in DEBUG mode?
+        JRST    CHKCNF          ;YES. request confirmation
+
+        MOVE    R0,MDUFG        ;NO. MDUFG = # modules on mdl list
+        JUMPLE  R0,CHKD$$       ;done if no modules
+        MOVEM   R0,MDLFT
+
+        CALL    TSTART,<$,MDUT> ;reset mdl list ptr
+
+CHKD1:  CALL    TNEXT,<$,MDUT>  ;R1_core addr of next record
+
+        FGET    R2,R1,MDUMD     ;R2_module debug flag
+        HRRE    R2,R2           ;extend sign
+        JUMPN   R2,CHKCNM       ;request confirmation if in DEBUG mode
+
+        CALL    RCLN             ;free NO DEBUG mode record - uses R1
+        SOSLE   MDLFT
+        JRST    CHKD1           ;look at next module if there are any left
+
+        JRST    CHKD$$          ;else done
+
+CHKCNM: CALL    RCLN             ;free DEBUG mode record - uses R1
+
+CHKCNF: CALL    YN.FNM,<<[ASCIZ/Execution of program in DEBUG mode more expensive, proceed? /]>,0>
+        JUMPN   R1,CHKD$$       ;user said YES
+
+        CALL    CXMO,<[ASCIZ/Command aborted/],NOCRLF>  ;user said NO
+        JRST    RESUME
+
+CHKD$$: RETURN  CHKDBG
+
+        SUBTTL  SAVBIN CHART 1.5.6.10.2
+        DCLNE   SAVBIN,,<SVBEXT,FERNUM>
+;+
+; Check to see if a file name in FILV/FILV1
+;  If not and WORKNM = 0 then XERROR 108 - missing a file name boy...
+;-
+        SKIPE   FILV1           ;A count ?
+        JRST    SAVB1           ;yes, process normally
+
+        SKIPE   SXWORK+SXNAM    ;Is there a workspace ?
+        JRST    GWSFN           ;Yes, get name from there
+
+        CALL    XERROR,<108>    ;We are missing a file name
+
+GWSFN:  MOVE    R2,SXWORK+SXNAM ;GET WORKSPACE FILE NAME
+        MOVEM   R2,SAVBNM
+        IFN     DEBMOD,<HRLZI   R2,'HGH'>
+        IFE     DEBMOD,<HRLZI   R2,'SHR'>
+        MOVEM   R2,SAVBNM+SXEXT
+        SETZM   SAVBNM+SXUN
+        SETZM   SAVBNM+SXUN2
+        JRST    SAVB4
+
+SAVB1:  MOVE    0,[POINT 7,TWBUF]
+        CALL    MOVEC,<,$,FILV,$,FILV1>
+        MOVEI   0,0
+        IDPB    0,1
+
+        IFN     DEBMOD,<LNDRY TWBUF,[ASCIZ /HGH/],<NO.TER,MESSAGES>>
+        IFE     DEBMOD,<LNDRY TWBUF,[ASCIZ /SHR/],<NO.TER,MESSAGES>>
+
+        hlrz    r1,sxext(r2)
+        IFN     DEBMOD,<CAIN R1,'HGH'>
+        IFE     DEBMOD,<CAIN R1,'SHR'>
+        JRST    SAVB3
+        CALL    XERROR,<^D141>  ;illegal extension
+
+SAVB3:  COPYFN  <(R2)>,SAVBNM
+
+SAVB4:  move    r1,savbnm+sxext
+        movem   r1,svbext
+        OPEN    SAVBNM,,SUPERCEDE,,<MESSAGES,NO.TER,CONFIRM,OLD,RETURN.ZERO>
+        JUMPE   R1,SAVBER       ;jump if error or nonconfirm has happened
+        CALL    CANCEL,<$,R2>   ;avoid old/new protection problems on runside
+
+        HRLZI   R1,'LOW'
+        MOVEM   R1,SAVBNM+SXEXT
+        OPEN    SAVBNM,,SUPERCEDE,,<NO.TER,MESSAGES,OLD,RETURN.ZERO>
+        JUMPE   R1,SAVBER       ;jump if error during open
+        CALL    CANCEL,<$,R2>
+
+;the RUN uuo looks for .SHR first, then .HGH - so if we're going to create
+;a .HGH file (DEBMOD # 0), we need to delete the .SHR file if it exists
+
+        IFN     DEBMOD,<HRLZI   R1,'SHR'
+                        MOVEM   R1,SAVBNM+SXEXT
+                        OPEN    SAVBNM,,DELETE,,<NO.TER>
+                        CAIE    R1,E.NFND       ;file not found error is okay
+                        SKIPN   R1              ;but no other error is
+                        JRST    SAVB5
+
+                        MOVEM   R1,FERNUM       ;error - print message
+                        CALL    .GARYS,<SAVBNM,0>  ;sixbit fnm to asciz fnm
+                        CALL    PUBFER,<$,R1,$,FERNUM>
+                        JRST    SAVBER
+                       >
+
+SAVB5:  MOVE    R1,SVBEXT
+        MOVEM   R1,SAVBNM+SXEXT ;restore extension
+        MOVEI   1,17
+        MOVEM   1,GCOMSW
+        MOVEI   1,1
+        MOVEM   1,EXECSW
+        SETZM   0,FILV1
+        CALL    RUNINT  
+        JRST    SAVB$$
+
+;if some error happened during the open or the open wasn't confirmed,
+;then we want to zero SAVBNM because if we don't, TBAEND(ENDP%$)
+;will think we're doing the SAVE BINARY when we next leave
+;the runside & save the highseg under that name instead of nnnSBA
+;and a GO won't be able to find the highseg again
+
+SAVBER: CLRFN   SAVBNM
+        JRST    RESUME
+
+SAVB$$: RETURN  SAVBIN
+
+        DCLNE   SAVSRC
+
+        BCALL   SAVOPN
+
+;some kind person has already looked at the command line & set FLRNG=0 if no
+;range specification was given, =1 otherwise
+        SKIPN   FLRNG   ;no line range
+        SKIPN   MDUFG   ;...and a module list?
+        JRST    SAVS1   ;NO. skip mdl list logic
+
+        CALL    SAVMOD  ;rename mdl list if needed - may abort by user request in some cases
+
+SAVS1:  CALL    LSTRNG,<1>      ;1 means to file rather than terminal
+        CALL    ENDPAG
+
+        SKIPE   FLRNG           ;is this a checkpoint?
+        JRST    SAVS$$  ;NO. don't indicate wksp contents saved on file SAVNAM
+
+        SKIPE   S.MOD   ;YES. wksp contents = file SAVNAM contents
+        SETOM   RLFSYN  ;avoid GET-smod-RUN-SAVE-RUN giving cannot find bug.
+        SETZM   S.MOD
+
+        MOVE    R0,SAVNAM+SXNAM ;avoid GET FOO; RUN; SAVE BAR; RUN
+        CAMN    R0,SXWORK+SXNAM ;...giving CANNOT FIND FILE BAR.REL bug
+        JRST    SAVS2
+
+        SETOM   RLFSYN  ;rel file name synchronization - forces wksp compile,mdl list rescan
+
+        MOVE    R0,STRTNM+SXNAM
+        JUMPE   R0,SAVS2
+        CAME    R0,SXWORK+SXNAM
+        JRST    SAVS2
+        COPYFN  SAVNAM,STRTNM   ;rename startpoint as well if wksp = strtpt mdl
+        TYPE    MSG,</Renaming STARTPOINT/>,<G.CRLF.BEFORE,CRLF.AFTER>
+
+SAVS2:  COPYFN  SAVNAM,SXWORK   ;remember location of wksp contents
+
+SAVS$$: RETURN  SAVSRC
+
+        SUBTTL SAVOPN
+        BDCL    SAVOPN
+
+        skipe   filv1
+        jrst    savop1
+        skipe   sxwork+sxnam
+        jrst    savop3
+
+        call    getrep,<twbuf,1,[asciz/Workspace file name: /],0,0,0>
+        jrst    savop2
+
+savop1: move    0,[point 7,twbuf]
+        call    movec,<,$,filv,$,filv1>
+        setz    r0,
+        idpb    r0,r1
+savop2: lndry   twbuf,[asciz/TBA/],<messages,no.ter>
+        copyfn  <(r2)>,savnam
+        jrst    savop4
+
+savop3: copyfn  sxwork,savnam
+        setzm   savnam+sxun
+        setzm   savnam+sxun2
+
+savop4: OPEN    SAVNAM,,SUPERCEDE,,<MESSAGES,CONFIRM,NO.TER,RET.ZERO>
+        MOVEM   R2,SAVADR
+        READCR  2,7
+        MOVEM   2,SAVPTR
+
+        BRETURN SAVOPN
+
+        SUBTTL  SAVMOD
+        DCL     SAVMOD,,<LOKWR1,LOKWR2,LOKSR1,MDLPTR>
+
+        HRRI    R1,SXWORK
+        HRLI    R1,SAVNAM
+        CALL    SX.FNQ          ;returns R0=0 iff file names equal
+        JUMPE   R0,SAVM$$
+
+        CALL    LOOKMD,<SXWORK>,<LOKWR1,LOKWR2>
+        CALL    LOOKMD,<SAVNAM>,<LOKSR1>
+        JUMPL   R1,SAVM2
+        JUMPN   R2,SAVM2
+
+; here if SAVNAM on module list exactly
+        call    modmsg,<atmsg1,savnam,dstmsg>
+        call    destry,<upbuf>
+        jumpn   r1,savm$$
+
+SAVM1:  CALL    CANCEL,<$,SAVADR>       ;user said preserve data
+        CALL    CXMO,<[ASCIZ/Command aborted/],NOCRLF>
+        JRST    RESUME
+
+;here if SAVNAM not on module list exactly already
+SAVM2:  SKIPL   LOKWR1
+        SKIPE   LOKWR2
+        JRST    SAVM$$
+
+;here if SAVNAM not on mdl list exactly & WORKNM on mdl list exactly
+;... this means that WORKNM on mdl list should be renamed to SAVNAM to 
+;preserve the condition: workspace name is on mdl list
+        SKIPGE  LOKSR1
+        JRST    SAVM4
+        MOVE    R0,SAVNAM+SXNAM
+        CAMN    R0,SXWORK+SXNAM
+        JRST    SAVM4
+
+;here if SAVNAM kindof on mdl list already & SAVNAM # WORKNM in any way
+;... this means that renaming WORKNM on mdl list to SAVNAM results
+;in 2 modules with the same core module name on the mdl list, which would
+;violate the mdl list rules!!
+        call    destry,<atmsg2>
+        jumpe   r1,savm1
+        CALL    TLOC,<$,MDUT,$,LOKSR1>,<MDLPTR>
+        CALL    CXMO,<[ASCIZ/Removing /],NOCRLF>
+        CALL    SXCXMO,<$,MDLPTR,NOCRLF>
+        CALL    CXMO,<[ASCIZ/ from module list/],NOCRLF>
+        CALL    CXMO,<0,CRLF>
+        CALL    DELMOD,<$,MDLPTR>
+        CALL    RDTY,<,$,MDLPTR>
+
+SAVM4:  CALL    CXMO,<[ASCIZ/Renaming /],NOCRLF>
+        CALL    SXCXMO,<SXWORK,NOCRLF>
+        CALL    CXMO,<[ASCIZ/ on module list/],NOCRLF>
+        CALL    TLOC,<$,MDUT,$,LOKWR1>,<MDLPTR>
+        COPYFN  SAVNAM,@MDLPTR
+        CALL    RDTY,<,$,MDLPTR>
+
+SAVM$$: RETURN  SAVMOD
+ATMSG1: ASCIZ   /Attempting to modify module /
+DSTMSG: ASCIZ   /: Destroy data? /
+ATMSG2: ASCIZ   /Attempting to create module list conflict: Destroy data? /
+
+                                SUBTTL  RUNINT CHART P144
+
+        DCL     RUNINT
+
+
+;set up WRELNM = workspace rel file name. will have to be modified by
+;GNAME if user typed RUN filename, or WRKADD if workspace not
+;to be included in program
+
+        CALL    SETWRL
+;
+;                       2
+        SKIPE   0,FILV1
+        JRST    RUNI4
+;
+;                       3
+        CALL    GNONAM
+        JRST    RUNI$$
+;
+;                       4
+RUNI4:  SETZM   PGCNFG
+        SETOM   P.MOD
+        SETOM   RUNFNM
+        CALL    XGET
+;
+;                       EXIT RUNINT
+RUNI$$: RETURN  RUNINT
+
+        SUBTTL  SETWRL  Set workspace REL file name
+
+        DCL     SETWRL
+
+        MOVE    R1,SXWORK+SXNAM
+        JUMPE   R1,SETW1
+        SKIPN   S.MOD
+        JRST    RUNI1
+SETW1:  HRL     R1,XJOBNO
+        HRRI    R1,'WRK'
+
+RUNI1:  MOVEM   R1,WRELNM+SXNAM
+        HRLZI   R1,'REL'
+        SKIPE   DEBGSW
+        HRLZI   R1,'RDL'
+        MOVEM   R1,WRELNM+SXEXT
+        SETZM   WRELNM+SXUN
+        SETZM   WRELNM+SXUN2
+
+        RETURN  SETWRL
+
+
+        DCL     CKSTRT
+
+;see if the startpoint module is a part of the current program
+
+        SKIPE   MDUFG
+        JRST    CKST1
+
+        MOVE    R0,STRTNM+SXNAM         ;no module list
+        JUMPE   R0,CKST$$
+
+        CAME    R0,SXWORK+SXNAM
+        JRST    CKST2
+        JRST    CKST$$          ; startpoint is same as workspace name so ok
+
+CKST1:  SKIPN   STRTNM+SXNAM            ;module list nonempty
+        JRST    CKST$$          ;maybe this should check for null wksp?
+
+        CALL    LOOKMD,<STRTNM>
+        JUMPGE  R1,CKST$$
+        CALL    CXMO,<0,CRLF>
+
+CKST2: CALL    CXR2,<[ASCIZ/STARTPOINT not element of program/],NOCRLF>
+        SETZM   GCOMSW
+        JRST    RESUME
+
+CKST$$: RETURN  CKSTRT
+
+        SUBTTL  GNONAM
+        DCL     GNONAM
+
+        SETOM   WRKMOD  ;so can collapse no mdl list case - wksp elt of prog, but not on list
+
+        SKIPN   MDUFG           ;module list empty?
+        JRST    GNON1           ;YES
+
+        CALL    WRKADD  ;NO. resolve mdl list conflicts & see if wksp elt of prog
+
+GNON1:  CALL    CKSTRT          ;aborts if startpoint not elt of program
+
+        SKIPE   RLFSYN  ;rel file name synchronization - forces wksp compile,mdl list rescan
+        JRST    GNON2
+        SKIPN   P.MOD   ;P.MOD = 0 iff good current highseg
+        JRST    FNOCMP
+
+GNON2:  MOVE    R1,DEBGSW
+        MOVEM   R1,SVDEBG
+        SETZM   FRSFLG  ;to avoid calling OTHMOD twice for 1st module
+        SETOM   P.MOD   ;hack to ensure proper routing in a test in CODGEN
+        MOVEI   R2,1
+        MOVEM   R2,GMODNO
+
+GNON3:  CAMLE   R2,MDUFG        ;are there modules left to examine?
+        JRST    GNON4           ;NO. now consider wksp
+
+        CALL    OTHMOD          ;YES. R1_-1 iff module # GMODNO needs compiling
+
+        AOS     R2,GMODNO
+        JUMPN   R1,FMDCMP
+        JRST    GNON3
+
+GNON4:  MOVE    R0,SVDEBG
+        MOVEM   R0,DEBGSW       ;restore debug switch
+
+;       SKIPE   WRKMOD          ;WRKMOD # 0 if wksp to be included in prog
+        JRST    FWKCMP
+
+FNOCMP: SKIPL   GCOMSW          ;no need to compile anything
+        JRST    GNON5
+
+        SETZM   GCOMSW          ;file not found in OTHMOD
+        CALL    CXMO,<[ASCIZ/Command aborted/],NOCRLF>
+        JRST    RESUME
+
+GNON5:  MOVE    R1,GCOMSW
+        ADDI    R1,1
+        MOVEM   R1,PSW
+        SETOM   WRKCMP
+        SETZM   GCOMSW
+        SETZM   DSMDFG  ;!!!!!!!!!!!!!!!
+        JRST    GNON$$
+
+FWKCMP: SKIPN   MDUFG
+        JRST    GNON6
+
+        CALL    PRTWRK          ;print TBA: workspace program name
+
+GNON6:  SKIPL   GCOMSW          ;file not found in OTHMOD?
+        JRST    GNON7
+
+        MOVEI   R1,3            ;YES
+        MOVEM   R1,PSW
+        MOVEI   R1,1            ;compile wksp, but don't load ...
+        MOVEM   R1,WRKCMP       ;and return to parser without clearing wksp
+        JRST    GNON8
+
+GNON7:  MOVE    R1,GCOMSW
+        MOVEM   R1,PSW
+        SETOM   WRKCMP
+
+GNON8:  SETZM   GCOMSW
+        JRST    GNON$$
+
+
+FMDCMP: CALL    SVDIR           ;save direct stmt PMC's if any
+        CALL    SVWRK
+        SETOM   FRSFLG
+        SETZM   WRKCMP
+        MOVEI   R1,^D10
+        MOVEM   R1,PSW
+
+GNON$$: SETZM   RLFSYN  ;reset rel file name synchronization flag
+        RETURN  GNONAM  ;..mdl list scan will continue & wksp will compile
+
+                                SUBTTL  WRKADD
+        DCL     WRKADD,,<ADDWRK,FNDNAM,WRKPTR>
+
+
+        SETZM   WRKMOD
+        SETZM   ADDWRK
+
+        SKIPE   SXWORK+SXNAM
+        JRST    WRKA5
+
+        SKIPN   NLINES
+        JRST    WRKA$$
+
+       ;CALL    CONMSG
+       ;CALL    YN.FNM,<[ASCIZ/Add workspace to module list? /],[ASCIZ/AS/]>
+       ;JRST    @.+1(R1)
+       ;EXP     WRKA$$,WRKA1,WRKA2
+
+        CALL    QDSTRY
+        JUMPE   R1,WRKA11
+        CALL    CXMO,<[ASCIZ/Workspace must be added to module list/],NOCRLF>
+        CALL    CXMO,<0,CRLF>
+
+WRKA1:  CALL    GETREP,<TWBUF,1,[ASCIZ/Name: /],0,0,0>
+        MOVEI   R2,TWBUF
+
+WRKA2:  LNDRY   <(R2)>,[ASCIZ/TBA/],<MESSAGES,NO.TER>
+
+
+        MOVEM   R2,WRKPTR
+        CALL    LOOKMD,<$,R2>
+        JUMPL   R1,WRKA4
+
+        CALL    TLOC,<$,MDUT>,<FNDNAM>
+        CALL    MODMSG,<[ASCIZ/Replace /],$,FNDNAM,[ASCIZ/ on module list? /]>
+        CALL    YN.FNM,<UPBUF,0>
+        JUMPN   R1,WRKA3
+
+        CALL    RCLN,<,$,FNDNAM>
+        CALL    GETREP,<TWBUF,1,[ASCIZ/Try another name: /],0,0,0>
+        MOVEI   R2,TWBUF
+        JRST    WRKA2
+
+WRKA3:  CALL    DELMOD,<$,FNDNAM>
+        CALL    RDTY,<,$,FNDNAM>
+
+WRKA4:  COPYFN  @WRKPTR,SXWORK
+        SETZ    R0
+        DPB     R0,[DEXPT(SXWORK+SXEXT)]
+        SETOM   ADDWRK
+        JRST    WRKA9
+
+
+WRKA5:  CALL    LOOKMD,<SXWORK>
+        JUMPL   R1,WRKA8
+
+        JUMPN   R2,WRKA6
+
+        MOVEM   R1,WRKMOD
+        JRST    WRKA$$
+
+WRKA6:  CALL    TLOC,<$,MDUT>,<FNDNAM>
+       ;CALL    CONMSG
+       ;CALL    MODMSG,<[ASCIZ/Replace /],$,FNDNAM,[ASCIZ/ on module list? /]>
+       ;CALL    YN.FNM,<UPBUF,0>
+       ;JUMPN   R1,WRKA7
+       ;CALL    RCLN,<,$,FNDNAM>
+       ;JRST    WRKA9
+
+WRKA7:  CALL    QDSTRY
+        JUMPE   R1,WRKA11
+        CALL    SXCXMO,<$,FNDNAM,NOCRLF>
+        CALL    CXMO,<[ASCIZ/ replaced on module list by workspace /],NOCRLF>
+        CALL    SXCXMO,<SXWORK,NOCRLF>
+        CALL    CXMO,<0,CRLF>   ;next msg is 'TBA: prgnm'
+
+        CALL    DELMOD,<$,FNDNAM>
+        SETOM   ADDWRK
+        CALL    RDTY,<,$,FNDNAM>
+        JRST    WRKA9
+
+WRKA8: ;CALL    CONMSG
+       ;CALL    MODMSG,<[ASCIZ/Add /],SXWORK,[ASCIZ/ to module list? /]>
+       ;CALL    YN.FNM,<UPBUF,0>
+       ;SKIPE   R1
+
+        CALL    QDSTRY
+        JUMPE   R1,WRKA11
+        CALL    SXCXMO,<SXWORK,NOCRLF>
+        CALL    CXMO,<[ASCIZ/ added to module list
+/],NOCRLF>
+
+        SETOM   ADDWRK
+
+
+WRKA9:  SKIPN   ADDWRK
+        JRST    WRKA10
+
+        CALL    ADDMOD,<SXWORK>,<WRKMOD>
+        JRST    WRKA$$
+
+WRKA10: SETZM   WRELNM+SXUN
+        SETZM   WRELNM+SXUN2
+        JRST    WRKA$$
+
+WRKA11: CALL    CXMO,<[ASCIZ/Command aborted/],NOCRLF>
+        SETZM   GCOMSW
+        JRST    RESUME
+
+
+WRKA$$: RETURN  WRKADD
+
+                                SUBTTL  SVDIR CHART P144.3.4
+        DCL     SVDIR
+;
+;                       1
+        MOVE    1,GCOMSW
+        CAIE    1,1
+        JRST    SVDI$$
+;
+;                       2
+        CALL    VRLS,<$,DIRP>
+;
+;                       3
+        CALL    VPUT,<BUFPMC,$,DIRP>
+;
+;                       EXIT SVDIR
+SVDI$$: RETURN  SVDIR
+;
+;
+                                SUBTTL  SVWRK CHART P144.3.5
+        DCL     SVWRK
+;
+;                       1
+        MOVE    R0,S.MOD
+        MOVEM   R0,SVSMOD
+        JUMPN   R0,SVWR3
+        SKIPN   NLINES
+        JRST    SVWR3
+;
+;                       2
+        COPYFN  SXWORK,RWKNM
+        JRST    SVWR$$
+;
+;                       3
+SVWR3:  COPYFN  WRELNM,RWKNM
+        HRLZI   R1,'TBA'
+        MOVEM   R1,RWKNM+SXEXT
+;                       5
+        OPEN    RWKNM,,SUPERCEDE,,<MESSAGES,RET.ZERO,SET.TEMP>
+;
+;                       6
+        MOVEM   2,SAVADR
+        READCR  2,7
+        MOVEM   2,SAVPTR
+;
+;                       7
+        MOVE    1,LLC
+        SUBI    1,1     ;BACK 4
+        IBP     0,1
+        IBP     0,1
+        IBP     0,1
+        MOVEM   1,NXTLC
+;
+;                       8
+        CALL    LSTRNG,<1>
+;
+;                       9
+        CALL    ENDPAG
+;
+;                       EXIT SVWRK
+SVWR$$: RETURN  SVWRK
+;
+;
+
+;
+;
+        SUBTTL  OTHMOD
+        DCL     OTHMOD,,<MODLOC,SVZERO,CMPFLG,MODDAT,<SXMOD,SXSIZ>,<MODPRT,2>>
+
+        SETZM   CMPFLG          ;nothing to compile so far
+
+        CALL    TLOC,<$,MDUT,$,GMODNO>,<MODLOC>
+
+        MOVE    R1,GMODNO
+        CAMN    R1,WRKMOD       ;consider wksp later
+        JRST    OTH4
+
+        COPYFN  @MODLOC,SXMOD
+        MOVE    R1,MODLOC
+        FGET    R1,R1,MDUMD
+        HRRE    R1,R1
+        MOVEM   R1,DEBGSW
+
+        COPYFN  SXMOD,RELNAM
+
+        HLRZ    R1,SXEXT+SXMOD
+        CAIE    R1,'REL'
+        CAIN    R1,'RDL'
+        JRST    OTH3A
+
+        MOVEI   R1,'REL'
+        SKIPE   DEBGSW
+        MOVEI   R1,'RDL'
+        HRLM    R1,SXEXT+RELNAM
+
+        OPEN    SXMOD,,READ,,<RET.ZERO,RET.FCB,RET.TIME,RETRY.EXT,SEQ>
+
+        JUMPE   R1,OTH1
+        BCALL   NOSRCE
+        JRST    OTH$$
+
+OTH1:   MOVEM   R2,SVZERO
+        MOVEM   R4,MODDAT
+        MOVE    R1,MODLOC       ;write opened extension into mdl list name
+        MOVE    R2,SXEXT+SXMOD
+        MOVEM   R2,SXEXT(R1)
+        MOVE    R2,SXUN+SXMOD   ;write PPN into mdl record if non-local source
+        JUMPE   R2,OTH1A
+        MOVE    R3,PTR(R3)
+        FPUT    R3,R1,MDUPPN
+
+OTH1A:  OPEN    RELNAM,,READ,,<RET.TIME,CLOSE>
+
+        JUMPN   R1,OTH1B
+        CAML    R4,MODDAT
+        JRST    OTH3
+
+OTH1B:  SKIPN   SXUN+RELNAM
+        JRST    OTH2
+
+        MOVEI   R1,1
+        MOVE    R2,MODLOC
+        FPUT    R1,R2,MDUDIR
+
+        SETZM   SXUN+RELNAM
+        SETZM   SXUN2+RELNAM
+        OPEN    RELNAM,,READ,,<RET.TIME,CLOSE>
+
+        JUMPN   R1,OTH2
+        CAML    R4,MODDAT
+        JRST    OTH3
+
+OTH2:   SETOM   CMPFLG          ;need to compile this module
+
+        type    message,</TBA: />,<g.cr.b>
+        CALL    SXTASC,<SXNAM+SXMOD,MODPRT,6>
+        type    message,modprt,<cr.a>
+
+        MOVE    R1,SVZERO
+        MOVEM   R1,GETADR
+        READCR  1,7
+        MOVEM   R1,GETPTR
+        MOVEI   R1,1
+        MOVEM   R1,LDFLG
+        PUSHJ   P,XCHG.I##
+        JRST    OTH3A
+
+OTH3:   CALL    CLOSEF,<$,SVZERO>
+
+OTH3A:  ;CALL    APPCMD,<,RELNAM>
+        JRST    OTH$$
+
+OTH4:   MOVEI   R1,1
+        MOVE    R2,MODLOC
+        FPUT    R1,R2,MDUDIR    ;wksp rel file always local
+
+        ;CALL   APPCMD,<,WRELNM>
+
+
+OTH$$:  CALL    RDTY,<,$,MODLOC> ;won't always be dirty
+        MOVE    R1,CMPFLG
+        RETURN  OTHMOD
+
+                                SUBTTL  NOSRCE CHART P145.10
+        BDCL    NOSRCE
+
+        CALL    CXR1,<[ASCIZ/Cannot find file /],NOCRLF>
+        CALL    .GARYS,<SXMOD,0>  ;BCALLed from OTHMOD, where SXMOD is local
+        CALL    CXR1,<$,R1,NOCRLF>
+        CALL    CXR2,<0,CRLF>
+
+        SETOM   0,GCOMSW
+        BRETURN NOSRCE
+
+;
+;
+                                SUBTTL  GNEXT
+        DCL     GNEXT
+
+        SKIPN   RUNFNM          ;don't do anything if in middle of RUN fnm
+        SKIPN   GCOMSW          ;but do do something if in midst of global recomp
+        JRST    GNEX$$
+        SKIPE   FRSFLG          ;1st module set up from GNONAM
+        JRST    GNEX$1
+
+        SKIPN   CERCNT
+        JRST    GNEX1           ;no compile errors yet
+
+        SETOM   GCOMSW  ;there were errors
+
+GNEX1:  MOVE    R2,GMODNO
+
+GNEX2:  CAMLE   R2,MDUFG        ;any modules left to examine?
+        JRST    NWKCMP          ;NO. so compile wksp
+
+        CALL    OTHMOD          ;YES. R1_-1 iff module # GMODNO needs compiling
+
+        AOS     R2,GMODNO
+        JUMPN   R1,GNEX$$
+        JRST    GNEX2
+
+NWKCMP: CALL    PRTWRK  ;print TBA: workspace program name - know mdl list nonempty
+
+        MOVE    R0,SVDEBG
+        MOVEM   R0,DEBGSW       ;restore debug switch
+        SETOM   WRKCMP
+        OPEN    RWKNM,,READ,,<RET.ZERO,MESSAGES,RETRY.EXT,SEQ>
+        MOVEM   R2,GETADR
+        READCR  R2,7
+        MOVEM   R2,GETPTR
+
+GNEX$1: MOVEI   R1,1
+        MOVEM   R1,LDFLG
+        PUSHJ   P,XCHG.I##
+
+GNEX$$: SETZM   FRSFLG
+        setzm   lastnm  ; LASTNM is used to speed up gets
+        SETZM   CERCNT
+
+        RETURN  GNEXT
+
+
+                                        SUBTTL  PRTWRK
+        DCL     PRTWRK,,<<WRKPRT,2>>
+
+;print TBA: workspace module name
+
+        CALL    CXMO,<[ASCIZ/TBA: /],NOCRLF>
+        SKIPE   SXWORK+SXNAM
+        JRST    PRTW1
+
+        CALL    CXMO,<[ASCIZ/WRK.SP/],NOCRLF>
+        JRST    PRTW$$
+
+PRTW1:  CALL    SXTASC,<SXWORK+SXNAM,WRKPRT,6>
+        CALL    CXMO,<WRKPRT,NOCRLF>
+
+PRTW$$: CALL    CXMO,<0,CRLF>
+        RETURN  PRTWRK
+
+                                SUBTTL  SXTASC
+        DCL     SXTASC
+
+;input:  R0 = addr of sixbit name
+;        R1 = addr at which to put converted asciz name
+;        R2 = number of chars maximum to convert
+
+        HRLI    R0,^O440600     ;sixbit source byte ptr
+        HRLI    R1,^O440700     ;asciz destination byte ptr
+
+SXTA1:  ILDB    R3,R0
+        JUMPE   R3,SXTA$$
+
+        ADDI    R3,^O40
+        IDPB    R3,R1
+
+        SOJG    R2,SXTA1
+
+SXTA$$: SETZ    R3,
+        IDPB    R3,R1           ;final zero
+
+        RETURN  SXTASC
+
+
+;
+;
+                                SUBTTL  GTFNPM  P132
+        DCL     GTFNPM
+;
+;                               GTFNPM 1
+        CALL    GETC9
+;
+;                               GTFNPM 2
+        CALL    GETC9
+;
+;                               GTFNPM 3
+        MOVE    3,CBYT9
+        CAIG    3,49
+        JRST    GFNPM5
+;
+;                               GTFNPM 4
+        CALL    XERROR,<90>
+;
+;                               GTFNPM 5
+GFNPM5: MOVE    0,[POINT 7,FCAND]
+        MOVE    1,NXTLC
+        MOVE    2,CBYT9
+;
+;                               GTFNPM 6
+        JE      2,GFNPM9
+;
+;                               GTFNPM 7
+GFP7A:  ILDB    3,1
+        IDPB    3,0
+        SOJG    2,GFP7A
+;
+;                               GTFNPM 8
+        MOVEM   1,NXTLC
+;
+;                               GTFNPM 9
+GFNPM9:  MOVEI   3,0
+        IDPB    3,0
+;
+;                               EXIT GTFNPM
+        RETURN  GTFNPM
+
+                                SUBTTL  CONMSG
+        DCL     CONMSG
+
+        SKIPN   PGCNFG
+        JRST    CON$$
+        CALL    CXMO,<CNMSG,NOCRLF>
+        CALL    CXMO,<0,CRLF>
+CON$$:  RETURN  CONMSG
+
+CNMSG:  ASCIZ   /Modifying module list will destroy data./
+
+        DCL     QDSTRY
+
+        call    destry,<[asciz/Destroy data? /]>
+        return  qdstry
+
+
+        dcl     destry,<msgadr>
+
+        movei   r1,1    ;pretend user said YES if question meaningless
+        skipe   p.mod
+        jrst    dest$$
+
+        call    yn.fnm,<$,msgadr,0>
+        jumpe   r1,dest$$
+
+        setzm   pgcnfg
+        setom   p.mod
+
+dest$$: return  destry
+
+
+        SUBTTL   NOD
+        DCL       NOD
+;
+;                       NOD 1
+        SKIPN   0,DEBGSW
+        JRST    NOD$$
+;
+;                       NOD 2
+        CALL    MSTATE
+;
+;                       NOD 3
+        SETZM   DEBGSW          ;NO DEBUG state indicator
+        SKIPN   MDUFG           ;if the user's module list is nonempty
+        JRST    NOD$$
+        CALL    LOOKMD,<SXWORK>
+        JUMPL   R1,NOD$$
+        JUMPN   R2,NOD$$        ;and WORKNM is on module list exactly then
+        CALL    TLOC,<$,MDUT>   ;also uses R1 returned from LOOKMD
+        SETZ    R0
+        FPUT    R0,R1,MDUMD     ;change mdl list entry state to correspond
+        CALL    RDTY             ;unlock record whose core addr is in R1
+        CALL    CXMO,<[ASCIZ/State of workspace on module list changed to NO DEBUG/],NOCRLF>
+;
+;                       EXIT NOD
+NOD$$:  RETURN   NOD
+
+        SUBTTL  DEBUG
+        DCL     DEBUG
+;
+;                       DEBUG 1
+        SKIPE   0,DEBGSW
+        JRST    DEBS$$
+;
+;                       DEBUG 2
+        CALL    MSTATE
+;
+;                       DEBUG 3
+        SETOM   DEBGSW
+        SKIPN   MDUFG           ;if the user's module list is nonempty
+        JRST    NOD$$
+        CALL    LOOKMD,<SXWORK>
+        JUMPL   R1,NOD$$
+        JUMPN   R2,NOD$$        ;and WORKNM is on module list exactly then
+        CALL    TLOC,<$,MDUT>   ;also uses R1 returned from LOOKMD
+        SETO    R0
+        FPUT    R0,R1,MDUMD     ;change mdl list entry state to correspond
+        CALL    RDTY             ;unlock record whose core addr is in R1
+        CALL    CXMO,<[ASCIZ/State of workspace on module list changed to DEBUG/],NOCRLF>
+;
+;                       EXIT
+DEBS$$: RETURN  DEBUG
+
+
+
+                                SUBTTL  SXCXMO
+        DCL     SXCXMO,<FN6ADR,CRLFLF>
+
+;print a SIXBIT filename using CXMO
+;
+;IN: R0 = addr of sixbit filename
+;    R1 = crlf indicator for passing on to CXMO
+
+        CALL    .GARYS,<$,FN6ADR,0>       ;R1_addr of converted ASCIZ filename
+        CALL    CXMO,<$,R1,$,CRLFLF>
+
+        RETURN  SXCXMO
+
+        SUBTTL  PGQTMD
+
+;       PGQTMD - Parseside Get QuiT MoDule name
+
+;Routine to take QTMDNO, the quit module number (set up by RGQTMD in TBARUN),
+;and discover the file name associated with this module number.  This 
+;routine depends on the fact that modules are loaded in order of their 
+;appearance on the module list.
+
+;input: QTMDNO  =  -1  if execution terminated in direct stmt module
+;               =   0  if execution terminated in the current workspace
+;               =   1  if execution terminated in the 1st user module loaded
+;                       and that module was not the workspace module or
+;                       the direct stmt module
+;               =   2  if execution terminated in the 2nd user module loaded
+;                       and that module was not the workspace module or
+;                       the direct stmt module
+;                   .
+;                   .
+
+;output: QTMDNM =  sixbit workspace name (WORKNM) if QTMDNO = -1 or 0.
+;                  this may be zero if the user has no module list
+;                  and has not established a name by GET or SAVE
+
+        DCL     PGQTMD
+
+        SKIPLE  QTMDNO          ;was quit module direct or wksp?
+        JRST    PGQT1           ;no
+
+        COPYFN  SXWORK,QTMDNM   ;yes
+        JRST    PGQT$$
+
+PGQT1:  MOVE    R0,QTMDNO
+        CAMLE   R0,MDUFG
+        JRST    PGQT2
+
+        CALL    TLOC,<$,MDUT,$,QTMDNO>  ;quit module on module list
+        COPYFN  <(R1)>,QTMDNM
+        CALL    RCLN             ;unlock record whose core addr is in R1
+        JRST    PGQT$$
+
+PGQT2:  CLRFN   QTMDNM          ;error catcher
+
+PGQT$$: RETURN  PGQTMD
+
+
+        SUBTTL  MODMSG
+
+
+        DCL     MODMSG,<MSG1,LFNAM,MSG2>
+
+        MOVE    R1,[POINT 7,UPBUF]
+
+        MOVE    R2,MSG1
+        HLL     R2,[POINT 7,0]
+MDMS11: ILDB    R3,R2
+        JUMPE   R3,MDMS12
+        IDPB    R3,R1
+        JRST    MDMS11
+
+MDMS12: CALL    .GARYS,<$,LFNAM>
+
+        MOVE    R2,MSG2
+        HLL     R2,[POINT 7,0]
+MDMS13: ILDB    R3,R2
+        IDPB    R3,R1
+        SKIPE   R3
+        JRST    MDMS13
+
+        RETURN  MODMSG
+
+        SUBTTL  YN.FNM - .MAIN
+;
+;       global subroutine YN.FNM
+;
+;       The main function of this routine is to read a YES, NO or
+;       "blurp" FILENAME response from the command source (normally
+;       the terminal but possibly a command file).  Along the way we
+;       will issue prompts, provide error messages for retries, clear
+;       input buffers and any other incidental tasks necessary to
+;       make sure that we return with either a YES, NO, or "blurp" FILENAME
+;       response.
+;
+;       Calling sequence:
+;
+;         CALL YN.FNM,<PRMPT,ALT>
+;
+;               PRMPT: Address of ASCIZ initial prompt.
+;
+;               ALT: Address of ASCIZ "blurp" (eg., "TO" as in "TO FILENAME").
+;               A zero may be used to indicate that only YES or NO is to
+;               be accepted.
+;
+;       Returns:
+;
+;         R1: 0 = YES
+;             1 = NO
+;             2 = "blurp"
+;
+;         R2: in the case that R1 = 2 then R2 contains the word address of
+;         the file name.
+;
+;       Notes:
+;
+;         Leading blanks are stripped.
+;
+;         YES or NO may be abbreviated to left sub-sets.
+;
+;         "blurp" must be entered in full (no left sub-sets).
+;
+;         The first non-blank character after a YES or NO must be an EOL.
+;
+;         No check is made concerning the first non-blank character after
+;         the "blurp" although the blanks are stripped.
+;
+;         YES, NO are checked before "blurp".
+;
+
+        DCL     YN.FNM,<PRMPT,ALT>
+
+BUFPTR==R4        ; NOTE - R4 is assumed to be restored by my lower routines
+
+        SETZM   FSTREP
+YN1:    CALL    GETREP,<0,1,$,PRMPT,1,0,$,FSTREP>
+        MOVEI   R0,1
+        MOVEM   R0,FSTREP
+        JUMPGE  R1,YN2
+        CALL    XERROR,<^D79>
+YN2:    HRLI    R2,(POINT 7,0,6)
+        MOVEM   R2,BUFPTR
+
+        CALL    RESPONSE,<$,ALT>
+        JRST    @.+1(R1)
+        EXP     YN3,YN4,YN5,YN6
+
+YN3:    CALL    GARBAGE
+        JUMPN   R1,YN6
+        SETZ    R1,
+        JRST    YN8
+
+YN4:    CALL    GARBAGE
+        JUMPN   R1,YN6
+        MOVEI   R1,1
+        JRST    YN8
+
+YN5:    CALL    SKPBLK
+        MOVEI   R3,^D25
+        MOVE    R2,[POINT 7,TMPFNM]
+        LDB     R1,BUFPTR
+        IDPB    R1,R2
+        JUMPE   R1,YN5A
+        ILDB    R1,BUFPTR
+        SOJG    R3,.-3
+        JRST    YN6
+YN5A:   MOVEI   R1,2
+        MOVEI   R2,TMPFNM
+        JRST    YN8
+
+YN6:    SETZM   PRMPT
+
+        SKIPE   ALT
+        JRST    YN7
+        CALL    CXR2,<[ASCIZ /type YES or NO only: /],NOCRLF>
+        JRST    YN1
+
+YN7:    CALL    CXR1,<[ASCIZ /type YES or NO or /],NOCRLF>
+        CALL    CXR1,<$,ALT,NOCRLF>
+        CALL    CXR2,<[ASCIZ / FILENAME only: /],NOCRLF>
+        JRST    YN1
+
+YN8:    RETURN  YN.FNM
+
+        SUBTTL  YN.FNM - RESPONSE
+;
+;       local routine RESPONSE
+;
+;       This routine determines if the current response is a YES, NO,
+;       "blurp" FILENAME, or OTHER.
+;
+;       Calling sequence:
+;
+;         CALL RESPONSE,ALTSTG
+;
+;           ALTSTG: Address of alternate string
+;
+;       Returns:
+;
+;         R1: 0 = NO
+;             1 = YES
+;             2 = blurp
+;             3 = OTHER
+;
+
+partial==1
+full==0
+
+        DCLNE   RESPONSE,ALTSTG
+
+        CALL    SKPBLK
+
+        CALL    STEST,<,[ASCIZ /NO/],PARTIAL>
+        JUMPN   R1,RESP2
+        MOVEI   R1,0
+        JRST    RESP5
+
+RESP2:  CALL    STEST,<,[ASCIZ /YES/],PARTIAL>
+        JUMPN   R1,RESP3
+        MOVEI   R1,1
+        JRST    RESP5
+
+RESP3:  SKIPN   R1,ALTSTG
+        JRST    RESP4
+        CALL    STEST,<,,FULL>
+        JUMPN   R1,RESP4
+        MOVEI   R1,2
+        JRST    RESP5
+
+RESP4:  MOVEI   R1,3
+
+RESP5:  RETURN  RESPONSE
+        SUBTTL  YN.FNM -  STEST
+;
+;       local routine STEST
+;
+;       This routine determines if two strings are equal.
+;
+;       Callings sequence:
+;
+;         CALL STEST,<,TARGET,ALLFLG>
+;
+;           TARGET: Address of target string (YES, NO, blurp).
+;
+;           ALLFLG: "partial" = left subset allowed
+;                   "full" = no left subset allowed
+;
+;       The source string is the string pointed to by BUFPTR (a var local
+;       to the main body of YN.FNM). The target string is considered
+;       to be delimited by blanks or EOL.
+;
+;       STEST returns a zero if the strings are equal and a -1 if not.
+;       BUFPTR is advanced upon making a match.
+;
+
+        DCLNE   STEST,<,SIN,ALLFLG>,,2
+SPTR==R10
+TPTR==R11
+
+        MOVE    SPTR,BUFPTR
+
+        HRLI    TPTR,(POINT 7,0,6)
+        HRR     TPTR,SIN
+
+        MOVEI   R3,"z"-"a"
+
+        LDB     R1,SPTR
+        CAIL    R3,-"a"(R1)
+        SUBI    R1,"a"-"A"
+        LDB     R2,TPTR
+        CAME    R1,R2
+        JRST    STEST4
+        JUMPE   R1,STEST4
+
+STEST1: ILDB    R1,SPTR
+        CAIL    R3,-"a"(R1)
+        SUBI    R1,"a"-"A"
+        ILDB    R2,TPTR
+        CAIN    R1," "
+        SETZ    R1,
+        CAME    R1,R2
+        JRST    STEST2
+        JUMPE   R1,STEST3
+        JRST    STEST1
+
+STEST2: JUMPN   R1,STEST3
+        MOVE    R1,ALLFLG
+        CAIE    R1,PARTIAL
+        JRST    STEST4
+
+STEST3: SETZ    R1,
+        MOVEM   SPTR,BUFPTR
+        JRST    STEST5
+
+STEST4: SETO    R1,
+
+STEST5: RETURN  STEST
+
+        SUBTTL  YN.FNM - SKPBLK
+;
+;       This routines skips blanks using the pointer BUFPTR.
+;
+
+        DCLNE   SKPBLK
+
+        LDB     R1,BUFPTR
+        CAIE    R1," "
+        JRST    .+3
+        ILDB    R1,BUFPTR
+        JRST    .-3
+
+        RETURN  SKPBLK
+        SUBTTL  YN.FNM - GARBAGE
+;
+;       This routine returns zero if the next non-blank character
+;       in the string pointed to by BUFPTR is an EOL.
+;
+
+        DCLNE   GARBAGE
+
+        CALL    SKPBLK
+        LDB     R1,BUFPTR
+
+        RETURN  GARBAGE
+
+;
+;
+        END
+g*rfÌ
