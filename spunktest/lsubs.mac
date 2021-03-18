@@ -1,0 +1,375 @@
+        title   LSUBS  REL-file related routines
+        TWOSEG
+
+RADIX	^d10	; WOULD YOU BELIEVE
+
+define mac.ok(NAME)
+< ckcomn(NAME,<N,prop>) >
+
+        RELOC   0
+        INTERN  DSNAME
+
+PRGNAM: BLOCK   2               ;program name
+DSNAME: BLOCK   sxsiz
+        integer rfcrsr
+
+        EXTERN  PSW,CERR,XTBL,XTBH,XRMAX,RELNAM,WRELNM,SXWORK,.OPEN
+        EXTERN  CLOSEF,WMNAME,DSFLG,WRKCMP
+        EXTERN  MBUF,TNEXT,TSET,TXVNM,PRODT,XJOBNO,DEBGSW
+
+        VAR
+
+        reloc   ^o400000
+
+REC BPF,<<BPP,6>,<BPS,6>,<BPIX,6>,<BPAD,18>>
+        subttl  sixcv - make a sixbit name
+
+;  procedure sixcv(ptr,length)
+;
+;  local sixptr, sixwd, char
+;
+;  sixptr := point(6,sixwd);  sixwd := 0;  length max := 6
+;
+;  while (dec length)>=0 and (char := next.byte(ptr))#0 then
+;    next.byte(sixptr) _ char + oct 40
+;
+;  return sixwd
+;
+;  end sixcv
+
+
+; ptr = 0, length = 1, sixptr = 2, sixwd = 3, char = 4
+
+dcl sixcv
+
+        move 2,[point 6,3]
+        movei 3,0
+        caile 1,6
+        movei 1,6
+
+sixcv1: sojl 1,sixcv2
+        ildb 4,0
+        jumpe 4,sixcv2
+        cail    4,"a"
+        caile   4,"z"
+        skipa
+        subi    4,^o40
+        subi 4,^o40
+        idpb 4,2
+        jrst sixcv1
+
+sixcv2: move 1,3
+
+return sixcv
+
+
+subttl rfstrt and STREL
+
+;  procedure rfstrt
+;
+;  ! Starts up a .REL file - writes entry and module name blocks too.
+;  ! Sets PRGNAM (the Loader-type "program" name) and also RELNAM (the name
+;  ! of the REL file).
+;
+;  if dsflg then do  !direct statement:
+;    bits := bits bor o.tp  !temp bit always on for direct statement
+;    relnam := "nnnDST.REL/RDL"
+;    prgnam := "DIR.ST"
+;    dsname := relnam
+;  orif wrkcmp then   !workspace
+;    relnam := wrelnm
+;    prgnam := relnam[sxnam]
+;    if relnam[sxnam] = "nnnWRK" then
+;      bits := bits bor o.tp;
+;      if sxwork[sxnam] = 0 then  prgnam := "WRK.SP"
+;      else  prgnam := sxwork[sxnam]  !so startpoint can be found in tba.rn
+;    wmname := prgnam
+;  else
+;    prgnam := relnam[sxnam]
+;  [r1;rfcrsr] _ .open(relnam,bits)
+;  if r1=0 then ????
+;  read rfcrsr
+;  push(rf.var.loc);  rf.init();  pop(rf.var.loc)
+;  if not dsflg then rfntry()  ! do entries for RUN or INIT, not direct stmt
+;  rf.module.name(<point 6,prgnam>,rf.cmp.sbasic,0)
+;
+;  end rfstrt
+
+
+
+        entry   strel
+strel:
+
+dcl rfstrt,<flnam,flext,mdlnam>
+
+;Figure out file name, program name, and whether or not file will be temp:
+
+        SETZM   PRGNAM+1                ;make sure
+        SETZ    R1,
+        SKIPN   DSFLG                   ;direct statement?
+        JRST    RFST1                   ;no
+        TRO     R1,O.TP                 ;set temp bit
+        MOVEI   R0,'DST'
+        HRL     R0,XJOBNO
+        MOVEM   R0,RELNAM+SXNAM
+        MOVSI   R0,'REL'
+        SKIPE   DEBGSW
+        MOVSI   R0,'RDL'
+        MOVEM   R0,RELNAM+SXEXT
+        SETZM   RELNAM+SXUN
+        SETZM   RELNAM+SXUN2
+        MOVE    R0,[SIXBIT/DIR.ST/]
+        MOVEM   R0,PRGNAM
+        COPYFN  RELNAM,DSNAME
+        JRST    RFST3
+
+;Not a Direct Statement:
+
+RFST1:  SKIPN   WRKCMP                  ;Workspace?
+        JRST    RFST2
+        COPYFN  WRELNM,RELNAM           ;YES
+        MOVE    R2,RELNAM+SXNAM
+        MOVEI   R0,'WRK'
+        HRL     R0,XJOBNO
+        CAME    R0,R2                   ;is workspace temporary?
+        JRST    RFST1A                  ;NO
+        TRO     R1,O.TP
+        MOVE    R2,SXWORK+SXNAM ;want prog name for named temp wksp = wksp name
+        JUMPN   R2,RFST1A       ;so strtpt name(if #0) can be found in load map
+        MOVE    R2,[SIXBIT/WRK.SP/]
+RFST1A: MOVEM   R2,PRGNAM
+        MOVEM   R2,WMNAME
+        JRST    RFST3
+
+;Not workspace nor direct statement. program name is same as file name.
+
+RFST2:  MOVE    R0,RELNAM
+        MOVEM   R0,PRGNAM
+
+RFST3:  MOVEI   R0,RELNAM
+        IOR     R1,[BYTE (9) 0 (3) SUPMD (6)PRSFIL (18)O.IM!O.TE!O.RZ!O.NP!O.SQ]
+        PUSHJ   P,.OPEN
+        movem r2,rfcrsr
+        read rfcrsr
+
+        push p,r%vrlc
+        scall r%init
+        pop p,r%vrlc
+
+        skipn dsflg
+        call rfntry
+
+        scall r%mnam,<$,<[point 6,prgnam]>,rctba,0>
+
+        return rfstrt
+
+;  procedure rfntry [probably local to rfstrt]
+;
+;  Writes the ENTRY block containing the loader names of all
+;  DEF ENTRYs.
+;
+;  local prop
+;
+;  tset(prodt,1)
+;  while (prop_tnext(prodt))#0 then
+;    do
+;    if prop.pmod=1 then rf.entry(prop.@ldrnam)
+;    free prop
+;    end
+;
+;  end rfntry
+
+
+
+dcl rfntry,,<prop>
+
+call tset,<$,prodt,1>
+
+rfntr1: call tnext,<$,prodt>,<prop>
+        jumpe 1,rfnt$$
+        fget 2,1,pmodd
+        soje 2,[fget 0,1,ldrnam
+                movem 0,mbuf
+                setzm mbuf+1
+                move sa1,[point 6,mbuf]
+                scall r%entr,<>
+                jrst .+1  ]
+        free prop
+        jrst rfntr1
+
+rfnt$$: return rfntry
+
+subttl rfend
+
+;  procedure rfend
+;
+;  ! Cleans up and closes the .REL file.  Writes out symbol table info for
+;  ! library routines and DEFs.  Local and entry DEFs are put out only if
+;  ! for RUN/INIT, not direct stmt.  External DEFs and library references are
+;  ! put out only for routines which have actually been called.
+;  ! Also, local DEFs are put out only if DEBMOD#0.
+;
+;  local n, prop
+;
+;  ! tables symtyp and symrlc (see below) give symbol type and address
+;  ! relocation for each value of PMODD.
+;
+;  for n _ 0 to xrmax
+;    if xtbl[n]#0 then rf.symbol(xtbh[n],rs.external,xtbl[n],rel.code)
+;
+;  tset(prodt,1)
+;  while (prop_tnext(prodt))#0 then
+;    do
+;    if prop.pmodd<=1 and dsflg=0 and (prop.pmodd#0 or debmod#0) or
+;       prop.pmodd> 1 and prop.pfxp#0 then
+;         rf.symbol(prop.@ldrnam,symtyp(prop.pmodd),prop.pfxp,symrlc(prop.pmodd))
+;    if prop.pmodd >1 then prop.pfxp := 0
+;    free prop
+;    end
+;
+;  rf.finish()
+;  write rfcrsr;  closef(rfcrsr)
+;
+;  end rfend
+
+
+
+syminf: rslocl,,rlcode  ; 0 local
+        rsglob,,rlcode  ; 1 ENTRY
+        rsxtrn,,rlcode  ; 2 EXTERNAL
+        rsxtrn,,rlcode  ; 3 EXTERNA TBA
+        rsxtrn,,rlcode  ; 4 EXTERNAL SFO
+        rsxtrn,,rlvar   ; 5 EXTERNAL CFO
+        rsxtrn,,rlcode  ; 6 EXTERNAL SIMPL
+        rsxtrn,,rlcode  ; 7 EXTERNAL BLISS
+
+dcl rfend,,<n,prop>
+
+        setom n
+rfend1: aos 7,n
+        caig 7,xrmax
+        SALL
+        jrst [  skipn xtbl(7)
+                jrst rfend1
+                scall(r%sym,<$,xtbh(7),rsxtrn,$,xtbl(7),rlcode>)
+                jrst rfend1  ]
+
+        call tset,<$,prodt,1>
+        XALL
+rfend2: call tnext,<$,prodt>,<prop>
+        skipn 7,prop
+        jrst rfend3
+        fget 6,7,pmodd          ; R7=prop, R6=prop.pmodd
+        fget sa3,7,pfxp
+        caile 6,1
+        jrst rfegtr
+ife debmod,<
+        jumpe 6,rfeskp
+>
+        skipn dsflg
+        jrst rfedo
+        jrst rfeskp
+rfegtr: jumpe sa3,rfeskp
+rfedo:  fget 5,7,ldrnam
+        movem 5,mbuf
+        setzm mbuf+1
+        move sa1,[point 6,mbuf]
+        hlrz sa2,syminf(6)
+        hrrz sa4,syminf(6)
+        scall r%sym,<,,,>
+rfeskp: move    r7,prop
+        fget    r6,r7,pmodd
+        caig    r6,1
+        jrst    rfskp1
+        setz    r6,
+;Clear PFXP if EXTERNAL so that later direct statements will not generate
+;requests for a procedure unless they actually call it (and thus set
+;PXFP themselves). This logic used to be in CLRU.
+
+        fput    r6,r7,pfxp
+rfskp1: free prop
+        jrst rfend2
+
+rfend3: scall r%fin
+        write rfcrsr
+        call closef,<$,rfcrsr>
+
+        return rfend
+
+subttl rfcancel
+
+;  procedure rfcancel
+;
+;  ! Cancels the .REL file.  Might want to change to call some (not yet
+;  ! written) routine like rf.abort - no need now though.
+;
+;  free rfcrsr;  cancel(rfcrsr)
+;
+;  end rfcancel
+
+
+
+dcl rfcancel
+
+        free rfcrsr
+        call cancel##,<$,rfcrsr>
+
+return rfcancel
+
+subttl rf.name.char
+
+;  procedure rf.name.char(@name.ptr)
+;
+;  ! Fetches next char from name.ptr, which can be a word ptr or
+;  ! six- or seven-bit byte ptr.  If a word ptr, gets changed to sixbit
+;  ! ptr and max count of 6 is set up.
+;  char _ next.byte(name.ptr)
+;  if byte.size(name.ptr)=6 and char#0 then char + _ oct 40
+;  return char
+;
+;  end rf.name.char
+
+
+
+sdcl r%nmch,<nmptr>
+
+        ildb sa1,@nmptr
+        jumpe sa1,nmch$$
+        ldb 7,[point 6,@nmptr,11]
+        cain 7,6
+        addi sa1,^o40
+
+nmch$$: sreturn r%nmch
+
+subttl rf.write.block & misc.
+
+;  procedure rf.write.block(locatn,lngth)
+;
+;  ! Writes out a block of words to the .REL file.
+;
+;  rfcrsr _ tfr(lngth,rfcrsr,locatn,1)
+;
+;  end rf.write.block
+
+
+
+sdcl r%wrbl,<locatn,lngth>
+
+call tfr##,<$,lngth,$,rfcrsr,$,locatn,1>,<rfcrsr>
+
+sreturn r%wrbl
+
+
+
+; Following routines not yet defined:
+
+r%synm:: halt
+r%sydf:: halt
+r%syvl:: halt
+r%sych:: halt
+r%getm:: halt
+r%rlsm:: halt
+
+
+end
+ 
