@@ -1,0 +1,776 @@
+list
+
+;	FILE:	OPEN.MAC
+
+	ifndef ftrun, <ftrun==0>
+	ife ftrun, <	TITLE   OPEN>
+	ifn ftrun, <	TITLE   ROPEN>
+	subttl	lowseg storage for open
+	twoseg
+	reloc	0
+
+        extern  crapch  ; if non-zero, a channel grabbed by an
+                        ; OPEN who hasn't gone to completion. Release
+                        ; it.
+svnblk:	block	6	; for storing asciz names into
+
+.rbppn==1
+.rbnam==2
+.rbext==3
+.rbprv==4
+.rbsiz==5
+
+.rblic==^o14
+LEBSIZ==.rblic+1
+pleb:	block	lebsiz	; pager lookup/enter block
+
+	RELOC   ^O400000
+	subttl	coding-aid macros for open
+
+	DEFINE MAC.OK(NAME)
+	<CKCOMN(NAME,<CHANag,BLKag>)
+	ifn $fckt, < ckcomn(name,<FCBAag>)>
+	ifn $fckt, < ckcomn(name,<ERRNag,UFNMag,SIXBag>)>
+	>
+
+;	op codes for CHANIO
+c.rel==	0
+c.clos==1
+c.outp==2
+c.inp==	3
+c.look==4
+c.ent==	5
+c.seti==6
+c.seto==7
+c.ren==	11
+c.opn==13
+c.gsts==17
+c.sttz==20
+c.stto==21
+c.men==41
+
+; A macro to generate CHANIO's.  REG is the register you have free
+; for us to work in.
+; The forth argument is either exactly FCB or CHAN or blank.
+; It specifies whether the fifth argument, if present is the 
+; register containing and fcb address or the reg containing a
+; channel number. The forth and fifth arguments had best be
+; blank or non-blank together. 
+; NOTE: argument errors are NOT diagnosed.
+
+define	dochan(op,addr,reg,c.o.f,cfreg) <
+	ifidn <c.o.f> <FCB>, < lchn(reg,cfreg)>
+	ifidn <c.o.f> <fcb>, < lchn(reg,cfreg)>
+	ifidn <c.o.f> <CHAN>, < ifn <reg-cfreg>, <
+	   Hrrz    reg,cfreg >>
+	ifidn <c.o.f> <chan>, < ifn <reg-cfreg>, <
+	   Hrrz    reg,cfreg >>
+	   Hrli	   reg,op
+	   Chanio  reg,addr >
+
+optbl:	jfcl	; nop
+	turnon	readop
+	turnon	supop!l.ofnr;  old file not req. may be adj by conf trip
+	turnon	updop!l.ofnr;  ditto
+	turnon	reopop
+	turnon	renop!o.cl;	RENAME
+	turnon	delop!o.cl;	DELETE
+
+contbl:		; set bits according to conf keyword supplied
+	turnon	l.conf	; none: do the whole trip
+	turnoff	o.cn	; any: forget the whole trip
+	invert	l.ofr!l.ofnr	; exi: old file required
+	turnon	l.nfr	; new: new file required
+
+lkbts== readop ! updop ! reopop ! renop ! delop ! l.nfr ! l.ofr ! l.conf
+
+sdprot==047		; system default protection
+
+	subttl	*** *** ***  . O P E N  *** *** ***
+
+
+	sextern	CONFRM
+
+dcl	.open,<BLKag,BITSag>,<ERRNag,CTIMag>,4
+
+;Input	r0: block address Sixbit or FCB
+;	r1: byte (9)PROT (3)RWSW (6)UNIT (18)BITS
+;Output	r1: error code (ERRNag or resag)
+;	r2: VAWZag
+;	r3: FCBAag
+;	r4: CTIMag
+
+;Registers
+	UNITrg==r7
+	FCB==r10
+	CHN==r11
+	LEB==r12
+	BITS==r13
+
+		; check for a channel grabbed by a previous incomplete
+		; open. Release if there is one.
+	skipn	chn,crapch
+	jrst	clean
+	call	dorel;	whose arg must be in chn
+	setz	chn,
+clean:
+
+	hrrz	bits,bitsag
+
+		; set up operation request bits
+	ldb	r1,rwswpt(BITSag)
+	addi	r1,1
+	andi	r1,7
+	range	(0,r1,delmd+1)
+	xct	optbl(r1)
+
+		; sort out whether the input block is sixbit or fcb
+	upunit(bitsag,UNITrg)
+	call	opfc,<$,BLKag>
+	jumpe	r1,ckfcb	; no error
+	jumpg	r1,operr1	; hard error
+	move	r2,fcb	; HACK because old code returned FCB in VAWZ
+			; slot for terminalz
+	setom	ERRNag		; having eliminated the possible, we
+	jrst	opndon		; must have a TERMINAL
+
+ckfcb:		; At this point, we expect to have a channel open and
+		; an FCB set up. If there is no FCB, OPFC has detected
+		; that we were handed an FCB for which the original
+		; OPEN had not gone to completion, as might happen if
+		; someone escapes out of a confirmation question.
+	ifon	l.fcb,gotchn;	cool
+	ifon	reopop,resag;	likely a call from OPNALL: ok
+	movei	r1,e.nfnd	; I don't know what's going down, but
+	jrst	operr1		; I'm going to complain.
+
+gotchn:		; we have a channel open. Set up the leb.
+	movei	leb,pleb	; all context regs now set
+	call	setleb
+
+		; If this is NOT a READ request, turn off defaulting
+		; and re-tries.
+	ifon	readop,endflt
+	turnoff		o.ye!o.yp; no retry if not input
+	setz	r0,
+	dpb	r0,[dexpt(ext(fcb))]	; show extension is real
+endflt:
+
+		; if confirmation trip requested, dig out the conf
+		; keyword and adjust the game plan.
+	ifoff	o.cn,look0
+	ldb	r1,[ conpt(ext(fcb))]
+	range(0,r1,3)
+	xct	contbl(r1)	; fixup bits for conf trip
+
+look0:	ifoff	lkbts,conf1
+	IFON	L.LOOK,CONF1
+	call	getlk
+	jumpn	r1,operr1
+
+		; See if creation time requested
+	ifoff	o.rt,conf1
+	call	gtctim,,<CTIMag>
+
+conf1:		; We may now have to negotiate with the user
+	ifoff	l.conf,clo1
+	movei	r0,[ asciz ": New file, OK? "]
+	ifon	l.look
+	movei	r0,[ asciz ": Existing file, OK? "]
+	call	confrm
+	jumpn	r1,operr1
+
+clo1:
+	ifon	l.look
+	ifoff	supop,enclo1
+	call	doclos
+	setzm	eof(fcb)	; or we'll get very confused if a
+	setzm	len(fcb)	; ENTER goes thru later.
+	call	zaptim
+enclo1:
+
+
+temp1:		; consider making this file temporary
+	ifoff	o.tp,enter1
+	hrli	r0,(1b8)
+	orm	r0,.rblic(leb)
+
+enter1:
+	ifoff	updop!supop,enter3
+	ifon	o.np,enter2;	skip all protection mucking with
+	seto	r0,		; have to set mode bits if we want
+	dpb	r0,[ point 4, .rbprv(leb), 12]; all protections to work
+	ldb	r0,protpt(BITSag)	; set up protection
+	ifon	o.dp;		maybe he wants default
+	movei	r0,sdprot
+	skipe	r0		; if no spec, don't change existing prot
+	dpb	r0,[ point 9, .rbprv(leb), 8]
+enter2:
+        ifon    o.ma,enterm
+	call	doent
+        jrst    enterk
+enterm: call    domen;          ;multi-enter
+enterk:	jumpn	r1,operr1
+	turnon	l.ent
+	move	.rbppn(leb)
+	movem	ptr(fcb)
+enter3:
+
+	ifoff	renop!delop,noren;	jump if no RENAME
+	ifon	delop
+	setzm	.rbnam(leb)	; clear file name if he wants delete
+	call	doren
+	jumpn	r1,operr1
+noren:
+
+	ifoff	o.cl,enclo2;		jump if no CLOSE
+	ifon	l.look!l.ent
+	call	doclos
+	ifon	l.chan
+	call	dorel
+enclo2:
+
+
+
+resag:
+	ifon	o.sf,no6blk;	because if there was a sixbit block,
+	move	r4,BLKag	; we want to record in it the
+	move	r0,ext(fcb)	; correct extension and turn off
+	hllzm	r0,sxext(r4)	; any defaulting flaggs
+no6blk:		; no error case. set ERRNag to zero (ERRNag requested)
+		; or one (resag requested)
+	setz	r0,
+	ifon	o.no
+	movei	r0,1
+	movem	r0,ERRNag
+                ; set RANDOM bit in fcb
+        movei   r0,fcbrnd
+        ifon    o.sq
+        setz    r0,
+        ifon    o.ma
+        ori     r0,fcbmfa
+	ifoff	reopop;		; don't touch the mask word if this is a reopen
+        movem   r0,fcbmsk(fcb)
+		; set status bits in FCB
+	hrlzi	r0,(l.sts)
+	andcam	r0,fcbsts(fcb)
+	and	r0,bits
+	orm	r0,fcbsts(fcb)
+	setzm	crapch
+	move	r2,chn
+	lsh	r2,chpos
+	move	r4,ctimag
+	jrst	opndon
+
+opndon:	return	.open,<$,ERRNag,,$,fcb>
+;  === ===  E R R O R S  === ===
+
+
+operr1:		; error code in r1
+	movem	r1,ERRNag
+
+		; if we have an FCB, be sure its status bits are clear
+	ifon	l.fcb
+	setzm	fcbsts(fcb)
+
+		; close if lookup or enter went
+	ifoff	l.look!l.ent,oper2
+	call	doclos
+
+oper2:		; release channel if we had one
+	ifoff	l.chan,oper3
+	call	dorel
+
+oper3:		; consider issuing messages
+	ifoff	o.im,oper4
+	ifoff	l.fcb,oper3s;	jump if no fcb
+	call	.garyf,<$,fcb,0>
+	jrst	oper3t
+
+oper3s:		; we have to work with the sixbit block
+	call	.garys,<$,BLKag,0>
+
+oper3t:		; now we have a file name in r1
+	call	pubfer,<$,r1,$,ERRNag,$,unitrg>
+   ife	ftrun, < EXTERN RESUME
+	ifoff	o.no,RESUME >
+oper4:
+	ifon	o.no
+	setzm	ERRNag
+	jrst	opndon
+	subttl	sort out sixbit/fcb, get a channel open
+
+	extern	CHANTB,FCBVEC
+
+dclne	opfc,<BLKag>
+
+;******** sixbit block or FCB ???
+	ifon	o.sf,gotfcb
+;........ sixbit block
+
+    ;******** Terminal or not ???
+	move	r1,BLKag
+	move	[ sixbit /TERMIN/]
+	camn	sxnam(r1)
+	jrst	wantst
+    ;........ not Terminal 
+	seto	r0,
+	call	opnchn,,<,chn>
+	jumpn	r1,nochan
+
+		; Now we have to select an FCB.  This loop exits to
+		; NOCHAN (with R1 set) if we can't find one, else
+		; falls thru to FCBEND, with FCB set to our choice.
+	movei	fcb,fcbvec
+fcblp:		; top of the loop
+	lchn(r2,fcb)		; load chan number from fcb
+	jumpe	r2,fcbfnd	; if zero, we found one
+   ifn debmod, <	; be sure the chan falls within CHANTB
+	cail	r2,nmbch
+	halt
+   >
+		; Watch closely the following test.  The FCB is
+		; only busy if it is pointed to by the CHANTB entry it
+		; is pointing to.  Else it's free, and we take it.
+	came	fcb,chantb(r2)
+	jrst	fcbfnd
+		; increment and test
+	addi	fcb,fcblen	; next fcb
+	caige	fcb,fcbvec+nmbfcb*fcblen
+	jrst	fcblp
+		; Ran out of FCB's -- declare an error
+	movei	r1,pgrmsg+3
+	jrst	nochan
+
+fcbfnd:		; FCB found
+	turnon	l.fcb
+	movem	fcb,chantb(chn)
+	setzm	(fcb)		; clear the fcb
+	hrli	r2,(fcb)
+	hrri	r2,1(fcb)
+	blt	r2,fcblen-1(fcb)
+
+	move	r0,chn
+	schn(r0,fcb);		set chan(fcb)
+	call	ssxfcb,<$,BLKag>
+		; establish unit number in fcb
+	range	(prsfil,UNITrg,filmax)
+	hrrm	UNITrg,fcbuni(fcb)
+	jrst	gotuni
+
+    ;........ Terminal
+wantst:
+	movei	fcb,fcbvec+ternum*fcblen
+	seto	r1,		; errnum for terminal
+	ifon	o.te
+	movei	r1,e.term	; he doesn't want any terminals
+	jrst	nochan
+
+;........ FCB -- here only if arg to open wasn't sixblk
+gotfcb:		; we now know that we have an fcb. set the register.
+	move	fcb,BLKag
+	turnon	l.fcb
+	lchn(chn,fcb)		; get old chan number from fcb
+	hrre	UNITrg,fcbuni(fcb)
+
+		; recover status bits from fcb
+	hrlzi	r0,(l.sts)
+	and	r0,fcbsts(fcb)
+
+		; see if 'FCB VALID' was turned on
+	tdne	r0,[l.fcb]
+	jrst	okfcb		; it was: we're cool
+	turnoff	l.fcb
+	skipe	chn		; If we know a channel number
+	setzm	chantb(chn)	; disconnect it from the FCB
+	jrst	gotuni
+okfcb:
+
+    ;******** reopen or continue ???
+	ifoff	reopop,more
+    ;........ reopen
+		;The  question is read-only vs.
+		; read-write.
+	tdne	r0,[l.ent]	; skip if no enter last time
+	turnon	updop
+        move    r0,fcbmsk(fcb)
+        trne    r0,fcbmfa
+        turnon  o.ma
+	jrst	getoch
+
+    ;........ continue
+more:		; we have an fcb and are not doing a reopen: status
+		; bits are considered valid.
+	or	bits,r0
+	ifon	l.chan,gotuni
+
+		; this cat suffers from no channel!  Turn everything
+		; off to be safe.
+	turnoff	<l.chan!l.look!l.ent>
+
+getoch:		; get his old channel back
+	call	opnchn,<$,chn>
+	jumpn	r1,nochan
+	hrrzs	fcbsts(fcb)
+	movem	fcb,chantb(chn)
+gotuni:
+	setz	r1,		; claim no errors
+nochan:
+	return	opfc
+	subttl	captive lookup code for open
+; handle lookup with retries, error translation for conf keyword
+; requests, default ext and ppn handling, record file size in fcb.
+; Returns the usual error code in r1.
+
+dclne	getlk
+look1:		; A lookup has been requested. Try, including re-try
+		; if requested.
+	call	dolook
+	jumpe	r1,gotlk
+
+		; lookup failed. See if we used a default extension
+		; and retry was requested.
+	ldb	r0,[dexpt(ext(fcb))]
+	jumpe	r0,look2	; jump if not a default
+	ifoff	o.ye,look2
+	turnoff	o.ye		; Don't do this retry twice
+	hlrz	r0,.rbext(leb)	; will be all zero if no ext used
+	jumpe	r0,look2
+	hllm	r0,.rbext(leb)	; but at least the LH will be zero
+	jrst	look1
+
+look2:		; consider PPN retry
+	ifoff	o.yp,lkfail
+	skipn	ptr(fcb)		; skip if PPN or username pointer in fcb
+	jrst	lkfail
+	setzm	.rbppn(leb)	; try home directory
+	invert	l.ppny+o.yp
+	jrst	look1
+
+lkfail:		; lookup has failed
+	ifon	l.nfr!l.conf!l.ofnr,glkwon	; cool if new file reqd
+				; or confirmation trip anyway
+	ifon	(l.ofr)		; change error if old file required
+	movei	r1,e.fnx
+	jrst	glkexi
+
+gotlk:		; a lookup has won
+	turnon	l.look
+	move	.rbppn(leb)
+	movem	ptr(fcb)
+		; and we may loose if new file required
+	ifoff	l.nfr,gotlk2
+	movei	r1,e.xfil
+	jrst	glkexi	; We don't have to close the file; OPERR will
+			; release the channel.
+
+gotlk2:
+	hllz	r0,.rbext(leb)	; pick up the winning extension
+	hllm	r0,ext(fcb)	;   and record in fcb
+	dpb	r0,[dexpt(ext(fcb))]	; show extension is real
+
+		; If we won on re-tried PPN, record in fcb.
+	ifon	l.ppny
+	setzm	ptr(fcb)	
+	move	r0,.rbsiz(leb)	; pick up file length (words)
+	movem	r0,eof(fcb)
+	movem	r0,len(fcb)
+
+glkwon:
+	setz	r1,	; no error in sight
+glkexi:
+	return	getlk
+	subttl	captive routines to do LOOKUP, ENTER, or RENAME for open
+
+dclne	dolook
+	dochan( c.look, (leb), r0,CHAN, chn)
+	jrst	lkerr
+	setz	r1,
+	jrst	lkexi
+lkerr:
+	hrrz	r1,.rbext(leb)
+	movei	r1,pgrmsg+6(r1)
+lkexi:
+	return	dolook
+
+dclne   domen;  multiple enter
+        dochan( c.men, (leb), r0,CHAN, chn)
+        jrst    menerr
+        setz    r1,
+        jrst    menexi
+menerr: hrrz    r1,.rbext(leb)
+        movei   r1,pgrmsg+6(r1)
+menexi: return  domen
+
+dclne	doent
+	dochan( c.ent, (leb), r0,CHAN, chn)
+	jrst	enerr
+	setz	r1,
+	jrst	enexi
+enerr:	hrrz	r1,.rbext(leb)
+	movei	r1,pgrmsg+6(r1)
+enexi:	return	doent
+
+dclne	doren
+	dochan( c.ren, (leb), r0,CHAN, chn)
+	jrst	renerr
+	setz	r1,
+	jrst	renexi
+renerr:
+	hrrz	r1,.rbext(leb)
+	movei	r1,pgrmsg+6(r1)
+renexi:
+	return	doren
+
+	subttl	captive routines to do CLOSE or RELEASE for open
+dclne	doclos
+	dochan( c.clos, 0, r0,CHAN, chn)
+	turnoff	l.look!l.ent
+	return	doclos
+
+dclne	dorel
+	dochan(c.rel,0,r0,CHAN,chn)
+	setzm	chantb(chn)
+	setzm	crapch
+	turnoff	l.chan
+	return	dorel
+
+	subttl	captive routine to find creation date/time for open
+
+dclne	gtctim
+
+;Return the creation date,,creation time in r1 (Greenwich).
+;The date is days since Jan 1 1964 and the time is seconds since midnight.
+
+	ldb	r1, [ point 6, .rblic(leb), 17] ;seconds since last minute
+
+	ldb	[ point 11, .rbprv(leb), 23]    ;creation time in minutes since midnight
+        imuli   r0,^d60
+        add     r1,r0           ;now have creation time in seconds in RH
+
+	ldb	[ point 12, .rbprv(leb), 35]    ;creation date
+	dpb	[ point 12, r1, 17]
+
+	ldb	[ point 2, .rbext(leb), 21]     ;high order creation date
+	dpb	[ point 2, r1, 5]
+	return	gtctim
+
+dclne	zaptim
+	setz
+	dpb	[ point 6, .rblic(leb), 17]
+	dpb	[ point 23, .rbprv(leb), 35]
+	hllzs	.rbext(leb)
+	return	zaptim
+	subttl	subroutines used by open
+
+
+comment /
+
+OPNCHN -- Open a DSK channal in dump mode
+
+Input	r0: channal number or -1 to open any free channel
+
+Output	r1: ERRNag
+	r2: CHANag
+/
+
+dclne	opnchn
+	setz	r1,	; set no error
+	dochan	(c.opn,opnspc,r2,CHAN,r0)
+	movei	r1,pgrmsg+3
+	hrrz	r2,r2		; return clean channel number
+	caige	r2,nmbch
+	caig	r2,0
+	movei	r1,pgrmsg+3
+	jumpn	r1,opchex
+	movem	r2,crapch	; if this number is still here the
+				; next time we enter OPEN, the
+				; channel will be released.
+				; Y O U   W E R E   W A R N E D !
+				; ===============================
+	turnon	l.chan
+opchex:
+	return	opnchn
+
+opnspc:	^o17	; dump mode
+	sixbit	/DSK/
+	0
+
+comment /
+
+SSXFCB -- set fcb from sixbit block
+
+Input: r0: SIXBag
+	fcb: FCBAag
+Output:	none
+/
+
+dclne	ssxfcb
+	move	r2,r0	; base address for sixblk in r2
+
+	move	r3,sxnam(r2)	; file name
+	movem	r3,nam(fcb)
+
+	move	r3,sxext(r2)	; extension and flags
+	movem	r3,ext(fcb)
+
+	dmove	r3,sxun(r2)	; user name
+	jumpe	r3,ssxppn	; not really user name if sxun zero
+	dmovem	r3,dir(fcb)
+	movei	r3,dir(fcb)	; user name needs pointer in ppn word
+	movem	r3,ptr(fcb)
+	jrst	ssxexi
+
+ssxppn:	movem	r4,ptr(fcb)	; nothing, or maybe ppn
+
+ssxexi:	return	ssxfcb
+
+dclne	setleb
+	setzm	(leb)
+	hrli	(leb)
+	hrri	1(leb)
+	blt	lebsiz-1(leb)
+
+	movei	lebsiz-1
+	movem	(leb)
+
+	move	nam(fcb)
+	movem	.rbnam(leb)
+
+	hllz	ext(fcb)
+	movem	.rbext(leb)
+
+	move	ptr(fcb)
+	movem	.rbppn(leb)
+
+	return	setleb
+	SUBTTL	.GARY{s/f}  --  produce ASCIZ file name
+
+dcl	.garyf,,<<Sag,4>>,2
+
+; input:	r1 - FCBAag
+;		r2 - output destination
+; output:	from .GARYS
+;
+; copy the appropriate data from the fcb to a local 4-word
+;	sixbit block and call .GARYS
+	move	r10,r0
+	movei	r11,Sag
+	move	dir(r10)
+	movem	sxun(r11)
+	move	dir+1(r10)
+	movem	sxun+1(r11)
+	move	nam(r10)
+	movem	sxnam(r11)
+	move	ext(r10)
+	movem	sxext(r11)
+	call	.garys,Sag
+	return	.garyf
+
+	DCL     .garys,<,DESTag,SR2,SR3>,,1
+
+; input:	r0 - SIXBag
+;		r1 - destination:
+;			if =0 then use local block (svnblk)
+;			if LH=0 then assume address and make pointer of it
+;			else it's a byte pointer
+; output:	r1 - if destination was zero on input, return address
+;			of block, else return byte pointer to 
+;			terminating null for ASCIZ file name.
+
+sixb==r10
+.cnt==r0
+.ibp==r1
+.obp==r2
+.char==r3
+
+	move	sixb,r0
+	cain	r1,0
+	movei	r1,svnblk
+	tlnn	r1,-1
+	hrli	r1,( point 7,)
+	move	.obp,r1
+	move	sxterm		; check for terminal
+	came	sxnam(fcb)
+	jrst	ffcdsk
+	call	unsix,<^d8,sxterm>
+	jrst	ffcb2
+
+ffcdsk:
+	SKIPN   sxun(sixb)		;DIR name given ?
+	JRST    FFCB1			;No, decode name
+	MOVEI   .char,"("		;7-bit open paren
+	IDPB    .char,.obp		;User name spec
+	MOVEI   .ibp,sxun(sixb)		;Adr of dir name
+	MOVEI   .cnt,^D12		;Max chars
+	call	unsix
+	MOVEI   .char,")"		;closing paren
+	IDPB    .char,.obp		;put on string
+
+ffcb1:	MOVEI   .ibp,sxnam(sixb)		;Address of 6-bit file name
+	MOVEI   .cnt,6			;Max character count
+	call	unsix
+
+	ldb	r0,[ dexpt ( sxext(sixb))]
+	jumpn	r0,ffcb2
+	MOVEI   .char,"."		;7-bit dot on str if ext
+	IDPB    .char,.obp
+	MOVEI   .ibp,sxext(sixb)		;Address of 6-bit ext
+	MOVEI   .cnt,3			;Max char count
+	call	unsix
+FFCB2:	SETZ    .char,
+	IDPB    .char,.obp		;E.O.LIT THE THING
+	BKUP	.obp
+	move	r1,.obp
+	skipn	DESTag
+	movei	r1,svnblk
+ffcb3:	RETURN  .garys,<,$,sr2,$,sr3>
+
+;+
+;.p
+; UNSIX - captive subroutine for .garys
+;-
+dclne	unsix
+	HRLI    .ibp,(POINT 6,0)	;pointer to it
+unsixl:	ILDB    .char,.ibp		;Get next char of string
+	JUMPE   .char,unsixx		;Null done
+	ADDI    .char,40		;to 7-bit from 6-bit
+	IDPB    .char,.obp		;Store on string
+	SOJG    .cnt,unsixl		;Loop copying chars
+unsixx:	return	unsix
+
+sxterm:	sixbit	/TERMIN/
+	sixbit	/AL/
+
+	subttl	pubfer -- emit err msg + file name 
+
+; This routine assembles FILE UUO's for use with the runside or calls
+; to CXER1, CXER2 for use with parse/compile.
+
+   ife ftrun,<
+	EXTERN	PGRMOD
+	EXTERN	CXER1,CXER2
+	DCL     pubfer,<UFNMag,ERRNag,unitag>
+	HRRZ    R0,PGRMOD-PGRMSG(R1)
+	CALL    CXER1
+	MOVE    R0,UFNMag
+	CALL    CXER2
+	RETURN  pubfer		; and EXIT
+   >
+
+   ifn ftrun,<
+	EXTERN	CXER1
+	DCL     pubfer,<UFNMag,ERRNag,unitag>
+	move	r1,unitag
+	file	pr,@ERRNag		; please print and return
+	move	r0,UFNMag		; file nomen
+	call	cxer1		; print file name
+	move	r1,unitag
+	file	qg,@ERRNag		; Quit Quietly
+	; =======   never returns   ======
+   >
+
+	lit
+	end
+
+   
