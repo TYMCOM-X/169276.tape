@@ -1,0 +1,1232 @@
+        TWOSEG
+        RELOC   0
+        TITLE PARSE8
+
+;                PARSER SCRATCH AREA
+
+;                TERMINAL INPUT BUFFER
+INPBUF:: BLOCK BFWRDS
+
+
+;                       OLD LINE TO BE EDITED BUFFER
+OLDBUF::  BLOCK  BFWRDS
+
+
+;                PMC WINDOW BUFFER
+PWBUF::  BLOCK    PMCSZ
+
+;                PMC PACKETS
+PKTCDE:: BLOCK PMCSZ
+
+;                PACKET STACK
+PKSTK::  BLOCK    200
+
+;                PARSER STACKS
+VARSTK::  BLOCK    200
+OPSTK::  BLOCK    200
+FNSTK::  BLOCK    200
+IFSTK::  BLOCK    10
+
+;                PARSER VARIABLES
+
+ADDAMT:: 0
+ADDFLG:: 0
+ADMISW:: 0
+ADR::    0
+ASCVER:: 0
+BCHRS:: BLOCK 12
+BINPOS:: 0
+BPTR::   0
+BPTR1::  0
+BPTR2::  0
+BTLNUM:: BLOCK 2
+BYFLG::  0
+C::      0
+CALLID:: 0
+CBYT9::  0
+CBYT18:: 0
+CBYT27:: 0
+CC::     0
+CDEPTR:: 0
+CDEPT1:: 0
+CKR0::    0
+CLNFLG:: 0
+COMSW:: 0
+CPKT::   0
+CV::     0
+DATLEN:: 0
+DCEC::   0
+DCECID:: 0
+DCFLGS:: 0
+DEFDMS:: 0
+DEFMDE:: 0
+DFG::    0
+DIMARG:: 0
+DIMCDE:: 0
+DIMFLG:: 0
+DIMID::  0
+ECHRS::  0
+ELSECT:: 0
+ENDCT::  0
+EXPRSW:: 0
+FCVPTR:: 0
+FDN::    0
+FEX::    0
+FILV::   0
+FILV1::  0
+FIRSTN:: 0
+FLRNG::  0
+FNAMEV:: 0
+FNC::    0
+FNDSW::  0
+FNUM::   0
+FNV::    0
+FORCNT:: 0
+FORCDE:: 0
+FORMIM:: 0
+FORVAR:: 0
+FNPTR::  0
+FNTYPE:: 0
+FVAR::   0
+GOODPT:: 0
+GFFCDE:: 0
+GFFLG::  0
+HADRAD:: 0
+HIGHLN:: 0
+HOP::    0
+IBYFG:: 0
+IFORID:: 0
+IFRCD:: 0
+ITOFG:: 0
+IFRST:: 0
+ICONF:: 0
+IFCT::   0
+IFSW::   0
+IFPTR::  0
+INPPRT:: 0
+INPFLG:: 0
+INPDON:: 0
+KILFLG:: 0
+LETSW::  0
+LISTYP:: 0
+LLC::    0
+LNMB::   0
+LOWLN::  0
+LNMB1::  0
+LNB::    0
+LRTSW::  0
+LOC::    0
+LPFLG::  0
+LSTCT:: 0
+LSTFIL:: 0
+LSTPTR:: 0
+LSTRG:: 0
+LSTVAR:: 0
+LPOINT:: 0
+LPONT1:: 0
+MATFLG:: 0
+MODCDE:: 0
+MODSW::  0
+MODPTR:: 0
+MOV2::   0
+MOV3::   0
+MKLNPT:: 0
+MKCCHR:: 0
+NAMEN1:: 0
+NAMPTR:: 0
+NAMR1::  0
+NAMR2::  0
+NLP::    0
+NRP::    0
+NRSW::   0
+NXTNUM:: 0
+NUMB::   0
+NEWLN::  0
+NTABS::  0
+NARGS::  0
+NFARGS:: 0
+NEXP::   0
+NOCDE::  0
+NCHR::   0
+NEWLRT:: 0
+NEWLOC:: 0
+NEWPT:: 0
+NT::     0
+NN::     0
+NWTVAR:: 0
+NXTLC::  0
+NXTNON:: 0
+OPPTR::  0
+OTDONE:: 0
+ONCDE::  0
+OPNCDE:: 0
+OLDLOC:: 0
+OLDADR:: 0
+OPC::    0
+OPV::    0
+OUTPTR:: 0
+OUTCT::  0
+PBYT9::  0
+PBYT18:: 0
+PBYT27:: 0
+PMCID::  0
+PMCPTR:: 0
+PMCWRT:: 0
+PMCNO::  0
+PMCFLG:: 0
+PBYT36:: 0
+PRTFLG:: 0
+PRTCDE:: 0
+PRTCR::  0
+PCOP::   0
+PSOP::   0
+PREVCH:: 0
+PXFG::  0
+RINC::   0
+RPTSW::  0
+RADFLG:: 0
+SAWCMA:: 0
+SCID::   0
+SCOLON:: 0
+SCVAL::  0
+SLICED:: 0
+SVBFLG:: 0
+SNMBR::  0
+SPCHR::  0
+STRTC::  0
+SAVLLC:: 0
+SAVEA::  0
+SOPC::   0
+SOPV::   0
+SVLLC:: 0
+SYMPOS:: 0
+TOADD::  0
+TOFFLG:: 0
+TOFLG::  0
+TSTFLG:: 0
+TPOS::   0
+VARPTR:: 0
+V::      0
+VARCT::  0
+VEE1::     0
+VARFLG:: 0
+VARID::  0
+VARID1:: 0
+XQTFLG:: 0
+XCHVAR:: 0
+
+
+;                       STORAGE FOR GET,SAVE AND MERGE
+
+FSTREP:: 0
+GETSW:: 0
+SAVADR:: 0
+SAVPTR:: 0
+SAVNAM:: BLOCK SXSIZ
+SYMPTR:: 0
+GETPTR:: 0
+LINCT:: 0
+GETADR:: 0
+GETNAM:: BLOCK SXSIZ
+
+;                       STORAGE FOR MODULE COMMANDS
+FCAND:: BLOCK 10
+FNOMCT:: 0
+
+;                       STORAGE FOR DUMP REFS
+DMPAD:: 0
+DMPTR:: 0
+DMPFLG:: 0
+DMPDCL:: 0
+DMPPAR:: 0
+DMPLPT:: 0
+DMPMPT:: 0
+;                       STORAGE FOR TXPDAT
+DATPT:: 0
+DATFLD:: BLOCK 4
+
+
+;                       STORAGE FOR BREAK AND TRACE
+
+BKHALF:: 0
+BRKIDX:: 0
+TRHALF:: 0
+TRCIDX:: 0
+SVVBP::  0
+VLFT::  0
+VTRBP::  0
+TRVIDX:: 0
+TRDON::  0
+TRVPTR:: 0
+TRID::   0
+VNAM::   BLOCK 3
+TRCPTR:: 0
+VARLFT:: 0
+VARFND:: 0
+TRIDX2:: 0
+TRPTR2:: 0
+BKID2::  0
+
+
+;                       STORAGE FOR EDIT,MODIFY AND GETLIN
+
+EDMOD:: 0
+EDRGCT::0
+CUREDR::0
+INEDR:: 0
+EDTRGS:: BLOCK 10
+EDDONE:: 0
+CRETPT::0
+
+
+;                       STORAGE FOR RENUMBER
+RENREC:: 0
+LSTREC:: 0
+NEWNMB:: 0
+SAVR0::  0
+SAVR1::  0
+GTFLG::  0
+RLINLN:: 0
+NEWPTR:: 0
+CHRNEW:: 0
+RNFLG::  0
+TRNFLG:: 0
+SRCHRC:: 0
+LINREC:: 0
+SRCHFL:: 0
+RENARG:: 0
+NEWNM::  0
+REAREC:: 0
+LSTNEW:: 0
+FSTNEW:: 0
+FWDREC:: 0
+INTREC:: 0
+
+NOLM1::  0
+RERM1::  0
+
+
+;                       STORAGE FOR GLOBAL RECOMPILATION
+RLFSYN::0
+RUNFNM::0
+
+;         PARSER HISEG DATA
+        RELOC   ^O400000
+
+;                PARSER CONSTANTS
+
+DFTEN::  EXP 10.0,0
+DFTNTH:: EXP ^O175631463146,^O146314631463
+CVPTR::  NAMCV
+HSHCON:: EXP ^O10204010201
+PKTBGN:: POINT 9,PKTCDE
+PRCPTR:: OPTBL
+
+;                INDEX TO PARSER STACKS
+BPBGN::  PKSTK
+IFBGN::  IFSTK
+FNBGN::  FNSTK
+OPBGN::  OPSTK
+VARBGN:: VARSTK
+
+ERRTBL:: [ASCIZ /Feature unimplemented/]     ;0
+        [ASCIZ /Tym-Basic internal error/]  ;1
+        [ASCIZ /Incomplete IF statement/]   ;2
+        [ASCIZ /Invalid line number/]       ;3
+        [ASCIZ /Missing "THEN"/]            ;4
+        [ASCIZ /Illegal )/]                 ;5
+        [ASCIZ /Illegal variable or operand/] ;6
+        [ASCIZ /Illegal (/]                 ;7
+        [ASCIZ /Error               /]      ;8
+        [ASCIZ /Illegal statement or command/] ;9
+        [ASCIZ /Direct only command used indirectly/] ;10
+        [ASCIZ /More than 10 subscripts declared/] ;11
+        [ASCIZ /SAVE BINARY with line range illegal/] ;12
+        [ASCIZ /STEP value must be >=1, <=250000/] ;13
+        [ASCIZ /Invalid or non-existent file name/] ;14
+        [ASCIZ /Parenthesis imbalance/]         ;15
+        [ASCIZ /IF nested too deeply (>10)/]    ;16
+        [ASCIZ /Bad parameter list/]            ;17
+        [ASCIZ /Invalid add amount/]            ;18
+        [ASCIZ /Missing "AS"/]                  ;19
+        [ASCIZ /Missing "ON"/]                  ;20
+        [ASCIZ /Missing "FROM"/]                ;21
+        [ASCIZ /Invalid PRINT or WRITE statement/]       ;22
+        [ASCIZ /Invalid NEXT statement/]        ;23
+        [ASCIZ /Line number required/]                 ;24
+        [ASCIZ /Reference to invalid line number/]     ;25
+        [ASCIZ /This statement may not be direct/]     ;26
+        [ASCIZ /This statement may not be modified/]   ;27
+        [ASCIZ /Missing ")"/]                           ;28
+        [ASCIZ /Missing variable/]                     ;29
+        [ASCIZ /Invalid assignment statement/]         ;30
+        [ASCIZ /Invalid statement after THEN or ELSE/] ;31
+        [ASCIZ /Missing ":"/]                          ;32
+        [ASCIZ /"AT" used without "ON" or "FROM/]    ;33
+        [ASCIZ /Invalid OPEN statement/]             ;34
+        [ASCIZ /Invalid ON statement/]               ;35
+        [ASCIZ /DATA line exceeds 255 characters/]   ;36
+        [ASCIZ /Name ends with "."/]                 ;37
+        [ASCIZ /Illegal command modifier/]           ;38
+        [ASCIZ /Invalid ENDF statement/]             ;39
+        [ASCIZ /Illegal ==/]                         ;40
+        [ASCIZ /Invalid CALL statement/]             ;41
+        [ASCIZ /ELSE without matching THEN/]         ;42
+        [ASCIZ /GO must be followed by TO or SUB/]  ;43
+        [ASCIZ /Invalid symbol follows "IN"/]    ;44
+        [ASCIZ /Invalid numeric constant/]           ;45
+        [ASCIZ /Numeric constant underflow/]         ;46
+        [ASCIZ /Numeric constant overflow/]          ;47
+        [ASCIZ /Missing number where required/]      ;48
+        [ASCIZ /Missing string delimiter/]           ;49
+        [ASCIZ /No-argument function used with arguments/]  ;50
+        [ASCIZ /Function requiring argument not followed by (/] ;51
+        [ASCIZ /Illegal comma in expression/]            ;52
+        [ASCIZ /Illegal colon/]                          ;53
+        [ASCIZ /Function used with wrong number of arguments/] ;54
+        [ASCIZ /String too long/]                        ;55
+        [ASCIZ /Name too long/]                          ;56
+        [ASCIZ /Invalid or non-existent line range/]     ;57
+        [ASCIZ /Invalid DELETE command/]                 ;58
+        [ASCIZ /Deferred until Milestone 5/]             ;59
+        [ASCIZ /Line prompt greater than 99999/]         ;60
+        [ASCIZ /Invalid TAB command/]                    ;61
+        [ASCIZ /Multiple exchange statements are illegal/] ;62
+        [ASCIZ /No program/]                             ;63
+        [ASCIZ /More than 31 parameters specified/]      ;64
+        [ASCIZ /Special variable may not be dimensioned or declared/] ;65
+        [ASCIZ /Invalid user-defined function name/]     ;66
+        [ASCIZ /Illegal colon after function name/]      ;67
+        [ASCIZ /Missing ")" after parameter list/]       ;68
+        [ASCIZ /Index variable may not be subscripted/]  ;69
+        [ASCIZ /Missing "=" in FOR statement/]           ;70
+        [ASCIZ /BY or STEP used twice/]                          ;71
+        [ASCIZ /TO used twice/]                          ;72
+        [ASCIZ /TO and WHILE cannot both be used/]       ;73
+        [ASCIZ /TO and UNTIL cannot both be used/]       ;74
+        [ASCIZ /BY or STEP used without TO, WHILE or UNTIL/]      ;75
+        [ASCIZ /Too many breakpoints/]                   ;76
+        [ASCIZ /Too many trace line ranges/]             ;77
+        [ASCIZ /Too many trace variables/]               ;78
+         [0]                                     ;79 NULL MESSAGE
+        [ASCIZ /TERMINAL illegal/]                       ;80
+        [ASCIZ /Line too long/]                          ;81
+        [ASCIZ /Module list empty/]                      ;82
+        [ASCIZ /Library list empty/]                     ;83
+        [ASCIZ /Invalid octal constant/]                 ;84
+        [ASCIZ /Deletion or interleave threat, command aborted/] ;85
+        [ASCIZ /RENUMBER would give bad line #,command aborted/] ;86
+        [ASCIZ /RENUMBER would give too long a line, command aborted/] ;87
+        [ASCIZ /File not on module list, command aborted/];88
+        [ASCIZ /File not on library list, commmand aborted/] ;89
+        [ASCIZ /File name too long/]                     ;90
+        [ASCIZ /'AKA' with non-ENTRY or -EXTERNAL DEF illegal/];91
+        [ASCIZ /EXTERNAL DEF must not have assignment at end/];92
+        [ASCIZ /Line range limit reached, ENTER mode terminated/];93
+        [ASCIZ /Too many editing line ranges/]           ;94
+        [ASCIZ /Line deletion threatened, ENTER mode terminated/] ;95
+        [ASCIZ /Interleaving threatened, ENTER mode terminated/]  ;96
+        [ASCIZ /Invalid RENUMBER command/]               ;97
+        [ASCIZ /More than 4095 user names; try clearing workspace/] ;98
+        [ASCIZ /Slice star used with operator/]          ;99
+        [ASCIZ /Slice star not followed by ) or ,/]      ;100
+        [ASCIZ /Slice star follows slice colon/]         ;101
+        [ASCIZ /Slice star in dimensioning/]             ;102
+        [ASCIZ /Slice of TBA function/]                  ;103
+        [ASCIZ /String constant required/]               ;104
+        [ASCIZ /Missing '*'/]                            ;105
+        [ASCIZ /More than 10 dimensions/]               ;106
+        [ASCIZ /Program not continuable/]                ;107
+        [ASCIZ /Missing required file name/]             ;108
+        [ASCIZ /No action taken; data preserved/] ;109
+        [ASCIZ /**/]                                     ;110
+        [ASCIZ /**/]                                     ;111
+        [ASCIZ /**/]                                     ;112
+        [ASCIZ /ENTER increment may not be zero/]        ;113
+        [ASCIZ /Illegal FOR/]                            ;114
+        [ASCIZ /Invalid RENUMBER command/]               ;115
+        [ASCIZ /Invalid NO statement/]                   ;116
+        [ASCIZ /IO must be RANDOM/]                      ;117
+        [ASCIZ /BY or STEP without FOR/]                 ;118
+        [ASCIZ /BY or STEP after WHILE or UNTIL/]       ;119
+        [ASCIZ /TO without FOR/]                         ;120
+        [ASCIZ /TO after WHILE or UNTIL/]              ;121
+        [ASCIZ /WHILE without FOR/]                      ;122
+        [ASCIZ /TRACE cannot use subscripted variables/] ;123
+        [ASCIZ /Invalid TRACE command/]                  ;124
+        [ASCIZ /WHILE after WHILE or UNTIL/]             ;125
+        [ASCIZ /UNTIL without FOR/]                      ;126
+        [ASCIZ /UNTIL after WHILE or UNTIL/]             ;127
+        [ASCIZ /Missing FOR/]                            ;128
+        [ASCIZ /SYMD cannot use subscripted variables/]  ;129
+        [ASCIZ /Invalid DUMP command/]                   ;130
+        [ASCIZ /NO TRACE cannot use subscripted variables/] ;131
+        [ASCIZ /Statement with leading line # required/] ;132
+        [ASCIZ /Missing comma/]                          ;133
+        [ASCIZ /Missing "="/]                            ;134
+        [ASCIZ /Missing "ERR"/]                          ;135
+        [ASCIZ /Subscripted variable illegal/]           ;136
+        [ASCIZ /Illegal use of Tym-Basic variable/]      ;137
+        [ASCIZ /Missing "TO"/]                           ;138
+        [ASCIZ /RUN or INIT required/]                  ;139
+        [asciz /Program not in DEBUG mode/]             ;140
+        [asciz /Illegal extension/]                     ;141
+        SUBTTL  RESERVED WORD TABLES
+
+;Class 0        COMMANDS        always direct
+
+        DEFINE RWDTAB<
+        U <DELETE         >,0,2
+        U <DEL            >,0,2
+        U <ENTER          >,0,3
+        U <LIST           >,0,4
+        U <DLIST          >,0,5
+        U <MERGE          >,0,6
+        U <GET            >,0,7
+        U <SAVE           >,0,8
+        U <EDIT           >,0,9
+        U <MODIFY         >,0,10
+        U <VERSION        >,0,11
+        U <RENUMBER       >,0,12
+        U <REN            >,0,12
+        U <TOUT           >,0,13
+        U <TABS           >,0,14
+        U <RUN            >,0,15
+        U <START          >,0,16
+        U <GO             >,0,17
+        U <STEP           >,0,18
+        U <PMC            >,0,19
+        U <BREAK          >,0,20
+        U <TRACE          >,0,21
+        U <DO             >,0,22
+;0,23:  NO DEBUG
+;0,24:  NO BREAK
+;0,25:  NO TRACE
+        U <CDE            >,0,26
+        U <SYMD           >,0,27
+        U <DUMP           >,0,28
+        U <DEBUG          >,0,29
+        U <INITIALIZE     >,0,30
+        U <INIT           >,0,30
+        U <ECHO           >,0,31
+;0,32:  NO ECHO
+        U <STARTPOINT     >,0,33
+        U <MODULE         >,0,34
+        U <MODULES        >,0,34
+;0,35:  NO MODULE(S)
+        U <LIBRARY        >,0,36
+        U <LIBRARIES      >,0,36
+;0,37:  NO LIBRARY(IES)
+        U <MAP            >,0,38
+        U <TOF            >,0,39
+;0,40:  NO STARTPOINT
+
+;Class 1        STATEMENTS      sometimes not executed by the RUN module
+
+        U <REMARK         >,1,0
+        U <REM            >,1,0
+        U <QUIT           >,1,1
+        U <LOG            >,1,2
+
+;Class 2        STATEMENTS      always executed by the RUN module
+
+        U <LET            >,2,1
+        U <DEFINE         >,2,3
+        U <DEF            >,2,3
+        U <ENDF           >,2,4
+        U <END            >,2,5
+        U <READ           >,2,6
+        U <DATA           >,2,7
+        U <INPUT          >,2,8
+        U <PRINT          >,2,9
+        U <WRITE          >,2,9
+        U <OPEN           >,2,10
+        U <CLOSE          >,2,11
+        U <NEXT           >,2,12
+        U <GOTO           >,2,13
+        U <GOSUB          >,2,14
+        U <RETURN         >,2,15
+        U <ON             >,2,16
+        U <PAUSE          >,2,17
+        U <STOP           >,2,18
+        U <CALL           >,2,19
+        U <WAIT           >,2,20
+        U <COMPLEX        >,2,21
+        U <DOUBLE         >,2,22
+        U <STRING         >,2,23
+        U <TEXT           >,2,24
+        U <REAL           >,2,25
+        U <INTEGER        >,2,26
+        U <LOGICAL        >,2,27
+        U <DIM            >,2,28
+        U <BOUNDARY       >,2,30
+        U <DECODE         >,2,31
+        U <ENCODE         >,2,32
+        U <SIGNIFICANCE   >,2,33
+        U <EXIT           >,2,36
+        U <CIB            >,2,37
+        U <COB            >,2,38
+        U <BASE           >,2,39
+        U <ENDIF          >,2,41
+        U <RESUME         >,2,43
+        U <COPY           >,2,44
+        U <LOS            >,2,45
+        U <REMOVE         >,2,46
+        U <RENAME         >,2,47
+        U <LOCATE         >,2,48
+        U <ERASE          >,2,49
+        U <LOL            >,2,50
+        U <ORIF           >,2,51
+        U <RESTORE        >,2,52
+        U <NAME           >,2,53
+        U <PIF            >,2,55
+        U <PIM            >,2,56
+        U <IIF            >,2,57
+        U <IIM            >,2,58
+        U <EIGHTI         >,2,59
+        U <EIGHTO         >,2,60
+;2,61:  NO ...     statement
+        U <SOPEN          >,2,62
+        U <LOCK           >,2,63
+        U <UNLOCK         >,2,64
+
+;Class 3        TERMINATORS     of statements
+
+        U <ELSE           >,3,2
+        U <FOR            >,3,3
+        U <IF             >,3,4
+        U <UNLESS         >,3,5
+        U <WHERE          >,3,6
+        U <WHILE          >,3,7
+        U <UNTIL          >,3,8
+
+;Class 4        SPECIAL WORDS
+
+        U <THEN           >,4,1
+        U <TO             >,4,2
+        U <BY             >,4,3
+        U <FORM           >,4,4
+        U <IMAGE          >,4,5
+        U <FROM           >,4,6
+        U <AT             >,4,7
+        U <SYMBOLIC       >,4,8
+        U <BINARY         >,4,9
+        U <SEQUENTIAL     >,4,10
+        U <RANDOM         >,4,11
+        U <OUTPUT         >,4,12
+        U <IO             >,4,13
+        U <AS             >,4,14
+        U <FILE           >,4,15
+        U <MAT            >,4,16
+        U <ALL            >,4,17
+        U <ENDFILE        >,4,18
+        U <WITH           >,4,19
+        U <ADD            >,4,20
+        U <ERROR          >,4,21
+        U <ESCAPE         >,4,22
+        U <MATH           >,4,23
+        U <TRANSFORM      >,4,24
+        U <RANDIO         >,4,25
+        U <RANDIN         >,4,26
+        U <RANDOUT        >,4,27
+        U <IN             >,4,28
+        U <REL            >,4,29
+        U <PROTECTION     >,4,30
+        U <ERR            >,4,31
+        U <DATAEND        >,4,32
+        U <REFS           >,4,3      U <INC            >,4,35
+        U <SFO            >,4,36
+        U <CFO            >,4,37
+        U <SIMPL          >,4,38
+        U <BLISS          >,4,39
+        U <F40            >,4,40
+        U <NO             >,4,41
+        U <AKA            >,4,42
+        U <ENTRY          >,4,44
+        U <EXTERNAL       >,4,45
+        U <TBA            >,4,46
+        U <SUB            >,4,47
+
+;Class 6        UNARY OPERATORS
+
+        U <NOT            >,6,5
+
+;Class 8        BINARY OPERATORS
+
+        U <EQV            >,8,4
+        U <IMP            >,8,5
+        U <XOR            >,8,6
+        U <OR             >,8,7
+        U <AND            >,8,8
+        U <BEX            >,8,19
+        U <BOR            >,8,20
+        U <BAN            >,8,21
+        U <DIV            >,8,24
+        ;  *                8,27
+        U <MOD            >,8,28
+        U <MUL            >,8,29
+        U <PWR            >,8,30
+
+;Class 16       SYSTEM-DEFINED CONSTANTS
+
+        U <PI             >,16,0
+        U <DPI            >,16,1
+        U <TRUE           >,16,2
+        U <FALSE          >,16,3
+
+;Class 17       NO-ARGUMENT FUNCTIONS
+
+        U <DATE           >,17,0
+        U <TIME           >,17,1
+        U <TERM           >,17,2
+        U <IXASC          >,17,3
+        U <IXCHAR         >,17,4
+        U <XASC           >,17,5
+        U <XCHAR          >,17,6
+        U <TCP            >,17,7
+        U <DET            >,17,8
+        U <YEAR           >,17,9
+        U <ERRCD          >,17,10
+        U <ERRLN          >,17,11
+        U <ERRFL          >,17,12
+        U <TRU            >,17,13
+
+;Class 18       ARGUMENT/NO-ARGUMENT FUNCTIONS
+
+        U <POS            >,18,0
+        U <RND            >,18,1
+        U <ZER            >,18,2
+        U <CON            >,18,3
+        U <IDN            >,18,4
+
+;Class 19       MATHEMATICAL FUNCTIONS
+
+        U <ABS            >,19,0
+        U <SQR            >,19,1
+        U <SQRT           >,19,1
+        U <SIN            >,19,2
+        U <COS            >,19,3
+        U <TAN            >,19,4
+        U <ASIN           >,19,10
+        U <ACOS           >,19,11
+        U <ATAN           >,19,12
+        U <ATN            >,19,12
+        U <SINH           >,19,13
+        U <COSH           >,19,14
+        U <TANH           >,19,15
+        U <LOG10          >,19,18
+        U <LGT            >,19,18
+        U <EXP            >,19,19
+
+;Class 20       NUMERIC FUNCTIONS
+
+        U <DBL            >,20,0
+        U <SGN            >,20,1
+        U <INT            >,20,2
+        U <FP             >,20,3
+        U <FIX            >,20,4
+        U <ROUND          >,20,5
+        U <ROUN           >,20,5
+        U <PDIF           >,20,6
+        U <IP             >,20,7
+
+;Class 21       COMPLEX FUNCTIONS
+
+        U <CMPLX          >,21,0
+        U <IMAG           >,21,2
+        U <PHASE          >,21,3
+        U <POLAR          >,21,4
+        U <CONJ           >,21,5
+
+;Class 22       ARRAY FUNCTIONS
+
+        U <INV            >,22,0
+        U <TRN            >,22,1
+
+;Class 23       BINARY FUNCTIONS
+
+        U <LSH            >,23,0
+        U <RSH            >,23,1
+        U <ARSH           >,23,2
+        U <RCY            >,23,3
+
+;Class 24       NUMERIC OR STRING FUNCTIONS
+
+        U <COMP           >,24,0
+
+;Class 25       STRING FUNCTIONS
+
+        U <LENGTH         >,25,0
+        U <SPACE          >,25,1
+        U <VAL            >,25,2
+        U <STR            >,25,3
+        U <LEFT           >,25,4
+        U <RIGHT          >,25,5
+        U <SUBSTR         >,25,6
+        U <INDEX          >,25,7
+        U <CPAD           >,25,8
+        U <ASC            >,25,9
+        U <CHAR           >,25,10
+        U <LPAD           >,25,11
+        U <RPAD           >,25,12
+        U <RPT            >,25,13
+        U <RJUST          >,25,14
+        U <LJUST          >,25,15
+        U <COUNT          >,25,16
+
+;Class 26       UTILITY FUNCTIONS
+
+        U <TAB            >,26,0
+        U <LOC            >,26,1
+        U <SIZE           >,26,2
+        U <ERRMSG         >,26,3
+
+;Class 27       FUNCTIONS WITH INDETERMINATE NUMBERS OF ARGUMENTS
+;               OR IMPLICIT FOR-LOOP FUNCTIONS
+
+        U <MAX            >,27,0
+        U <MIN            >,27,1
+        U <SUM            >,27,2
+        U <PROD           >,27,3>
+
+        DEFINE SYSVAR<
+
+;Class 9        SPECIAL TYMBASIC VARIABLES
+;                                       ID #
+        U <EPS            >,9,0;        ;1
+        U <ASCTABLE       >,9,1;        ;2
+        U <CHARTABLE      >,9,2;        ;3
+        U <START.POINT    >,9,3>        ;4
+
+        DEFINE UVAR<
+
+;Class 10       USER VARIABLES (MAY BE DECLARED BY USER)
+;                                       ID #
+        U <E              >,10,0;       ;5
+        U <M              >,10,1;       ;6
+        U <Q              >,10,2>       ;7
+                                        ;(first real user variable is #8)
+
+        DEFINE  U(A,B,C)<SIXBIT /A/
+>
+
+RWORDS::RWDTAB
+        SYSVAR
+        UVAR
+ENDRWD::
+
+        DEFINE  U(A,B,C)<XWD B,C
+>
+
+NAMCV:: RWDTAB
+ENDSYS==.
+        SYSVAR
+.NSV=:  .-ENDSYS
+.FUN=:  .-NAMCV+1
+        UVAR
+;  CHARACTER CLASS AND VALUE TABLE
+CHARCV:: BYTE (18) 6,0,6,0,6,0,6,0,6,0,6,0,6,0,6,0
+ BYTE (18) 6,0,6,0,6,0,6,0,6,0,0,0,6,0,6,0
+ BYTE (18) 6,0,6,0,6,0,6,0,6,0,6,0,6,0,6,0
+ BYTE (18) 6,0,6,0,6,0,6,0,6,0,6,0,6,0,6,0
+ BYTE (18) 6,0,0,1,5,1,3,9,6,0,6,0,6,1,5,2
+ BYTE (18) 3,0,3,1,3,2,3,3,4,1,3,4,5,0,3,5
+ BYTE (18) 2,0,2,1,2,2,2,3,2,4,2,5,2,6,2,7
+ BYTE (18) 2,8,2,9,4,2,4,3,3,6,3,7,3,8,6,0
+ BYTE (18) 3,11,1,0,1,1,1,2,1,3,1,4,1,5,1,6
+ BYTE (18) 1,7,1,8,1,9,1,10,1,11,1,12,1,13,1,14
+ BYTE (18) 1,15,1,16,1,17,1,18,1,19,1,20,1,21,1,22
+ BYTE (18) 1,23,1,24,1,25,6,0,4,0,6,0,3,10,6,0
+ BYTE (18) 6,0,1,26,1,27,1,28,1,29,1,30,1,31,1,32
+ BYTE (18) 1,33,1,34,1,35,1,36,1,37,1,38,1,39,1,40
+ BYTE (18) 1,41,1,42,1,43,1,44,1,45,1,46,1,47,1,48
+ BYTE (18) 1,49,1,50,1,51,6,0,6,0,6,0,6,0,6,0
+        RADIX 8
+CHPACK::        EXP 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        EXP 0,0,0,0,0,0,0,0,0,0,0,0 ;through the control characters
+        EXP 0,0,0,0,0,0,0,0,0,0,0,0,0,0,16,0 ;punctuation
+        EXP 20,21,22,23,24,25,26,27,30,31 ;digits 0-9
+        EXP 0,0,0,0,0,0,0 ;punctuation
+        EXP 41,42,43,44,45,46,47,50,51,52,53,54,55,56,57 ;A-O
+        EXP 60,61,62,63,64,65,66,67,70,71,72 ;P-Z
+        EXP 0,0,0,0,0,0 ;punctuation
+        EXP 41,42,43,44,45,46,47,50,51,52,53,54,55,56,57 ;a-o
+        EXP 60,61,62,63,64,65,66,67,70,71,72 ;p-z
+        EXP 0,0,0,0,0 ;punctuation
+        RADIX   10
+
+;                         PMC PRINTING PATTERNS
+
+;       BIT 28=1, PRINT 2 BYTE OCTAL FIELD      -200
+;       BIT 29=1, FOLLOW FUNCTION PATTERN       -100
+;       BIT 30=1, PRINT 2 BYTE VARIABLE NAME    -40
+;       BIT 31=1, PRINT 1 BYTE OCTAL FIELD      -20
+;       BIT 32=1, PRINT 1 BYTE DECIMAL FIELD    -10
+;       BIT 33=1, PRINT 3 BYTE DECIMAL FIELD    -4
+;       BIT 34=1, PRINT 4 BYTE OCTAL FIELD      -2
+;       BIT 35=1, PRINT 4 BYTE OCTAL FIELD      -1
+
+PMCTBL:: OCT      0,0,50,40,0       ;0-4
+        OCT      40,0,50,50,40     ;5-9
+        OCT      50,40,50,40,50    ;10-14
+        OCT      40,50,40,50,40    ;15-19
+        OCT      50,40,50,40,0     ;20-24
+        OCT      0,0,0,0,0         ;25-29
+        OCT      40,200,0,0,0       ;30-34
+        OCT      0,0,20,20,40      ;35-39
+        OCT      0,20,0,0,0        ;40-44
+        OCT      0,0,4,4,0         ;45-49
+        OCT      0,40,0,0,0        ;50-54
+        OCT      0,0,0,0,0         ;55-59
+        OCT      0,40,0,0,0        ;60-64
+        OCT      0,0,0,0,0         ;65-69
+        OCT      0,0,0,0,0         ;70-74
+        OCT      0,40,40,40,0      ;75-79
+        OCT      0,0,4,4,4         ;80-84
+        OCT      4,4,4,40,50       ;85-89
+        OCT      40,0,0,0,0        ;90-94
+        OCT      0,0,0,0,0         ;95-99
+        OCT      0,0,0,40,0       ;100-104
+        OCT      0,0,0,0,0         ;105-109
+        OCT      0,4,0,0,0,0    ;110-115
+        OCT     0,0,40,40,40    ;116-120
+        OCT     40,40,0,0       ;121-124
+;                125-234 NOT USED
+        OCT      100,100,0,40,10   ;235-239
+        OCT      0,2,3,0,10        ;240-244
+        OCT      100,100,100,100,100 ;245-249
+        OCT      100,110,100,100,0 ;250-254
+        OCT     0,4,0,0,0       ;255-259
+        OCT     4,0,0,0                 ;260-263
+
+;                         OPERATOR PRECEDENCE TABLE
+
+OPTBL::  EXP      0        ;EMPTY STACK
+        EXP      2        ;)
+        EXP      1        ;(
+        EXP      0        ;NOT USED
+        EXP      3        ;EQV
+        EXP      4        ;IMP
+        EXP      5        ;XOR
+        EXP      5        ;OR
+        EXP      6        ;AND
+        EXP      7        ;NOT
+        EXP      8        ;=
+        EXP      8        ;NOT EQUAL
+        EXP      8        ;LESS THAN
+        EXP      8        ;LESS THAN OR =
+        EXP      8        ;GREATER THAN
+        EXP      8        ;GREATER THAN OR =
+        EXP      8        ;MUCH GREATER THAN
+        EXP      8        ;MUCH LESS THAN
+        EXP      8        ;=#
+        EXP      11       ;BEX
+        EXP      11       ;BOR
+        EXP      11       ;BAN
+        EXP      9        ;+
+        EXP      9        ;-
+        EXP      10       ;DIV
+        EXP     14        ;@ (ARRAY INTERSECTION)
+        EXP      10       ;/
+        EXP      10       ;*
+        EXP      11       ;MOD
+        EXP      10       ;MUL
+        EXP      13       ;PWR
+        EXP      13       ;^
+        EXP      12       ;UNARY -
+
+;                INDEX TO FUNCTION CLASS/VALUE TABLES
+
+FNIDX::  EXP      FNTB1
+        EXP      FNTB2
+        EXP      FNTB3
+        EXP      FNTB4
+        EXP      FNTB5
+        EXP      FNTB6
+        EXP      FNTB7
+        EXP      FNTB8
+        EXP      FNTB9
+        EXP      FNTB10
+
+;                FUNCTION CLASS/VALUE TABLES
+
+FNTB1::  BYTE (18)         1,253,5,0,0,0     ;POS
+        BYTE (18)         1,253,6,0,0,0     ;RND
+        BYTE (18)         1,249,3,2,249,5  ;ZER
+        BYTE (18)         1,249,4,2,249,6   ;CON
+        BYTE (18)         1,249,2,0,0,0     ;IDN
+
+FNTB2::  BYTE (18)         1,246,0,0,0,0     ;ABS
+        BYTE (18)         1,246,1,0,0,0     ;SQR
+        BYTE (18)         1,246,2,0,0,0     ;SIN
+        BYTE (18)         1,246,3,0,0,0     ;COS
+        BYTE (18)         1,246,4,0,0,0     ;TAN
+        BYTE (18)         0,0,0,0,0,0       ;NOT USED
+        BYTE (18)         0,0,0,0,0,0       ;NOT USED
+        BYTE (18)         0,0,0,0,0,0       ;NOT USED
+        BYTE (18)         0,0,0,0,0,0       ;NOT USED
+        BYTE (18)         0,0,0,0,0,0       ;NOT USED
+        BYTE (18)         1,246,10,0,0,0    ;ASIN
+        BYTE (18)         1,246,11,0,0,0    ;ACOS
+        BYTE (18)         1,246,12,2,246,21 ;ATAN
+        BYTE (18)         1,246,13,0,0,0    ;SINH
+        BYTE (18)         1,246,14,0,0,0    ;COSH
+        BYTE (18)         1,246,15,0,0,0    ;TANH
+        BYTE (18)         1,246,16,0,0,0    ;LOG
+        BYTE (18)         0,0,0,0,0,0       ;NOT USED
+        BYTE (18)         1,246,18,0,0,0    ;LOG10
+        BYTE (18)         1,246,19,0,0,0    ;EXP
+
+FNTB3::  BYTE (18)         1,247,0,0,0,0     ;DBL
+        BYTE (18)         1,247,1,0,0,0     ;SGN
+        BYTE (18)         1,247,2,0,0,0     ;INT
+        BYTE (18)         1,247,3,0,0,0     ;FP
+        BYTE (18)         1,247,4,0,0,0     ;FIX
+        BYTE (18)         1,247,5,0,0,0     ;ROUND
+        BYTE (18)         2,247,6,0,0,0     ;PDIF
+        BYTE (18)         1,247,8,0,0,0     ;IP
+
+FNTB4::  BYTE (18)         2,248,0,0,0,0     ;CMPLX
+        BYTE (18)         1,248,1,0,0,0   ;REAL
+        BYTE (18)         1,248,2,0,0,0   ;IMAG
+        BYTE (18)         1,248,3,0,0,0   ;PHASE
+        BYTE (18)         2,248,4,0,0,0   ;POLAR
+        BYTE (18)         1,248,5,0,0,0   ;CONJ
+
+FNTB5::  BYTE (18)         1,249,0,0,0,0     ;INV
+        BYTE (18)         1,249,1,0,0,0     ;TRN
+
+FNTB6::  BYTE (18)         2,250,0,0,0,0     ;LSH
+        BYTE (18)         2,250,1,0,0,0     ;RSH
+        BYTE (18)         2,250,2,0,0,0     ;ARSH
+        BYTE (18)         2,250,3,0,0,0     ;RCY
+
+FNTB7::  BYTE (18)         2,247,7,0,0,0     ;COMP
+
+FNTB8::  BYTE (18)         1,252,0,0,0,0     ;LENGTH
+        BYTE (18)         1,252,1,0,0,0     ;SPACE
+        BYTE (18)         1,252,2,2,252,17  ;VAL
+        BYTE (18)         1,252,3,2,252,18  ;STR
+        BYTE (18)         2,252,4,0,0,0     ;LEFT
+        BYTE (18)         2,252,5,0,0,0     ;RIGHT
+        BYTE (18)         2,252,6,3,252,19  ;SUBSTR
+        BYTE (18)         2,252,7,3,252,20  ;INDEX
+        BYTE (18)         2,252,8,0,0,0         ;CPAD
+        BYTE (18)         1,252,9,2,252,21  ;ASC
+        BYTE (18)         1,252,10,2,252,22 ;CHAR
+        BYTE (18)         2,252,11,0,0,0    ;LPAD
+        BYTE (18)         2,252,12,0,0,0    ;RPAD
+        BYTE (18)         2,252,13,0,0,0    ;RPT
+        BYTE (18)         1,252,14,0,0,0    ;RJUST
+        BYTE (18)         1,252,15,0,0,0    ;LJUST
+        BYTE (18)         2,252,16,0,0,0    ;COUNT
+
+FNTB9::  BYTE (18)         1,253,0,2,253,4   ;TAB
+        BYTE (18)         1,253,1,0,0,0     ;LOC
+        BYTE (18)         1,253,2,0,0,0     ;SIZE
+        BYTE (18)         1,253,3,0,0,0     ;ERRMSG
+
+FNTB10:: BYTE (18)         0,251,0,0,0,0     ;MAX
+        BYTE (18)         0,251,1,0,0,0     ;MIN
+        BYTE (18)       0,0,0,0,0,0     ;SUM
+        BYTE (18)       0,0,0,0,0,0     ;PROD
+
+;                PARSER TABLES
+        TBL     LRTC,50,LRTE
+        TBL     LINMAC,50,LNMAPE
+        TBL     MDUTC,20,MDUR
+        TBL     LIBTC,20,LIBR
+        VTBL     TXTC,,7   ;TEXT AREA
+        VTBL    RTXTC,,7    ;RENUMBERED TEXT AREA
+        VTBL     PMCC,,9   ;PMC AREA
+        VTBL    DIRPC,,9        ;DIRECT STATEMENT PMC STORAGE DURING
+;                               ;GLOBAL RECOMPILATION
+
+;                       DECLAR TABLES
+        TBL     PRODTC,,PRODTR
+        TBL     PARDTC,,PARDTR
+        VTBL    DTAVC,,7
+
+
+;               PMCNAMES
+        DEFINE PMC(NUMBER,NAME,DECLR,COMPIL,SIZE)
+        <
+        NAME
+        >
+
+PMCNMS::LOPMCS
+        HIPMCS
+
+
+;                       OTHER PMC-RELATED NAMES
+
+;               UNITARY OPERATOR NAMES
+UOPNMS::"-"             ;4      NOTE: STARTS AT 4, NOT 0
+        "NOT"           ;5
+
+
+;               BINARY OPERATOR NAMES
+BOPNMS::"EQV"           ;4      NOTE: STARTS AT 4, NOT 0
+        "IMP"           ;5
+        "XOR"           ;6
+        "OR"            ;7
+        "AND"           ;8
+        "**"            ;NOT USED
+        "="             ;10
+        "#"             ;11
+        "<"             ;12
+        "<="            ;13
+        ">"             ;14
+        ">="            ;15
+        ">>"            ;16
+        "<<"            ;17
+        "=#"            ;18
+        "BEX"           ;19
+        "BOR"           ;20
+        "BAN"           ;21
+        "+"             ;22
+        "-"             ;23
+        "DIV"           ;24
+        "@"             ;25
+        "/"             ;26
+        "*"             ;27
+        "MOD"           ;28
+        "MUL"           ;29
+        "PWR"           ;30
+        "^"             ;31
+
+
+;                       INDEX TO FUNCTION NAMES
+
+FNAMS:: NAFNMS  ;PMC 245
+        MFNMS   ;PMC 246
+        NFNMS   ;    247
+        CFNMS   ;    248
+        AFNMS   ;    249
+        BFNMS   ;    250
+        MMNMS   ;    251
+        SFNMS    ;   252
+        UFNMS   ;    253
+
+;               NO-ARGUMENT FUNCTION NAMES
+NAFNMS::"DATE"          ;0
+        "TIME"          ;1
+        "TERM"          ;2
+        "IXASC"         ;3
+        "IXCHR"         ;4
+        "XASC"          ;5
+        "XCHR"          ;6
+        "TCP"           ;7
+        "DET"           ;8
+        "YEAR"          ;9
+        "ERRCD"         ;10
+        "ERRLN"         ;11
+        "ERRFL"         ;12
+        "TRU"           ;13
+        "POS"           ;14
+        "RND"           ;15
+        "ZER"           ;16
+        "CON"           ;17
+        "IDN"           ;18
+
+;               MATHEMATICAL FUNCTION NAMES
+MFNMS:: "ABS"           ;0
+        "SQR"           ;1
+        "SIN"           ;2
+        "COS"           ;3
+        "TAN"           ;4
+        "**"            ; NOT USED
+        "**"            ; NOT USED
+        "**"            ; NOT USED
+        "**"            ; NOT USED
+        "**"            ; NOT USED
+        "ASIN"          ;10
+        "ACOS"          ;11
+        "ATN1"          ;12
+        "SINH"          ;13
+        "COSH"          ;14     
+        "TANH"          ;15
+        "LOG"           ;16
+        "**"            ; NOT USED
+        "LOG10"         ;18
+        "EXP"           ;19
+        "**"            ;20
+        "ATN2"          ;21
+
+;               NUMERIC FUNCTION NAMES
+NFNMS:: "DBL"           ;0
+        "SGN"           ;1
+        "INT"           ;2
+        "FP"            ;3
+        "FIX"           ;4
+        "ROUND"         ;5
+        "PDIF"          ;6
+        "COMP"          ;7
+        "IP"            ;8
+
+;               COMPLEX FUNCTION NAMES
+CFNMS:: "CMPLX"         ;0
+        "REAL"          ;1
+        "IMAG"          ;2
+        "PHASE"         ;3
+        "POLAR"         ;4
+        "CONJ"          ;5
+
+;               ARRAY FUNCTION NAMES
+AFNMS:: "INV"           ;0
+        "TRN"           ;1
+        "IDN"           ;2
+        "ZER1"          ;3
+        "CON1"          ;4
+        "ZER2"          ;5
+        "CON2"          ;6
+
+;               BINARY FUNCTION NAMES
+BFNMS:: "LSH"           ;0
+        "RSH"           ;1      
+        "ARSH"          ;2
+        "RCY"           ;3
+
+;               MAX AND MIN
+MMNMS:: "MAX"           ;0
+        "MIN"           ;1
+
+;               STRING FUNCTION NAMES
+SFNMS:: "LNGTH"         ;0
+        "SPACE"         ;1
+        "VAL1"          ;2
+        "STR1"          ;3
+        "LEFT"          ;4
+        "RIGHT"         ;5
+        "SUBS2"         ;6
+        "INDX2"         ;7
+        "CPAD"          ;8
+        "ASC1"          ;9
+        "CHAR1"         ;10
+        "LPAD"          ;11
+        "RPAD"          ;12
+        "RPT"           ;13
+        "RJUST"         ;14
+        "LJUST"         ;15
+        "COUNT"         ;16
+        "VAL2"          ;17
+        "STR2"          ;18
+        "SUBS3"         ;19
+        "INDX3"         ;20
+        "ASC2"          ;21
+        "CHAR2"         ;22
+
+;               UTILITY FUNCTION NAMES
+UFNMS:: "TAB1"          ;0
+        "LOC"           ;1
+        "SIZE"          ;2
+        "ERRMS"         ;3
+        "TAB2"          ;4
+        "POS1"          ;5
+        "RND1"          ;6
+
+
+        END
+
+$@
+v
