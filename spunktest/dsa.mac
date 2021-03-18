@@ -1,0 +1,860 @@
+
+        TITLE   DSA
+        TWOSEG
+        RELOC   ^O400000
+        sextern .jbcst, dbtba
+        EXTERN  HEADER, .JBFF, DSACOR, DSAFLG, .myrel, .myff, .jbrel
+;+
+;.nj .p 0
+; The DSA (Dynamic Storage Area) trip
+;.p
+;Each block of the DSA has a two-word header, as follows:
+;.nf
+;Free:  Prev.b.size,,This.B.Size
+;       LLink,,RLink
+;.s 2
+;Allocated:     Prev.B.Size,,-This.B.Size
+;               Reloc.mode,,Desc.pointer
+;.s 2
+;.f
+;B.Size, in this discussion, means block size including the
+;two-word header, rather than the block size requested by the user.
+;It is always four or more, except for HEADER who, having a
+;zero-length data area, has size 2.  Notice that as long as the DSA
+;is a contiguous hunk of core, one can use the lengths to pass
+;through the DSA in either direction, accounting for every block.
+;.p
+;Sizes are negated when the block goes busy and positivated when it
+;is freed.  Thus a header word zero that looks like -6,,-4
+;means that this block is busy and so is the previous one.
+;.p
+;A pointer, most of the time, means the core address
+;of word zero of a DSA block header.
+;There are two other flavors of pointer, both associated with
+;(string or array) descriptors: a forward pointer, who lives in
+;word zero of the data descriptor and points to DATA word zero (the
+;header, remember, is concealed from the user) of the DSA block, and
+;a backward pointer, who lives in header word one and points to word
+;zero of the data descriptor.
+;.p
+;Free blocks are kept on a doubly-linked list (pointers RLink
+;and LLink) which has a header at HEADER.  The nervous reader
+;could, at this point, read the code at LNK and UNLNK to be
+;sure he understands doubly-linked lists. HEADER is an
+;assembly-time-allocated doubleword not contiguous with the DSA.
+;If fact, it is cleverly located so we'll be sure to clobber it
+;whenever there's a CODGEN bug that doesn't allocate enough core.
+;.p
+;Reloc mode, as near as I can tell, has never been either
+;implemented or used. It's original intent was to allow relocation
+;of the whole DSA in the event user core expanded below.
+;.p
+;This must also have been the intent of the back pointers: to permit
+;updating the forward pointers if the DSA moved. Whatever
+;happened to the notion that ALL pointers into or within
+;the DSA should be relative to the DSA origen instead of absolute
+;core addresses, I don't know. It's a little sad.
+;-
+
+
+;+
+;.PAGE
+;.C
+;       DEFENSIVE CODE
+;.B
+; 
+;       THE LOCAL FLAG 'JFLAG' IS USED TO TURN ON OR OFF THE DEFENSIVE
+;       CODE FOR 'ALLSP' AND 'RELSP'. IF JFLAG = 0 THEN NO DEFENSIVE CODE
+;       IS GENERATED, OTHERWISE IT IS GENERATED.
+; 
+;       NOTE THAT THE INCLUSION OF THE DEFENSIVE CODE WILL CAUSE DSA TO
+;       RUN SIGNIFICANTLY SLOWER. FOR THIS REASON IT IS SUGGESTED THAT
+;       JFLAG BE SET TO ZERO UNLESS YOU HAVE REASON TO BELIEVE THAT CALLS
+;       TO DSA ARE CAUSING PROBLEMS. JFLAG ABSOLUTELY MUST BE SET TO ZERO
+;       WHEN BUILDING A PRODUCTION VERSION (FOR THE OBVIOUS SPEED REASONS).
+;-
+JFLAG==DEBMOD
+
+        DEFINE  DSAERR (A)<
+        PUSHJ   P,[ OUTSTR [ASCIZ &
+
+*** DSA ERROR ***
+&]
+                  OUTSTR [ASCIZ &'A'
+
+&]
+                  HALT HALTRPT]>
+
+DEFINE DSAWRN (A)<
+        PUSHJ   P,[ SKIPE DSAFLG
+                    POPJ P,
+                    OUTSTR [ASCIZ &
+
+*** DSA WARNING ***
+&]
+                    OUTSTR [ASCIZ &'A'
+
+&]
+                    AOS DSAFLG
+                    JRST HALTCON]>
+
+        subttl  DSACON - DSA constants
+hlen==2         ; block head length
+onepage==^d1024 ; one core page size, according to monitor
+jbdif==^d512    ; min. distance between .myrel and .myff when truncating core
+revflg==0       ; zero = normal linking, one = reverse linking
+        subttl  DSAVAR - DSA variables
+        reloc
+dscadr: 0       ; descriptor address (allsp)
+rbits:  0       ; relocation bits (allsp)
+need:   0       ; size needed (allsp)
+used:   0       ; actual size grabbed (allsp)
+nxtlen: 0       ; size of next block (relsp)
+        reloc
+        subttl  DSAMAC - DSA macros
+;
+;
+;       Macros for use by ALLSP and RELSP
+;
+;
+
+
+; Load size of current block
+define l.csize (ac,ndx) <do.op hrre,ac,0,ndx>
+
+; Load size of previous block
+define l.psize (ac,ndx) <do.op hlre,ac,0,ndx>
+
+; Store size of current block
+define s.csize (ac,ndx) <do.op hrrm,ac,0,ndx>
+
+; Store size of previous block
+define s.psize (ac,ndx) <do.op hrlm,ac,0,ndx>
+
+; Store relocation bits
+define s.bits (ac,ndx) <do.op hrlm ac,1,ndx>
+
+; Skip if previous block busy (p.size .lt. 0)
+define sk.pbsy (ndx) <
+skipl (ndx)>
+
+; Skip if previous block free (p.size .ge. 0)
+define sk.pfre (ndx) <
+skipge (ndx)>
+
+; Load forward link pointer
+define l.fwd (ac,ndx) <do.op hrrz,ac,1,ndx>
+
+; Load backward link pointer
+define l.bck (ac,ndx) <do.op hlrz,ac,1,ndx>
+
+; Store forward link pointer
+define s.fwd (ac,ndx) <do.op hrrm,ac,1,ndx>
+
+; Store backward link pointer
+define s.bck (ac,ndx) <do.op hrlm,ac,1,ndx>
+
+; Utility macro for previous load/store macros
+define do.op (op,ac,off,ndx)
+<tsthdr ndx
+ife %hdr,<
+ ifn ndx,<
+  op ac,off(ndx)>
+ ife ndx,<
+  ife off,<
+   op ac,@0>
+  ifn off,<
+   remark <bleh... R0 used for index reg: ndx>>>>
+ifn %hdr,<
+ op ac,ndx+off>>
+
+; Link a block to forward side of another block
+define f.link (whr,blk) <link 0,whr,blk>
+
+; Link a block to backward side of another block
+define b.link (whr,blk) <link 1,whr,blk>
+
+; Link a block to another block
+define link (side,whr,blk)
+<mrktmp <whr,blk>
+setreg %whr,whr
+setreg %blk,blk
+grbtmp %t1
+ife side-revflg,<
+ s.bck %whr,%blk
+ l.fwd %t1,%whr
+ s.fwd %t1,%blk
+ s.fwd %blk,%whr
+ s.bck %blk,%t1>
+ifn side-revflg,<
+ s.fwd %whr,%blk
+ l.bck %t1,%whr
+ s.bck %t1,%blk
+ s.bck %blk,%whr
+ s.fwd %blk,%t1>
+fixtmp>
+
+; Unlink a block
+define unlink (whr)
+<mrktmp whr
+grbtmp %t1
+grbtmp %t2
+l.bck %t1,whr
+l.fwd %t2,whr
+s.fwd %t2,%t1
+s.bck %t1,%t2
+fixtmp>
+
+; Utility macro to mark tmps in use
+define mrktmp (regs)
+<
+%1==0
+%2==0
+%3==0
+ife t1,<
+ %1==1>
+ife t2,<
+ %2==1>
+ife t3,<
+ %3==1>
+%%1==0
+%%2==0
+irp regs,<tsthdr regs
+ ife %hdr,<
+  ife regs-t1,<
+   %1==1>
+  ife regs-t2,<
+   %2==1>
+  ife regs-t3,<
+   %3==1>>>>
+
+; Utility macro for getting argument into register
+define setreg (reg,nam)
+<tsthdr nam
+ife %hdr,<
+ reg==nam
+ ife reg,<
+  remark <bleh... r0 used for index reg: nam>>>
+ifn %hdr,<grbtmp reg
+movei reg,nam>>
+
+; Utility macro to find temp register
+define grbtmp (reg)
+<
+%good==0
+ife %1,<
+ reg==t1
+ %1==1
+ %good==1>
+ife %2+%good,<
+ reg==t2
+ %2==1
+ %good==1>
+ife %3+%good,<
+ reg==t3
+ %3==1
+ %good==1>
+ife %%1+%good,<
+ reg==s1
+ %%1==1
+ %good=1
+ push p,s1>
+ife %%2+%good,<
+ reg==s2
+ %%2==1
+ %good==1
+ push p,s2>
+ife %good,<
+ remark <bleh... out of temps>>>
+
+; Utility macro for restoring "safety temps"
+define fixtmp
+<ifn %%2,<
+ pop p,s2>
+ifn %%1,<
+ pop p,s1>>
+
+; Utility macro for checking for HEADER
+define tsthdr (nam)
+<
+%hdr==0
+ifidn <nam> <HEADER>,<
+ %hdr==1>
+ifidn <nam> <header>,<
+ %hdr==1>>
+
+; Macro for optionally generating defensive code calls
+define defense (rtn)
+<ifn jflag,<
+ call rtn>>
+
+; Macro for setting .myrel/.jbrel
+define docore (reg)<
+ifn reg-r0,<
+ exch r0,reg
+ call gtcore
+ exch r0,reg>
+ife r0-reg,<
+call gtcore>>
+        subttl  ALLSP
+        dcl     allsp,,,1
+t1==0
+t2==1
+t3==10
+base==2 ; must not be r1
+s1==3
+s2==4
+
+        defense htest
+
+        movem   r1,dscadr               ; save descriptor address
+        movem   r2,rbits                ; save relocation bits
+        addi    r0,hlen+1               ; add head length and force even
+        andi    r0,-2
+        movem   r0,need                 ; save size needed
+
+        skipe   r2,(r1)                 ; clear old descriptor
+        call    clearit
+
+        l.fwd   base,header;            ; get first block on free list
+srch:   l.csize t2,base;                ; get length of current block
+        caml    t2,need                 ; is it big enough?
+        jrst    gotone
+        jumpl   t2,getmor               ; end of free list?
+        l.fwd   base,base;              ; move on to next block
+        jrst    srch
+
+getmor: move    base,.myff              ; dummy block addr + hlen
+        subi    base,hlen               ; back up to dummy block
+        sk.pfre base;                   ; is previous block busy?
+        jrst    nomrg
+        l.psize t2,base;                ; get previous block size
+        sub     base,t2                 ; back up to it
+        unlink  base;                   ; and unhinge it
+
+nomrg:  hrrz    t2,base                 ; check remaining room in this page
+        add     t2,need
+        addi    t2,hlen
+        movem   t2,.myff                ; this is where .myff ends up...
+        skipn   [dbtba]                ; if no X22, also update JBFF
+        movem   t2,.jbff
+        subi    t2,1
+        camg    t2,.myrel
+        jrst    enough
+
+        docore  t2;                     ; grab more core
+        move    t2,.myff                ; restore t2
+        subi    t2,1
+
+enough: movn    t1,need                 ; quickly set up new dummy block
+        hrl     t1,t1
+        hrri    t1,-hlen
+        movem   t1,-hlen+1(t2)
+        hlrm    t1,(base)               ; set current length
+        jrst    qexit                   ; and get the hell out
+
+gotone: l.bck   t1,base;                ; link header behind current block
+        cain    t1,header
+        jrst    lnkdon                  ; already there...
+        unlink  header
+        b.link  base,header
+
+lnkdon: l.csize t1,base;                ; calc residue size
+        sub     t1,need
+        jumpg   t1,chopit               ; do we need it all?
+        unlink  base;                   ; unhinge the whole thing
+        jrst    tidyup
+
+chopit: s.csize t1,base;                ; set residue size
+        add     base,t1                 ; calc new base
+        s.psize t1,base;                ; set current blocks previous size
+
+tidyup: movn    t1,need                 ; set current size
+        s.csize t1,base
+        hrrz    t2,base                 ; calc next block addr
+        sub     t2,t1
+        s.psize t1,t2;                  ; set next blocks previous size
+
+qexit:  move    t1,rbits                ; set relocation bits
+        s.bits  t1,base
+
+        move    r1,dscadr               ; link block and descriptor
+        s.fwd   r1,base
+        movei   r2,hlen(base)
+        movem   r2,(r1)
+
+        return  allsp
+        subttl  RELSP
+        dcl     relsp,,,3
+base==1
+t1==10
+t2==11
+t3==12
+clen==t2
+nxt==t3
+s1==2
+s3==3
+
+        defense vtest
+
+        subi    base,hlen               ; back up to block head
+
+        l.fwd   t1,base;                ; zero descriptor
+        setzm   (t1)
+
+        sk.pbsy base                    ; previous block busy?
+        jrst    mrg
+        f.link  header,base;            ; link block
+        l.csize clen,base;              ; get current length
+        movn    clen,clen               ; and make it positive
+        jrst    emrg
+
+mrg:    l.csize clen,base;              ; get current block length
+        movn    clen,clen               ; and make it positive
+        l.psize t1,base;                ; calc previous block addr
+        sub     base,t1
+        add     clen,t1                 ; calc total size
+
+emrg:   s.csize clen,base;              ; set current size
+
+        hrrz    nxt,base                ; calc next block addr
+        add     nxt,clen
+        l.csize t1,nxt;                 ; get length of next block
+        jumpge  t1,mrg2                 ; is it in use?
+
+        movei   t1,hlen(nxt)            ; is this the dummy block?
+        came    t1,.myff
+        jrst    emrg2                   ; no... forget it
+
+        unlink  base                    ; give it away...
+        movei   t1,-hlen                ; build new dummy last block
+        s.csize t1,base
+        addi    base,hlen               ; calc new .myff
+        hrrm    base,.myff
+        skipn   [dbtba]                ; if no X22 then update JBFF
+        hrrm    base,.myff
+        addi    base,onepag-1+jbdif     ; calc new .myrel
+        andi    base,-onepag
+        subi    base,1
+        caml    base,.myrel
+        jrst    rel$$
+        docore  base;                   ; set new .myrel
+        jrst    rel$$
+
+mrg2:   movem   t1,nxtlen               ; save length of next block
+        unlink  nxt;                    ; remove next block from free list
+        l.csize clen,base;              ; get current block length
+        add     clen,nxtlen             ; calc total length
+        s.csize clen,base;              ; set combined length
+        add     nxt,nxtlen              ; calc new next block addr
+
+emrg2:  s.psize clen,nxt;               ; set previous length of next block
+
+rel$$:  return  relsp
+        DCL     CLEARIT
+
+DA==R1 ; DESCRIPTOR ADDRESS
+FP==R2 ; FORWARD POINTER
+BP==R3 ; BACKWARD POINTER
+
+        HRRZ    FP,FP
+        CAMLE   FP,.MYFF
+        JRST    CL02
+
+        SUBI    FP,2                    ; POINT TO ALLEDGED HEADER.
+        CAMGE   FP,DSACOR
+        JRST    CL02
+
+        HRRE    R3,0(FP)                ; BLOCK ACTIVE?
+        JUMPGE  R3,CL02
+
+        HRRZ    BP,1(FP)               ; POINTERS MATCH?
+        IFE     JFLAG,< CAME DA,BP>
+        IFN     JFLAG,< CAMN DA,BP
+                        JRST CL01
+                        DSAWRN <FORWARD/BACKWARD POINTER MISMATCH>>
+
+        JRST    CL02
+
+CL01:   PUSH    P,R0
+        MOVEI   R1,2(FP)
+        CALL    RELSP
+        IFN     JFLAG,< DSAWRN <CORE ALLOCATION USING STILL ACTIVE DESCRIPTOR>>
+
+        POP     P,R0
+
+CL02:   RETURN  CLEARIT
+;************************************************************************
+        subttl  ASTHRD
+;+
+;.P
+;.C
+;ASTHRD
+;.b
+;R0, R1, R2 = same as call to ALLSP. R3 = Descriptor address.
+;
+;After calling ALLSP, the first word of the new block is set
+;up as a forward pointer to the block indicated by R3.
+;-
+         DCL     ASTHRD,,<TMPLNK>,2
+TR1==10
+TR2==11
+        MOVE    TR1,0(R3)       ; LINK OLD BLOCK TO TEMP CELL
+        MOVEM   TR1,TMPLNK
+        MOVEI   TR2,TMPLNK
+        TRNE    TR1,-1                  ;does this FCB already point to an OCB?
+        HRRM    TR2,-1(TR1)             ;yes-make OCB's back-pointer point to temp cell TMPLNK
+        SETZM   (R3)                    ;zero descriptor
+
+        CALL    ALLSP           ; DO NORMAL ALLOCATE TRIP
+
+        MOVE    TR1,TMPLNK      ; THREAD OLD BLOCK
+        MOVEM   TR1,0(R2)               ;have zeroeth wd of new OCB point to old OCB
+        TRNE    TR1,-1                  ;was there an old OCB?
+        HRRM    R2,-1(TR1)              ;yes, make its backpointer point to the new OCB
+
+        RETURN  ASTHRD
+        subttl  RUNTHRD
+;+
+;.P
+;.C
+;RUNTHRD
+;.B
+;R1 = same as call to RELSP. R3 = address of descriptor.
+;
+;After calling RELSP, the descriptor indicated by R3 is set up as
+;a forward pointer to the block pointed to by the first word
+;of the released block.
+;-
+         DCL     RUNTHRD,,<SAVLNK>,2
+TR1==10
+TR2==11
+        MOVE    TR1,0(R1)       ; LINK OLD BLOCK TO TEMP CELL
+        MOVEM   TR1,SAVLNK
+        MOVEI   TR2,SAVLNK
+        TRNE    TR1,-1
+        HRRM    TR2,-1(TR1)
+
+        CALL    RELSP           ; DO RELEASE TRIP
+
+        MOVE    TR1,SAVLNK      ; RELINK GOOD BLOCK
+        MOVEM   TR1,0(R3)
+        TRNE    TR1,-1
+        HRRM    R3,-1(TR1)
+
+        RETURN  RUNTHRD
+ifn jflag,< subttl DEFENSE
+;************************************************************
+;*
+;*              DEFENSIVE CODE
+;*
+;************************************************************
+
+; 
+;               SUBROUTINE VTEST (VERIFICATION TEST)
+; 
+;       CODED BY: JOHN STALLINGS
+; 
+;       DATE: 9/28/76
+; 
+;       FUNCTION: CHECK FOR HAPPINESS PRIOR TO DOING RELEASE.
+; 
+;       ARGUMENTS: R1 = CORE ADDRESS OF BLOCK TO BE RELEASED (NOT ADDRESS
+;               OF HEAD).
+; 
+;       RETURNS: ALL REGISTERS PRESERVED.
+; 
+;       ACTION: CHECKS CREDIBILITY OF SPECIFIED BLOCK, PREVIOUS BLOCK,
+;               NEXT BLOCK, AND HEADER. IF HAPPY, RETURN, ELSE HALT.
+; 
+;       SUBROUTINES CALLED:
+;               HTEST
+;               NTEST
+; 
+        DCLNE   VTEST,<,SR1>,,3
+SP1==R10                                ; SPARE REGISTER
+SP2==R11                                ; SPARE REGISTER
+TBLK==R12                               ; ADDRESS OF HEAD OF BLOCK
+
+        CALL    HTEST                   ; CHECK HEADER
+
+        HRRZ    R1,R1                   ; EXTRACT ADDRESS PORTION OF R1
+        SUBI    R1,2                    ; COMPUTE ALLEGED BLOCK HEAD
+        MOVE    TBLK,R1                 ; SET UP HEAD BASE
+        CALL    NTEST                   ; CHECK HEAD CREDIBILITY
+
+        HRRE    SP1,0(TBLK)             ; PICK UP CURRENT LENGTH
+        SKIPL   SP1
+        DSAERR  <RELEASE OF NON-ACTIVE BLOCK>
+
+        MOVN    R1,SP1                  ; COMPUTE NEXT BLOCK HEAD
+        ADD     R1,TBLK
+        CALL    NTEST                   ; CHECK NEXT HEAD CREDIBILITY
+
+        HLRE    SP2,0(R1)               ; COMPARE CURRENT MLEN WITH NEXT PLEN
+        CAME    SP1,SP2
+        DSAERR  <MLEN AND NEXT PLEN MISMATCH>
+
+        HLRE    SP1,0(TBLK)             ; COMPUTE PREV BLOCK HEAD
+        CAMN    SP1,[-2]                ; AVOID CHECKING HEADER
+        JRST    VDONE
+        MOVE    R1,SP1
+        SKIPL   R1
+        MOVN    R1,R1
+        ADD     R1,TBLK
+        CALL    NTEST                   ; CHECK PREV HEAD CREDIBILITY
+
+        HRRE    SP2,0(R1)               ; COMPARE CURRENT PLEN WITH PREV MLEN
+        CAME    SP1,SP2
+        DSAERR  <PLEN AND PREV MLEN MISMATCH>
+
+VDONE:  RETURN  VTEST,<$,SR1>
+
+
+; 
+;               SUBROUTINE HTEST (HEADER TEST)
+; 
+;       CODED BY: JOHN STALLINGS
+; 
+;       DATE: 9/28/76
+; 
+;       FUNCTION: CHECK FOR VALID FREE-LIST HEADER
+; 
+;       ARGUMENTS: NONE
+; 
+;       RETURNS: ALL REGISTERS PRESERVED.
+; 
+;       ACTION: RETURN IF HEADER GOOD, ELSE HALT.
+; 
+;       SUBROUTINES CALLED: ATEST
+; 
+   DCLNE   HTEST,<,SR1>,,1
+TMP==R10                                ; TEMP REGISTER
+
+        MOVE    TMP,HEADER
+        CAIE    TMP,-2
+        DSAERR  <BAD HEADER>
+
+        HRRZ    R1,HEADER+1             ; CHECK OUT RIGHT LINK
+        CAIE    R1,HEADER
+        CALL    ATEST
+        HLRZ    R1,HEADER+1             ; CHECK OUT LEFT LINK
+        CAIE    R1,HEADER
+        CALL    ATEST
+
+        RETURN  HTEST,<$,SR1>
+
+; 
+;               SUBROUTINE NTEST (NODE TEST)
+; 
+;       CODED BY: JOHN STALLINGS
+; 
+;       DATE: 9/28/76
+; 
+;       FUNCTION: CHECK CREDIBILITY OF BLOCK HEAD
+; 
+;       ARGUMENTS: R1 = ADDRESS OF BLOCK HEAD
+; 
+;       RETURNS: ALL REGISTERS PRESERVED
+; 
+;       ACTION: RETURN IF BLOCK HEAD GOOD, ELSE HALT
+; 
+;       SUBROUTINES CALLED: ATEST
+; 
+        DCLNE   NTEST,<,SR1>,,2
+TBLK==R10                               ; ADDRESS OF BLOCK HEAD
+TMP==R11                                ; TEMP REGISTER
+
+        MOVE    TBLK,R1                 ; SAVE R1...
+        CALL    ATEST                   ; CHECK SPECIFIED ADDRESS
+
+        HLRE    R1,0(TBLK)              ; CHECK PREV LENGTH
+        SKIPLE  R1                      ; MAKE NEG CUZ HELPS LATER...
+        MOVN    R1,R1
+        CAMLE   R1,[-2]
+        DSAERR  <ABS(PLEN) ,LT. 2>
+
+        CAMN    R1,[-2]                 ; AVOID CASE OF PREV = HEAD
+        JRST    SKPHED
+        ADD     R1,TBLK                 ; COMPUTE PREV BLOCK ADDR
+        CALL    ATEST                   ; CHECK ADDRESS
+SKPHED:
+
+        HRRE    R1,0(TBLK)              ; COMPUTE NEXT BLOCK
+        CAMN    R1,[-2]                 ; DON' CHECK LAST BLOCK...
+        JRST    NOLINK
+
+        SKIPL   R1                      ; CHECK FRWD/BACK POINTERS
+        JRST    NOPTR                   ; NOT ACTIVE - NO POINTERS
+
+        HRRZ    TMP,1(TBLK)             ; BACK POINTER...
+        HRRZ    TMP,0(TMP)              ; FORWARD POINTER...
+        SUBI    TMP,2
+        CAME    TMP,TBLK                ; BEST BE EQUAL...
+        DSAWRN  <FORWARD/BACKWARD POINTER MISMATCH>
+
+        MOVN    R1,R1                   ; MAKE LENGTH POSITIVE
+NOPTR:
+
+        CAIGE   R1,2                    ; CHECK MLEN
+        DSAERR  <ABS(MLEN) .LT. 2>
+        ADD     R1,TBLK
+        CALL    ATEST                   ; CHECK ADDRESS
+
+        HRRE    R1,0(TBLK)              ; CHECK LINKS?
+        SKIPG   R1
+        JRST    NOLINK                  ; NO, THIS BLOCK ACTIVE. NO LINKS
+        HLRZ    R1,1(TBLK)              ; CHECK LEFT LINK
+        CAIE    R1,HEADER               ; DON'T CHECK LINK TO HEADER
+        CALL    ATEST
+        HRRZ    R1,1(TBLK)              ; CHECK RIGHT LINK
+        CAIE    R1,HEADER               ; DON'T CHECK LINK TO HEADER
+        CALL    ATEST
+NOLINK:
+
+        RETURN  NTEST,<$,SR1>
+
+
+; 
+;               SUBROUTINE ATEST (ADDRESS TEST)
+; 
+;       CODED BY: JOHN STALLINGS
+; 
+;       DATE: 9/28/76
+; 
+;       FUNCTION: CHECK CREDIBILITY OF BLOCK ADDRESS
+; 
+;       ARGUMENTS: R1 = ADDRESS OF BLOCK HEAD
+; 
+;       RETURNS: ALL REGISTERS PRESERVED
+; 
+;       ACTION: RETURN IF ADDRESS GOOD, ELSE HALT
+; 
+;       SUBROUTINES CALLED: NONE
+; 
+        DCLNE   ATEST
+
+        CAMGE   R1,DSACOR
+        DSAERR  <BLOCK ADDR .LT. DSACOR>
+
+        ADDI    R1,2
+        CAMLE   R1,.MYFF
+        DSAERR  <BLOCK ADDR .GT. .MYFF>
+        SUBI    R1,2
+
+        RETURN  ATEST
+
+
+
+;******* HALT LOCATIONS
+HALTCON: HALT   .+1
+        POPJ    P,
+
+HALTRPT: HALT   .
+        POPJ    P,
+
+;********************* end of defensive code *********************>
+       DCL     DSAINT
+direct==^d512   ; words of core to reserve for direct statements
+
+        movei   r1,direct       ; allocate core for direct statements
+        add     r1,.jbff
+        addi    r1,1
+        movem   r1,.jbff
+        movem   r1,.myff
+        hrrzi   r1,-1(r1)
+        core    r1,
+        error   ^d160
+
+; if system 1022 is loaded, then let it grab its fixed core now
+        skipn   [dbtba]
+        jrst    dsain2
+
+        movei   r16,args+1
+        pushj   17,dbtba
+        hlrz    r1,.jbcst       ; locate local .jbff
+        movei   r0,1
+        pushj   17,(r1)
+        error   ^d160
+        movem   r1,.myff
+        subi    r1,1
+        movem   r1,.myrel
+dsain2:
+
+        move    r1,.myff        ; get DSA on ever word boundary
+        andi    r1,-2
+        movem   r1,.myff
+        movem   r1,dsacor
+
+        movei   r5,jbdif+onepag ; calc initial DSA size
+        add     r5,.myff
+        andi    r5,-onepag
+        sub     r5,.myff
+
+        move    r2,.myff
+        addi    r2,-1(r5)
+        addm    r5,.myff
+        move    r1,.myff
+        skipn   [dbtba]        ; If no X22 then also update JBFF
+        movem   r1,.jbff
+
+        docore  r2
+
+; actually set up DSA pointers
+        MOVE    R1,DSACOR
+        HRLZM   R1,HEADER+1
+        HRRM    R1,HEADER+1
+        HRREI   R2,-2
+        HRRM    R2,HEADER
+
+        MOVEI   R3,HEADER
+        HRLZM   R3,1(R1)
+        HRRM    R3,1(R1)
+        HRLZM   R2,0(R1)
+
+        SUBI    r5,2
+        HRRM    r5,0(R1)
+        MOVE    R4,R1
+        ADD     R4,r5
+        HRLZM   r5,0(R4)
+        HRRM    R2,0(R4)
+        RETURN  DSAINT
+        subttl  gtcore
+
+        dclne   gtcore
+
+        push    p,r2
+        push    p,r1
+
+        caile   r0,^o400000
+        error   ^d159
+
+        skipn   [dbtba]
+        jrst    douuo
+
+        sub     r0,.myrel
+        addm    r0,.myrel
+        hlrz    r1,.jbcst
+        pushj   p,(r1)
+        error   ^d160
+        move    r0,r1
+        jrst    gtc$$
+
+douuo:  hrrz    r1,.jbrel
+        addi    r1,1
+        core    r0,
+        error   ^d160
+        move    r0,r1
+        hrrz    r1,.jbrel
+        movem   r1,.myrel
+gtc$$:  pop     p,r1
+        pop     p,r2
+        return  gtcore
+
+
+
+args:   0
+
+	LIT
+        END
+    sRš
