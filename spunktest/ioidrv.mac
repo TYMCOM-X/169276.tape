@@ -1,0 +1,370 @@
+;
+;*********************************************************
+        TITLE   IOIDRV  FORMATTED I/O DRIVERS - RESIDENT SEGMENT
+;*********************************************************
+;
+        TWOSEG
+        RELOC   ^O400000
+        RADIX   10
+;
+        ENTRY   IMID04, IMID07, IMID11, IMID05, IDRVI
+        ENTRY   IMOD06, IMOD07, IMOD14, IMOD08, IMOD10, IDRVO
+;
+;
+;
+;  SUBROUTINES
+;
+        EXTERN  FFOD, ODPIP, ODPFP, ODPSTR, ODBLNK, IODLIT
+        EXTERN  FFID, IDSKIP, IDGCHR, IDCNVN
+        EXTERN  IDGFC, ISC, STRSTR, SIP, SPFO, IMGSCN, FILERR
+        EXTERN  IWC, .OTCAR, CVTERR
+        EXTERN  ISCDIG, ISCEXP, SAVA1, UTPTR, ISCDG1
+;
+;
+;  INPUT DRIVER
+;
+;*********************************************************
+        SUBTTL  IDRVI   
+        DCL     IDRVI
+;*********************************************************
+;
+        OMOVEM   A0,SAVFC        ;RS92.9.1
+;
+                                ; RS92.9.2
+                                ;RS92.9.3  FREE FORM INPUT
+                                ; IS IN THE RESIDENT I/O SEGMENT (IOSUB)
+;
+IDRV04:                         ; RS92.9.4  IMGID (IMID)
+        CALL    SIP             ; RS92.9.4.1 (SET INPUT POINTER)
+;
+        JRST    @.-13(STAGE)    ; RS92.9.4.2
+        IMID04  ;STAGE=14
+        IMID04  ;STAGE=15
+        IMID05  ;STAGE=16
+        IMID04  ;STAGE=17
+        IMID04  ;STAGE=18
+        0       ;STAGE=19
+        IMID07  ;STAGE=20
+        0       ;STAGE=21
+        0       ;STAGE=22
+        0
+        IMID11  ;STAGE=24
+;
+IMID04:                         ;RS92.9.4.4    IDFWF
+        CALL    IDGFC   ;RS92.9.4.4.1-.3  R81
+                                ;RS92.9.4.4.4
+        OMOVE    A4,LMIOC        ;RS92.9.4.4.5
+                                ;RS92.9.4.4.6   INPUT CHARACTERS
+ICHR03:                         ;RS92.9.4.4.6.1-.3
+        CALL    IWC,<UTPTR>     ;RS92.9.4.4.6.4
+        SOJLE   A4,ICHR10       ;RS92.9.4.4.6.5-.6
+        CALL    IDGCHR          ;RS92.9.4.4.6.7
+        MOVE    R6,TERFLG(FCBREG) ;RS92.9.4.4.6.8
+        CAIGE   R6,3
+        JRST    ICHR11
+        CALL    CVTERR,<RSJMSG+^D35> ;RS92.9.4.4.6.9
+;
+ICHR10: SETZ    A0,             ;RS92.9.4.4.6.10
+ICHR11: JUMPG   A4,ICHR03       ;RS92.9.4.4.6.11
+        CALL    IWC,<UTPTR>     ;RS92.9.4.4.6.12
+                                ;       END  INPUT CHARACTERS
+        OHRRZ   R6,IOTYP        ;RS92.9.4.4.7
+        CAIE    R6,STRING
+        JRST    IFWF08
+        CALL    STRSTR          ;STORE THE STRING
+        JRST    IFWF$$
+IFWF08: CALL    IDCNVN          ;RS92.9.4.4.8  R87
+IFWF$$: JRST    IMID$$          ;       END  IDFWF
+;
+IMID05: TLNN    OCB,FCBFRL      ;RS92.9.4.5 SKIP IF FRL RANDOM FILE
+        JRST    IFFI01
+        CALL    FILERR,<RSJMSG+^D49>
+;
+IFFI01: CALL    FFID            ;            R75
+        JRST    IMID$$
+;
+IMID07:                         ;RS92.9.4.7     IDLIT
+        MOVEI   R6,IMGSCN
+        OCAMN   R6,FMTFLG       ; (SKIP IF FORM)
+        TLNN    OCB,FCBTTY      ;RS92.9.4.7.1 (SKIP IF TTY)
+        JRST    ILIT03
+        CALL    IODLIT          ;RS92.9.4.7.2  R74
+        EXTERN  .OTLIN
+        CALL    .OTLIN
+        JRST    ILIT$$
+ILIT03:                         ;RS92.9.4.7.3
+        OMOVE    A0,LMIOC        ;RS92.9.4.7.4
+        CALL    IDSKIP          ;RS92.9.4.7.5  R76
+        OSOSLE  ,LFP            ;RS92.9.4.7.6-.7
+        JRST    ILIT03
+ILIT$$: JRST    IMID$$          ;       END IDLIT
+;
+IMID11:                         ;RS92.9.4.10-.11   IDEOS
+        OMOVE   R6,FMTFLG       ;RS92.9.4.11.1
+        CAIE    R6,IMGSCN       ;SKIP IF IMAGE
+        JRST    IEOS$$
+IEOS02:                         ;RS92.9.4.11.2
+        MOVE    R6,TERFLG(FCBREG) ;RS92.9.4.11.3
+        CAIL    R6,3
+        JRST    IEOS05
+        CALL    IDGCHR          ;RS92.9.4.11.4
+        JRST    IEOS02
+IEOS05: MOVEI   R6,4            ;RS92.9.4.11.5
+        MOVEM   R6,TERFLG(FCBREG)
+IEOS$$:                         ;       END  IDEOS
+;
+IMID$$:                         ;       END  IMGID
+;
+        OMOVE    A0,SAVFC        ;RS92.9.6
+        RETURN  IDRVI           ;       END  IDRVI
+;
+;  OUTPUT DRIVERS
+;
+;***************************************************************
+        SUBTTL  IDRVO           ;RS98.3.9       OUTDRV
+        DCL     IDRVO
+;***************************************************************
+;
+        OMOVEM  A0,SAVFC        ;RS98.3.9.1
+                                ;RS98.3.9.2-.3
+                                ;RS98.3.9.4     IMGOD  (IMOD)
+        CALL    SPFO            ;RS98.3.9.4.1 (SET POINTER FOR OUTPUT)
+;
+        JRST    @.-13(STAGE)
+        IMOD06  ;STAGE=14
+        IMOD06  ;STAGE=15
+        IMOD08  ;STAGE=16
+        IMOD07  ;STAGE=17
+        IMOD07  ;STAGE=18
+        0       ;STAGE=19
+        IMOD10  ;STAGE=20
+        0       ;STAGE=21
+        0       ;STAGE=22
+        0
+        IMOD14  ;STAGE=24
+;
+IMOD06:                         ;RS98.3.9.4.6    ODPCNT % 6.7.43.9.4.6
+        OHRRZ   R5,IOTYP        ;RS98.3.9.4.6.1
+        CAIE    R5,STRING
+        JRST    OPCT03
+        CALL    ODPSTR          ;RS98.3.9.4.6.2  R72
+        JRST    OPCT$$
+OPCT03: SETZ    A0,             ;RS98.3.9.4.6.3
+        OMOVE   A1,LIP
+        OMOVE   A2,LFP
+        OMOVE   A3,LEP
+        CALL    ISC             ;       E191
+        jumpn   a0,imodov       ;RS98.3.9.4.6.4 will # fit into given lengths of integer and fractional parts?
+;
+                                ;RS98.3.9.4.6.6 CHKPFS
+        move    a0,iscdig
+        movem   a0,iscdg1       ;save original value for later testing
+        jumpge  a0,cpfs$$       ;RS98.3.9.4.6.6.1 negative number?
+        SKIPLE  ,ISCEXP         ;RS98.3.9.4.6.6.2 fractional part only to print?
+        JRST    CPFS05          ;there is an integer part to print
+        OSKPLE  ,LIP            ;RS98.3.9.4.6.6.3 do we have enough room for a minus sign?
+        JRST    CPFS$$          ;yes
+        jrst    imodov          ;RS98.3.9.4.6.6.4
+;
+CPFS05: MOVE    R5,ISCEXP       ;RS98.3.9.4.6.6.5 # digits needed for integer part
+        ADDI    R5,1            ;plus one for minus sign
+        OCAMle  R5,LIP          ;will it fit?
+        jrst    imodov          ;no, overflow
+;
+CPFS$$:                         ;       END  CHKPFS
+                                ;RS98.3.9.4.6.7 PNWPF
+                                ;RS98.3.9.4.6.7.1  LEADBL
+        SETZ    A0,             ;RS98.3.9.4.6.7.1.1-.3
+        SKIPGE  ,ISCDIG         ;negative number?
+        MOVEI   A0,1            ;yes - leave room for minus sign
+        OSKPGE  LFP             ;no fractional part at all
+        SKIPE   ISCDIG          ;and number is zero?
+        SKIPA                   ;no
+        MOVEI   A0,1            ;yes - leave room for a zero
+        OMOVE   A3,LIP          ;RS98.3.9.4.6.7.1.4-.6 # columns allocated for integer part
+        SUB     A3,A0           ;less room for the minus sign or zero if any
+        SKIPLE  ,ISCEXP         ;do we have an integer part?
+        SUB     A3,ISCEXP       ;yes - compute # of leading blanks
+        OMOVE   A1,LIP          ;RS98.3.9.4.6.7.1.7
+        SUB     A1,A3           ;# digits
+        SKIPGE  ,ISCDIG
+        SUBI    A1,1            ; MINUS SIGN.A1 contains # of numeric digits to print
+        SKIPG   ,A3             ;RS98.3.9.4.6.7.1.8 blanks to print?
+        JRST    LEBL$$
+        EXCH    A1,A3           ;RS98.3.9.4.6.7.1.9
+        CALL    ODBLNK          ;RS98.3.9.4.6.7.1.10
+        MOVE    A1,A3           ;RS98.3.9.4.6.7.1.11
+LEBL$$:                         ;       END  LEADBL
+                                ;RS98.3.9.4.6.7.2       PRMSGN
+        SKIPL   ,ISCDIG         ;RS98.3.9.4.6.7.2.1 negative?
+        JRST    PMSN$$          ;no
+        MOVEI   A0,"-"
+        CALL    .OTCAR          ;RS98.3.9.4.6.7.2.2  E32
+        MOVNS   ,ISCDIG         ;RS98.3.9.4.6.7.2.3
+PMSN$$:                         ;       END PRMSGN
+;
+        JUMPLE  A1,PNWP04       ;any numeric digits to print for integer part?
+        CALL    ODPIP           ;RS98.3.9.4.6.7.3  R70 yes
+PNWP04: OSKPGE  ,LFP            ;RS98.3.9.4.6.7.4
+        JRST    PNWP$$
+
+        extern  .zfpsp
+        skipn   iscdg1          ;Is Number = 0 ?
+        skipn   .zfpsp          ;and is Zero Fractional Part Spaces set?
+        jrst    prt%fp          ;no, just print fp normally
+
+        omove   r2,lfp
+        addi    r2,1
+        call    odchr,<," ">
+        jrst    opct$$
+
+prt%fp: MOVEI   A0,"."          ;RS98.3.9.4.6.7.5  (DOT)
+        CALL    .OTCAR
+        OSKIPG  ,LFP            ;RS98.3.9.4.6.7.6
+        JRST    PNWP$$
+        OMOVE   A2,LFP          ;RS98.3.9.4.6.7.7
+        CALL    ODPFP           ;RS98.3.9.4.6.7.8  R71
+PNWP$$:                         ;       END  PNWPF
+;
+OPCT$$: JRST    IMOD$$          ;       END  ODPCT
+;
+IMOD07:                         ;RS98.3.9.4.7   ODHASH
+        OHRRZ   R5,IOTYP        ;RS98.3.9.4.7.1
+        CAIE    R5,STRING
+        JRST    OHSH03
+        CALL    ODPSTR          ;RS98.3.9.4.7.2  R72
+        JRST    OHSH$$
+OHSH03:                         ;RS98.3.9.4.7.3  CHKHFS
+        OSKPGE  R5,LFP          ;RS98.3.9.4.7.3.1
+        JRST    CHFS02
+        CAIG    R5,3
+        JRST    imodov
+        CAIN    R5,4
+        JRST    CHFS06
+        JRST    CHFS09
+CHFS02: MOVEI   A0,7            ;RS98.3.9.4.7.3.2
+        SETZ    A1,             ;RS98.3.9.4.7.3.3
+        OMOVE   A2,LIP          ;RS98.3.9.4.7.3.4
+        SUBI    A2,6
+        JRST    CHFS12
+;
+CHFS06: MOVEI   A0,2            ;RS98.3.9.4.7.3.6
+        OMOVE   A1,LIP          ;RS98.3.9.4.7.3.7
+        SUBI    A1,1
+        SETZ    A2,             ;RS98.3.9.4.7.3.8
+        JRST    CHFS12
+CHFS09: MOVEI   A0,1            ;RS98.3.9.4.7.3.9
+        OMOVE   A1,LIP          ;RS98.3.9.4.7.3.10
+        SUBI    A1,1
+        OMOVE   A2,LFP          ;RS98.3.9.4.7.3.11
+        SUBI    A2,4
+chfs12: ocamle  a0,lip
+        jrst    imodov
+CHFS$$:                         ;       END  CHKHFS
+;
+        DMOVEM  A1,SAVA1        ; (SAVE # OF INT AND FRAC DIGITS)
+        SETZ    A0,             ;RS98.3.9.4.7.4
+        MOVEI   A3,2
+        CALL    ISC             ;       E191
+        jumpn   a0,imodov
+;
+                                ;RS98.3.9.4.7.7 PNWHF
+        DMOVE   A1,SAVA1        ; (RESTORE # OF INT AND FRAC DIGITS)
+                                ;RS98.3.9.4.7.7.1  PRTSGN
+        SKIPL   ,ISCDIG         ;RS98.3.9.4.7.7.1.1
+        JRST    PSGN04
+        MOVEI   A0,"-"          ;RS98.3.9.4.7.7.1.2  (MINUS)
+        MOVNS   ,ISCDIG         ;RS98.3.9.4.7.7.1.3
+        JRST    PSGN05
+PSGN04: MOVEI   A0,^O40         ;RS98.3.9.4.7.7.1.4
+PSGN05: CALL    .OTCAR          ;RS98.3.9.4.7.7.1.5  E32
+                                ;       END PRTSGN
+;
+        JUMPLE  A1,PNWH04       ;RS98.3.9.4.7.7.2
+        CALL    ODPIP           ;RS98.3.9.4.7.7.3  R70
+PNWH04: MOVEI   A0,"."          ;RS98.3.9.4.7.7.4  (DOT)
+        CALL    .OTCAR
+        JUMPLE  A2,PNWH07       ;RS98.3.9.4.7.7.5
+        CALL    ODPFP           ;RS98.3.9.4.7.7.6  R71
+PNWH07:                         ;RS98.3.9.4.7.7.7   PRTEP
+        MOVEI   A0,"E"          ;RS98.3.9.4.7.7.7.1
+        CALL    .OTCAR
+        MOVEI   A0,"+"          ;RS98.3.9.4.7.7.7.2-.4
+        SKIPGE  ISCEXP
+        MOVEI   A0,"-"          ;  (MINUS)
+        CALL    .OTCAR          ;RS98.3.9.4.7.7.7.5  E32
+        MOVM    A0,ISCEXP       ;RS98.3.9.4.7.7.7.6
+        IDIVI   A0,10
+        MOVE    R5,A0
+        ADDI    A0,^O60
+        CALL    .OTCAR          ;RS98.3.9.4.7.7.7.7  E32
+        IMULI   R5,10           ;RS98.3.9.4.7.7.7.8
+        MOVM    A0,ISCEXP
+        SUB     A0,R5
+        ADDI    A0,^O60
+        CALL    .OTCAR          ;RS98.3.9.4.7.7.7.9  E32
+                                ;       END PRTEP
+                                ;       END PNWHF
+OHSH$$: JRST    IMOD$$          ;       END ODHASH
+;
+IMOD08: TLNN    OCB,FCBFRL     ;RS98.3.9.4.8  SKIP IF FRL RANDOM FILE
+        JRST    IFFO01
+        CALL    FILERR,<RSJMSG+^D49>
+;
+IFFO01: CALL    FFOD            ;              R69
+        JRST    IMOD$$
+;
+IMOD10: CALL    IODLIT          ;RS98.3.9.4.10  R74
+        JRST    IMOD$$
+;
+IMOD14:                         ;RS98.3.9.4.13-.14  ODEOS
+        OMOVE   R5,FMTFLG       ;RS98.3.9.4.14.1
+        CAIE    R5,IMGSCN       ; SKIP IF IMAGE
+        JRST    OEOS$$
+        MOVEI   A0,^O15         ;RS98.3.9.4.14.2 
+        TLNE    OCB,FCBFRL      ; SKIP IF NOT FRL RANDOM FILE
+        MOVEI   A0,^O400        ; INDICATE END OF RECORD
+        CALL    .OTCAR
+OEOS$$:                         ;       END  ODEOS
+IMOD$$:                         ;       END  IMGOD
+        TLNN    OCB,FCBSTF      ; STORE THE STRING IF STR FUNCTION
+        JRST    IDRV5A
+        CAIGE   STAGE,20
+        CAIN    STAGE,16
+        SKIPA
+        PUSHJ   R17,STRSTR
+;
+IDRV5A: OMOVE   A0,SAVFC        ;RS98.3.9.5
+;
+        RETURN  IDRVO           ;       END  IDRVO
+
+        subttl  IMODOV  Handle overflow in % and # fields
+
+; Come here when number is too large for field.
+; If FLDOVC is non-zero, fill field with this character, else invoke CVTERR.
+
+imodov:
+        extern  fldovc
+        skipe   fldovc
+        jrst    imdov1
+
+        call    cvterr,<rsjmsg+^d26>
+
+imdov1: omove   r2,lmioc
+        call    odchr,<,$,fldovc>
+        jrst    imod$$
+
+        subttl  ODCHR   Output given character N times
+
+        dclne   odchr,<,odcchr,odclen>
+
+        jumpe   r2,odchr$
+
+odchr1: call    .otcar,<,$,odcchr>
+        sojg    r2,odchr1
+odchr$: return  odchr
+
+        lit
+
+        END
+  
