@@ -1,0 +1,468 @@
+        TITLE   UOPEN   OPEN user files
+
+        TWOSEG
+        RELOC   400000
+
+        EXTERN  .OPEN, .LNDRY, PUBFER, CXER1, OPNCMD, .CREL2, RELSP, RONCN
+        EXTERN  SMATCH, VIRTAB, .GARYS, LEVEL, OPNTOT
+
+
+;+
+;.page.nf
+;UOPEN - OPEN user files
+;.s
+;Input arguments:
+;  r0   record length if any
+;  r1   protection code string descriptor address if any
+;  r2   file name string descriptor address
+;  r3   file number if any (if not *)
+;  r4   line number hiseg address for error trap if any
+;  r5   string release code for protection and file name
+;  FW1  Access mode as described with FCBMSK definition
+        OPTCNT==^D16            ;option count
+;.s
+;Register Usage:
+;  r10  address of filename string descriptor
+;  r11  file number (-1 if command file)
+;  r12  string release code
+;  r13  Access mode bits in FCB format
+;.s
+;  r7   is used to hold option bits as follows:
+;.s
+;  Bits           Meaning
+;.s
+;  20           multi-access file
+;  21           tout file
+;  22           disk file
+;  23           terminal
+;  24           command file
+;  25           symbolic
+;  26           binary
+;  27           sequential
+;  28           random
+;  29           random variable length record
+;  30           random fixed length record
+;  31           input
+;  32           output
+;  33           io
+;  34           protection was given
+;  35           error line number given
+;.s
+;Action:
+;  Opens a disk file or the terminal or a command input file.
+;-
+
+        DCL     UOPEN,<RECLEN,PROT,,,ERRADR,>,<SIXADR,RETCOD>,4
+
+        MOVE    R10,R2                  ;file name string descriptor
+        MOVE    R11,R3                  ;unit number
+        MOVE    R12,R5                  ;string release code
+        MOVE    R13,@DCNT(P)            ;access mode bits
+        AOS     DCNT(P)                 ;skip return
+        TRNE    R13,OPNSTR              ;*?
+        MOVE    R11,[COMFIL]            ;set file num
+        CAMN    R11,[COMFIL]            ;vice versa
+        TRO     R13,OPNSTR
+        PUSHJ   P,OPTMAP                ;set r7 with option bits
+        PUSH    P,R7
+        TRNN    R7,1B35                 ;error line number given?
+        JRST    UOPEN1                  ;no
+        MOVE    R1,-1+ERRADR            ;get error line number hiseg address
+        MOVE    R3,R11                  ;get file number
+        MOVEI   R5,FILNUM               ;error type = FILE
+        PUSHJ   P,RONCN                 ;set ON condition
+UOPEN1: MOVE    R0,(R10)                ;pointer to file name string
+        SETZ    R1,                     ;no default extension
+        CAMN    R11,[COMFIL]
+        MOVE    R1,[ASCIZ /CMD/]        ;default extension for command file
+        HRLZ    R2,R11                  ;unit no
+        CALL    .LNDRY                  ;parse file name
+        MOVEM   R1,-1+RETCOD            ;return code
+        MOVEM   R2,-1+SIXADR            ;location of name block
+        JUMPLE  R1,UOPEN8               ;error?
+        MOVE    R1,-1+PROT
+        PUSHJ   P,RELSTR
+        MOVE    R0,(R10)
+        MOVE    R1,-1+RETCOD
+        MOVE    R2,R11
+        PUSHJ   P,PUBFER                ;publish file error and no return
+
+UOPEN8: POP     P,R7
+        JUMPGE  R1,UOPEN9
+        TRO     R7,1B23
+UOPEN9: PUSHJ   P,OPTTST
+        CAMN    R11,[COMFIL]            ;command file?
+        JRST    CMDFIL                  ;yes
+        CAMN    R11,[TOTFIL]
+        JRST    TOUTFL          ;tout file
+        JUMPG   R11,ROPN14
+        PUSHJ   P,EIGHTI
+        JRST    ROPN15
+ROPN14: PUSHJ   P,IOTTFL
+ROPN15: RETURN  UOPEN
+
+
+
+
+;       OPTMAP  UOPEN.5
+
+OPTMAP: SETZ    R7,
+        TRNN    R13,FCBBIN              ;Binary?
+        JRST    [TRO    R7,1B25
+                 JRST   OPTMP4]
+        TRO     R7,1B26
+OPTMP4: TRNN    R13,FCBRND              ;Random?
+        JRST    [TRO    R7,1B27
+                 JRST   OPTM10]
+        TRO     R7,1B28
+        TRNN    R13,FCBFRL              ;FLR?
+        JRST    [TRO    R7,1B29
+                 JRST   OPTM10]
+        TRO     R7,1B30
+OPTM10: TRNN    R13,FCBOUT
+        JRST    OPTM11                  ;input only
+        TRNN    R13,FCBINP
+        TRO     R7,1B32                 ;set output only
+        TRNE    R13,FCBINP
+        TRO     R7,1B33                 ;set io
+        JRST    OPTM15
+OPTM11: TRO     R7,1B31                 ;set input only
+OPTM15: TRNE    R13,OPNSTR              ;command file?
+        TRO     R7,1B24
+        TRNE    R13,FCBMFA              ;multi-access?
+        TRO     R7,1B20
+        TRNE    R13,OPNPRT              ;protection specified?
+        TRO     R7,1B34
+        TRNE    R13,OPNELN              ;error line number specified?
+        TRO     R7,1B35
+        CAMN    R11,[TOTFIL]
+        TRO     R7,1B21
+        POPJ    P,
+
+
+
+
+
+;       OPTTST  UOPEN.9
+
+OPTTST: MOVEI   R1,OPTCNT
+        SETZB   R2,
+        TRO     R2,1B<36-OPTCNT>
+OPTTS3: TRNN    R7,0(R2)
+        JRST    OPTT11
+        MOVNI   R3,0(R1)
+        MOVE    R3,OPNTAB+OPTCNT(R3)
+        MOVEI   R4,-1(R1)
+        MOVEI   R5,0(R2)
+OPTTS6: LSH     R5,-1
+        TRNN    R7,0(R5)
+        JRST    OPTT10
+        TRNN    R3,0(R5)
+        JRST    OPTERR
+OPTT10: SOJG    R4,OPTTS6
+OPTT11: LSH     R2,-1
+        SOJG    R1,OPTTS3
+        POPJ    P,
+
+
+
+
+
+;       OPTERR  UOPEN.9.9
+
+OPTERR: PUSH    P,R1
+        PUSH    P,R4
+        MOVE    R1,-3+PROT
+        PUSHJ   P,RELSTR
+        MOVE    R1,R11                  ;file number
+        FILE    PR,RGSMSG+8             ;Invalid option combination:
+        POP     P,R1
+        CALL    CXER1,<$,OPTTAB-1(R1)>
+        CALL    CXER1,<[ASCIZ / is invalid with/]>
+        POP     P,R1
+        CALL    CXER1,<$,OPTTAB-1(R1)>
+        MOVE    R1,R11
+        FILE    QG,RGSMSG+8
+
+
+
+
+
+;       CMDFIL  UOPEN.11
+
+CMDFIL: MOVE    R1,PROT
+        PUSHJ   P,RELSTR
+        MOVE    R1,LEVEL
+        CAIL    R1,^D10
+        ERROR   OPCERR
+        MOVE    R0,SIXADR
+        MOVE    R1,RETCOD
+        PUSHJ   P,OPNCMD
+        JRST    ROPN15
+
+
+
+
+TOUTFL: MOVE    R1,PROT
+        PUSHJ   P,RELSTR
+        CALL    OPNTOT,<$,SIXADR,$,RETCOD>
+        JRST    ROPN15
+
+
+
+
+;       EIGHTI  UOPEN.13
+
+EIGHTI: MOVE    R1,-1+PROT
+        PUSHJ   P,RELSTR
+        SKIPE   R11
+        ERROR   RGSMSG+1
+        TRNE    R7,1B23         ;terminal?
+        TRNN    R7,1B26         ;and binary?
+        ERROR   ^D162           ;File number 0 may be used only for eight-level input
+        SETO    R0,
+        GETLCH  R0
+        TLO     R0,(1B5)
+        SETLCH  R0
+        SETOM   VIRTAB
+        POPJ    P,
+
+
+
+
+;       IOTTFL  UOPEN.14
+
+IOTTFL: MOVE    R1,-1+PROT
+        CAIG    R11,FILMAX
+        JRST    IOTTF4
+        PUSHJ   P,RELSTR
+        ERROR   RGSMSG+1
+IOTTF4: SKIPN   VIRTAB(R11)
+        JRST    IOTTF7
+        PUSHJ   P,RELSTR
+        MOVE    R1,R11
+        FILE    PG,RGSMSG+2             ;same file number twice
+IOTTF7: TRNN    R7,1B23                 ;terminal?
+        JRST    IOTTF9
+        TRNN    R7,1B26                 ;binary?
+        JRST    IOTTF9
+        PUSHJ   P,RELSTR
+        MOVEI   R1,0(R11)
+        FILE    RGSMSG+^D18             ;file # must =0 for eight-level
+IOTTF9: TRNN    R13,FCBFRL              ;random fixed length record?
+        JRST    IOTT9A
+        MOVE    R2,-1+RECLEN            ;get record length
+        CAILE   R2,0                    ;greater than zero?
+        JRST    IOTT9A
+        PUSHJ   P,RELSTR
+        MOVE    R1,R11                  ;file number
+        FILE    PG,RGSMSG+7             ;Record length must be > zero
+IOTT9A: MOVEI   R4,O.RF!O.RZ            ;bits for .open call
+        TRNE    R13,OPNPRT              ;protection given?
+        JRST    IOTT9B
+IOTT10: TRO     R4,O.NP                 ;no protection specified, set bit
+        SETZ    R3,
+        JRST    IOTT12
+IOTT9B: MOVE    R6,-1+PROT              ;get protection string descriptor
+        HLRZ    R5,1(R6)                ;get length of string
+        JUMPE   R5,IOTT10               ;null protection same as no protection
+        CAIE    R5,1                    ;maybe *?
+        JRST    IOTT11
+        MOVE    R1,(R6)                 ;address of string
+        MOVE    R1,(R1)
+        LSH     R1,-4*7-1
+        CAIE    R1,"*"
+        JRST    [MOVE   R1,-1+PROT
+                 PUSHJ  P,RELSTR
+                 MOVE R1,R11
+                 FILE   PG,RGSMSG+3]
+        TRO     R4,O.DP                 ;force system default protection
+        SETZ    R3,
+        JRST    IOTT12
+IOTT11: PUSH    P,R4
+        PUSHJ   P,PROCOD                ;get protection code into R3
+        POP     P,R4
+IOTT12: PUSH    P,R3
+        PUSH    P,R4
+        MOVE    R1,-3+PROT
+        PUSHJ   P,RELSTR
+        POP     P,R4
+        POP     P,R3
+
+        TRNN    R13,FCBMFA              ;multi-access file?
+        JRST    IOTT13                  ;no
+        TRO     R4,O.MA
+        MOVEI   R2,2                    ;indicate update mode
+        JRST    IOTT18
+IOTT13: TRNN    R13,FCBOUT              ;set mode : output or io?
+        SKIPA   R2,[0]                  ;indicate input
+        JRST    [TRO    R4,O.CN         ;do confirmation trip
+                 MOVEI  R2,1            ;set supersede
+                 TRNE   R13,FCBINP      ;io?
+                 MOVEI  R2,2
+                 JRST   IOTT18]
+IOTT18: MOVE    R1,R2
+        LSH     R1,6
+        ADD     R1,R11
+        LSH     R1,^D18
+        ADD     R1,R4
+        IOR     R1,R3
+        MOVE    R0,-1+SIXADR
+        CALL    .OPEN
+        JUMPLE  R1,IOTT19
+        PUSH    P,R1
+        CALL    .GARYS,<$,-2+SIXADR,0>
+        MOVE    R0,R1
+        POP     P,R1
+        MOVE    R2,R11
+        CALL    PUBFER                  ;publish error with asciz filename
+IOTT19: MOVEM   R2,VIRTAB(R11)          ;VADR
+        SKIPE   R1
+        POPJ    P,
+        ANDI    R13,OPNELN-1            ;zero non-file bits
+        MOVEM   R13,FCBMSK(R3)
+        MOVE    R1,-1+RECLEN            ;get record length if any
+        TRNE    R13,FCBFRL
+        MOVEM   R1,FCBLOL(R3)
+        MOVEM   R2,FCBCUR(R3)
+        MOVEI   R4,4
+        MOVEM   R4,TERFLG(R3)
+        POPJ    P,
+;       PROCOD  UOPEN.14.11
+
+PROCOD: MOVEI   R7,1(P)               ;save regs r10-r13 and make room for 3 temps
+        HRLI    R7,10
+        ADD     P,[XWD 7,7]
+        BLT     R7,-3(P)
+        SETZB   R0,-2(P)
+        MOVE    R4,[POINT 7,R1]
+        MOVE    R13,0(R6)
+        MOVE    R10,[POINT 3,R12]
+        MOVE    R11,[POINT 7,0(R13)]
+        HLRZ    R1,1(R6)                ;get string length
+        MOVEM   R1,-1(P)
+PROCD5: ILDB    R5,R11
+        CAIN    R5," "
+        JRST    PROCD9
+        JUMPE   R5,PROCD9
+        IDPB    R5,R4
+        ADDI    R0,1
+        JRST    PRCD16
+PROCD9: AOS     -2(P)
+        IMULI   R0,7
+        MOVEI   R3,PCDTAB
+        PUSHJ   P,SMATCH
+        JUMPGE  R1,PRCD14
+        JRST    [MOVE  R1,-2+PROT
+                 PUSHJ  P,RELSTR
+                 MOVE   R1,-5(P)
+                 FILE   RGSMSG+3]
+PRCD14: MOVE    R1,NUMTAB(R1)
+        IDPB    R1,R10
+        SETZ    R0,
+        MOVE    R4,[POINT 7,R1]
+PRCD16: SOS     R3,-1(P)
+        JUMPGE  R3,PROCD5
+        MOVE    R1,-2(P)
+        CAIE    R1,3
+        JRST    [MOVE   R1,-2+PROT
+                 PUSHJ  P,RELSTR
+                 MOVE   R1,-5(P)
+                 FILE   RGSMSG+4]
+PRCD22: MOVE    R3,R12
+        MOVSI   R13,-6(P)
+        HRRI    R13,10
+        BLT     R13,R13
+        SUB     P,[XWD 7,7]
+        POPJ    P,
+
+
+
+
+
+;       RELSTR  UOPEN.L1
+
+RELSTR: CALL    .CREL2,<,,$,R10,$,R12>
+        POPJ    P,
+; OPEN STATEMENT OPTION VALIDITY TABLE
+
+OPNTAB: BYTE    (20)0(1)0,0,1,0,0,1,1,1,1,1,1,1,1,1,1,1     ; MULTI-ACCESS
+        BYTE    (20)0(1)0,0,1,1,0,1,0,1,0,1,0,0,1,0,1,1     ; TOUT FILE
+        BYTE    (20)0(1)0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1     ; DISK FILE
+        BYTE    (20)0(1)0,0,0,0,1,1,1,1,0,0,0,1,1,1,0,1     ; TERMINAL
+        BYTE    (20)0(1)0,0,0,0,0,1,0,1,0,0,0,1,0,0,0,1     ; COMMAND FILE
+        BYTE    (20)0(1)0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1     ; SYMBOLIC
+        BYTE    (20)0(1)0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1     ; BINARY
+        BYTE    (20)0(1)0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1     ; SEQUENTIAL
+        BYTE    (20)0(1)0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1     ; RANDOM
+        BYTE    (20)0(1)0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1     ; VARIABLE RECORD LENGTH
+        BYTE    (20)0(1)0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1     ; FIXED RECORD LENGTH
+        BYTE    (20)0(1)0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1     ; INPUT
+        BYTE    (20)0(1)0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1     ; OUTPUT
+        BYTE    (20)0(1)0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1     ; INPUT/OUTPUT
+        BYTE    (20)0(1)0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1     ; PROTECTION
+        BYTE    (20)0(1)0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0     ; ERROR LINE
+
+
+
+
+
+; OPEN STATEMENT OPTION NAME STRINGS
+
+OPTTAB: [ASCIZ  / error line number/]
+        [ASCIZ  / PROTECTION code/]
+        [ASCIZ  / IO/]
+        [ASCIZ  / OUTPUT/]
+        [ASCIZ  / INPUT/]
+        [ASCIZ  / fixed length record/]
+        [ASCIZ  / variable length record/]
+        [ASCIZ  / RANDOM/]
+        [ASCIZ  / SEQUENTIAL/]
+        [ASCIZ  / BINARY/]
+        [ASCIZ  / SYMBOLIC/]
+        [ASCIZ  / command file/]
+        [ASCIZ  / TERMINAL/]
+        [ASCIZ  / disk file/]
+        [ASCIZ  / TOUT file/]
+        [ASCIZ  / multi-access/]
+
+
+
+
+
+PCDTAB: EXP     "ALL"_^D15              ;0
+        EXP     0
+        EXP     "AP"_^D22               ;1
+        EXP     0
+        EXP     "CP"_^D22               ;2
+        EXP     0
+        EXP     "LK"_^D22               ;3
+        EXP     0
+        EXP     "NO"_^D22               ;4
+        EXP     0
+        EXP     "RD"_^D22               ;5
+        EXP     0
+        EXP     "RUN"_^D15              ;6
+        EXP     0
+        EXP     "UPD"_^D15              ;7
+        EXP     0
+
+
+
+
+
+NUMTAB: EXP     0                       ;0
+        EXP     3                       ;1
+        EXP     1                       ;2
+        EXP     6                       ;3
+        EXP     7                       ;4
+        EXP     4                       ;5
+        EXP     5                       ;6
+        EXP     2                       ;7
+
+
+
+
+
+        END
+   
