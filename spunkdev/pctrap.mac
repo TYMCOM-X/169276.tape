@@ -1,0 +1,107 @@
+        TITLE   PCTRAP
+
+; TYMBASIC PARSER AND CODE GENERATOR ESCAPE TRAPPING SUBROUTINES
+; ***** THE STARTING ADDRESS IS IN HERE: PCTRAP *****
+
+ENTRY   ESCENB, INTRPT, PCTRAP, SETALT
+
+EXTERN  INTTAB, SYSUP, ESCRTN
+
+        RADIX   8
+
+R1=     1
+R2=     2
+R3=     3
+R4=     4
+R5=     5
+R6=     6
+R7=     7
+R10=    10
+R11=    11
+R12=    12
+R13=    13
+R14=    14
+R15=    15
+R16=    16
+STK=    17
+
+        TWOSEG
+        RELOC   400000
+;       PCTRAP
+
+PCTRAP: JRST    SYSUP
+
+escenb:
+
+        MOVEI   R1,INTTAB
+        HRLI    R1,(1B16)
+        INTADR  R1,
+        JRST    [OUTSTR [ASCIZ  /INTADR ERROR RETURN/]
+                 EXIT]
+        HRLZI   R1,(3B1)
+        INTENB  R1,
+        JRST    [OUTSTR [ASCIZ  /INTENB ERROR RETURN/]
+                 EXIT]
+        MOVEI   R1,-1
+        HRLI    R1,1
+        TINASS  R1,
+        JRST    [OUTSTR [ASCIZ  /TINASS ERROR RETURN/]
+                 EXIT]
+        setzm   escflg##
+
+;+
+; ESCRTN flag.  If this is non-zero, on escape interrupt branch to address
+; indicated, otherwise process by SETOM ESCFLG
+; For I%TIE interface and SETALT routine.
+;-
+        SETZM   ESCRTN          ; NO ESCAPE ROUTINE YET
+
+        IFL     DEBMOD-2,<
+                        JRST    ENTRPT>
+        IFGE    DEBMOD-2,<
+                        JRST    ENTRPT+11>
+
+        LIT
+
+
+
+
+;+
+; INTRPT
+; This location is branched to on ESCAPE interrupt
+; Either toggle ESCFLG or branch thru ESCRTN
+;-
+INTRPT: CLRBFI                  ;CLEAR THE INPUT BUFFER
+        setom   escflg##
+        SKIPN   ESCRTN          ;ESCAPE ROUTINE LOCATION SET ?
+         JRST   INTRP0          ;NO NORMAL DISMIS
+        EXCH    R1,ESCRTN       ;GET ESCAPE ROUTINE ADDRESS
+        MOVEM   R1,INTTAB       ;SET IN DISMIS ADDRESS
+        EXCH    R1,ESCRTN       ;RESET SWITCH
+INTRP0: DISMIS
+
+;+
+; SETALT
+; A routine for use by I%TIE
+; It takes an argument in register 1, exchanges it with ESCFLG
+; and returns that value in register 1
+;-
+SETALT: EXCH    R1,ESCRTN       ; TOGGLE VALUE
+        POPJ    R17,            ;RETURN
+
+
+
+
+ENTRPT: IFL     DEBMOD-2,<
+                        END     PCTRAP>
+        IFGE    DEBMOD-2,<
+                        END     [
+                                 EXTERN .JBDA, .JBDDT, .JBSYM, STRUN
+                                 .JBHSM==6
+                                 JRST   PCTRAP
+                                 MOVE   R1,400000+.JBHSM
+                                 MOVEM  R1,.JBSYM
+                                 MOVE   R1,[XWD STRUN,.JBDA]
+                                 MOVEM  R1,.JBDDT
+                                 OUTSTR [ASCIZ  'DDT']
+                                 JRST   .JBDA]>
