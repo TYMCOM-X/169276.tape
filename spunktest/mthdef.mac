@@ -1,0 +1,13 @@
+
+;       THIS FILE IS TO BE COMPILED WITH THE MATHFUNCTIONS
+
+RXP==17
+
+
+OPDEF   MATHER  [33B8]  ;MATH ERROR UUO
+
+        DEFINE  DOUBLE  (A,B)<
+                A
+                B>
+
+
