@@ -1,0 +1,102 @@
+TITLE  .CEXP   COMPLEX EXPONENT ROUTINE ADAPTED FROM MTHLIB BY J.HOUHA
+
+        TWOSEG
+        RELOC   ^O400000
+;
+;
+
+;COMPLEX EXPONENTIAL FUNCTION.
+
+;THIS ROUTINE CALCULATES THE EXPONENTIAL OF A
+;COMPLEX ARGUMENT Z=X+I*Y IN THE FOLLOWING
+;MANNER:
+
+;IF -89.415... <= X <= +88.029....,
+
+;	CEXP(Z)=EXP(X)*[COS(Y)+I*SIN(Y)]
+
+;IF X < -89.415...,
+
+;	CEXP(Z)=0
+
+;AND AN ERROR MESSAGE IS RETURNED FOR BOTH THE
+;REAL AND THE IMAGINARY PARTS UNLESS EITHER
+;COS(Y) OR SIN(Y) IS IDENTICALLY ZERO.
+
+;IF X>+88.029...,
+
+;  REAL(CEXP(Z))=[EXP((ALOG(/COS(Y)/))+X)]*[SIGN(COS(Y))]
+
+                               ;      IMAG(CEXP(Z))=[EXP((ALOG(/SIN(Y)/))+X)]*[SIGN(SIN(Y))]
+
+
+;THE CALLING SEQUENCE FOR THE ROUTINE IS AS FOLLOWS:
+
+;       PUSHJ   P,.CEXP
+;       R1,R2 = COMPLEX ARGUMENT
+
+;THE REAL PART OF THE ANSWER IS LEFT IN AC 1.
+;THE IMAGINARY PART OF THE ANSWER IS LEFT IN AC 2.
+
+
+        DCL     .CEXP,,<SINY,COSY,SAVIMG,<SAVE1,2>>
+        EXTERN  .SSIN,.SCOS,.SLOG,.SEXP
+
+
+
+
+        DMOVEM  1,SAVE1         ;SAVE ARGUMENT
+        PUSHJ   P,.SCOS       ;COS(Y)
+        MOVEM   1,COSY          ;SAVE AS COSY
+        MOVE    1,1+SAVE1
+        PUSHJ   P,.SSIN       ;SIN(Y)
+        MOVE    1,SAVE1         ;GET X
+        CAMGE   1,MIN89         ;IF X < -89.415...
+        JRST    XVRYNG          ;THEN JUMP
+        CAMLE   1,PLS88         ;IF X > +88.029...
+        JRST    XVRYPL          ;THEN JUMP
+        PUSHJ   P,.SEXP       ;EXP(X)
+        MOVE    2,SINY          ;GET SIN(Y)
+        FMPR    1,COSY          ;EXP(X)*COS(Y) = REAL PART
+;
+OUT:    RETURN  .CEXP           ;EXIT
+;
+XVRYNG: SKIPE   COSY            ;COS(Y) = 0 ?
+        MATH  MFE10           ;NO- ERROR
+        SKIPE   SINY            ;SIN(Y) = 0 ?
+        MATH  MFE10           ;NO-  ERROR
+        SETZB   1,2             ;ANSWER = 0,0
+        JRST    OUT             ;EXIT
+;
+XVRYPL: SKIPN   SINY            ;IF SIN(Y) = 0
+        JRST    IZERO           ;THEN IMAG PART = 0, JUMP
+        MOVM    1,SINY          ;GET ABS(SIN(Y))
+        PUSHJ   P,.SLOG       ;LOG(ABS(SIN(Y)))
+        FADR    1,SAVE1         ; ABOVE+X
+        PUSHJ   P,.SEXP       ;ABS(SIN(Y))*EXP(X)
+        SKIPGE  SINY            ;IF SIN(Y) < 0
+        MOVN    1,1             ;THEN NEGATE
+        MOVEM   1,SAVIMG        ;SAVE IMAG PART
+REAL:   SKIPN   COSY            ;IF COS(Y) = 0
+        JRST    RZERO           ;THEN REAL PART = 0, JUMP
+        MOVM    1,COSY          ;GET ABS(COS(Y))
+        PUSHJ   P,.SLOG       ;LOG(ABS(COS(Y)))
+        FADR    1,SAVE1         ;LOG(ABS(COS(Y)))+X
+        PUSHJ   P,.SEXP       ;ABS(COS(Y))*EXP(X)
+        SKIPGE  COSY            ;IF COS(Y) < 0
+        MOVN    1,1             ;THEN NEGATE REAL PART
+        JRST    OUT             ;EXIT
+;
+IZERO:  SETZM   SAVIMG          ;ZERO IMAG PART
+        JRST    REAL            ;GOTO REAL
+;
+RZERO:  SETZ    1,              ;ZERO REAL PART
+        MOVE    2,SAVIMG        ;GET IMAG PART
+        JRST    OUT             ;EXIT
+;
+MIN89:  570232254037
+PLS88:  207540074636
+
+        LIT
+
+        END
