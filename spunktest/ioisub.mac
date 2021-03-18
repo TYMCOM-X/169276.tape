@@ -1,0 +1,604 @@
+        TWOSEG
+        RELOC   ^O400000
+        RADIX   10
+;
+;************************************************************
+        TITLE   IOISUB         I/O SUBROUTINES - COMMON TO IMAGE & FORM
+;************************************************************
+;
+;       I/O SUBROUTINES COMMON TO IMAGES AND FORMS
+;
+;
+        EXTERN  PFFSV, SETFFL, IDRVI, IDRVO, IMGSCN
+        EXTERN  CVTERR, FMTERR, IDGCHR, IDGLIN, .OTCAR, ENDFIL
+        EXTERN  ARRAY, CTR, DUMBUF, EFLDFG, GETSLA, ISCDIG, ISCEXP
+        EXTERN  LAST, LENG, NESTB, NOSLIC, SAVIDX, STRSLT
+        EXTERN  TMPLOC, UTPTR
+;
+;************************************************************
+        SUBTTL  RIOI  CHART RS96
+        DCL     RIOI
+;************************************************************
+;
+;       SET UP FOR I/O - FREE FORM OR IMAGE
+;
+;       R1,R2,R3(,R5) HAVE PARAMETERS IN THEM
+;
+;       SET R6=FMTFLG, R7=DRVADR, R10=FMTPTR BEFORE
+;       CALLING THE COMMON I/O INIT ROUTINE SETFFL
+;
+;       SET R11=0 BECAUSE THIS IS AN I/O STATEMENT.
+;
+;
+        MOVE    R0,@0(R17)       ; I/O PARAMETER
+        SETZ    R11,
+        SETZB   R6,R10
+        MOVE    R10,[POINT 7,0(FMTREG)] ;    POINTER TO FORMAT STRING
+        MOVEI   R6,IMGSCN       ; SET SCANNER ADDRESS
+        MOVEI   R7,IDRVI        ; SET DRIVER ADDRESS
+        TRNE    R0,IOBIT        ; SKIP IF INPUT
+        MOVEI   R7,IDRVO        ; OUTPUT
+        JRST    SETFFL
+        RETURN  RIOI
+;
+;
+;************************************************************
+        SUBTTL  IFINIT  CHART R53
+        DCL     IFINIT
+;************************************************************
+;
+; R53.1-R53.3
+        OSETOB   STAGE,FLDBGN
+        SETZM   ,EFLDFG
+;
+; R53.4
+        OSETZM   ,LMIOC
+        OSETZM   ,LIP
+        OSETOM   LFP
+;
+; R53.5
+        OSETOM   ,LEP
+        SETOM   ,LAST
+;
+; R53.6
+        SETZM   ,CTR+1
+        MOVE    R5,[XWD CTR+1,CTR+2]
+        BLT     R5,CTR+6
+;
+; R53.7
+        OSETOM   ,FLFBGN+1
+        OSETOM   ,FLFBGN+2
+        OSETZM   ,FLFCTR+1
+        OSETZM   ,FLFCTR+2
+        OSETZM   ,FSTCHR
+        OSETZM   ,FSTLEN
+;
+; R53.8
+        OSETZM   ,NUMONY
+        OSETZM   ,OUTONY
+;
+; R53.9
+        OSETZM   ,PFLG
+;
+; R53.10
+        SETOM   ,NESTB
+;
+        RETURN  IFINIT
+;
+;************************************************************
+        SUBTTL  IFBLIT  CHART R55
+        DCL     IFBLIT
+;************************************************************
+;
+; R55.1
+        OMOVE   R5,FMTFLG
+        CAIE    R5,IMGSCN       ; SKIP IF IMAGE
+        JRST    IFBL06          ; FORM
+;
+; R55.2-3
+        SKIPN   ,A1
+        OMOVEM   R0,FLDBGN
+;
+; R55.4-.5
+        MOVEI   R5,1
+        OADDM    R5,LMIOC
+        OMOVEM    R5,LFP
+        JRST    IFBL$$
+;
+; R55.6
+IFBL06: OMOVE   R5,FMTPTR
+        OMOVEM   R5,FLDBGN
+;
+; R55.7
+        OSKIPE  ,NUMFLG
+        JRST    IFBL09
+;
+; R55.8
+        MOVEI   R5,1
+        OMOVEM   R5,LFP
+        JRST    IFBL$$
+;
+; R55.9-.11
+IFBL09: OMOVE   R5,NUMFLD
+        OMOVEM   R5,LFP
+        OSETZM  ,NUMFLG
+        OSETZM  ,NUMFLD
+;
+IFBL$$: RETURN  IFBLIT
+;
+;************************************************************
+        SUBTTL  IFBNL   CHART R56
+        DCL     IFBNL
+;************************************************************
+
+;
+; R56.1
+        OSKIPE  ,NUMFLG
+        JRST    IFBN03
+;
+; R56.2
+        MOVEI   R5,1
+        MOVEM   R5,LENG
+        JRST    IFBN08
+;
+; R56.3
+IFBN03: OSKIPE  ,NUMFLD
+        JRST    IFBN07
+;
+; R56.4-.6
+        SETO    STAGE,
+        SKIPE   ,A1
+        MOVEI   STAGE,13
+;
+; R56.7
+IFBN07: OMOVE   R5,NUMFLD
+        MOVEM   R5,LENG
+;
+; R56.8
+IFBN08: MOVE    R5,LENG
+        OADDM    R5,LMIOC
+;
+; R56.9
+        OSKPGE  ,LFP
+        JRST    IFBN11
+;
+; R56.10
+        OADDM    R5,LFP
+        JRST    IFBN12
+;
+; R56.11
+IFBN11: OADDM    R5,LIP
+;
+; R56.11A
+        OMOVEM  R5,FSTLEN
+        OMOVEM  A0,FSTCHR
+        OMOVE   R5,FMTPTR
+        OMOVEM  R5,FLDBGN
+;
+; R56.12-.13
+IFBN12: OSETZM  ,NUMFLG
+        OSETZM  ,NUMFLD
+;
+        RETURN  IFBNL
+;
+;************************************************************
+        SUBTTL  IFINCF  CHART   R57
+        DCL     IFINCF
+;************************************************************
+;
+; R57.1-R57.4
+        MOVEI   R5,1
+        OSKIPE  ,NUMFLG
+        OMOVE   R5,NUMFLD
+        MOVEM   R5,LENG
+        OADDM    R5,LMIOC
+;
+; R57.5
+        OSKPGE  ,LFP
+        JRST    IFIF07
+;
+; R57.6
+        OADDM    R5,LFP
+        JRST    IFIF08
+;
+; R57.7
+IFIF07: OADDM    R5,LIP
+;
+; R57.8,R57.9
+IFIF08: OSETZM  ,NUMFLG
+        OSETZM  ,NUMFLD
+;
+        RETURN  IFINCF
+;
+;************************************************************
+        SUBTTL  IFMDP   CHART R58
+        DCL     IFMDP
+;************************************************************
+;
+; R58.1
+        OSKIPE  ,NUMFLG
+        JRST    IFDP06
+;
+; R58.2
+        OAOS     ,LMIOC
+;
+; R58.3
+        OSKPGE  ,LFP    ;SKIP IF LFP#-1
+        JRST    IFDP05
+;
+; R58.4
+        CALL    FMTERR,<RSJMSG+^D14>
+;
+; R58.5
+IFDP05: OSETZM   ,LFP
+        JRST    IFDP$$
+;
+; R58.6
+IFDP06: OSKIPN  ,NUMFLD
+        JRST    IFDP08
+;
+; R58.7
+        CALL    FMTERR,<RSJMSG+^D9>
+;
+; R58.8
+IFDP08: CAIE    STAGE,13
+        JRST    IFDP10
+;
+; R58.9
+        SETO    STAGE,
+        SKIPA
+;
+; R58.10
+IFDP10: SUBI    STAGE,1
+;
+; R58.11
+        OSETZM  ,NUMFLG
+;
+IFDP$$: RETURN  IFMDP
+;************************************************************
+        SUBTTL  IFCLIT  CHART R59
+        DCL     IFCLIT
+;************************************************************
+;
+; R59.1
+        OSKIPE   ,LFP
+        JRST    IFCL03
+;
+; R59.2
+        CALL    IFINIT  ;R53
+        JRST    IFCL04
+;
+; R59.3
+IFCL03: MOVEI   R5,1
+        MOVEM   R5,EFLDFG
+;
+; R59.4
+IFCL04: MOVEI   R5,IMGSCN
+        OCAME   R5,FMTFLG       ; SKIP IF IMAGE
+        JRST    IFCL$$
+        MOVEI   R6,1
+        OMOVEM  R6,NXTCHR
+        OMOVEM  R0,OLDFMT       ; SAVE PTR TO THIS FMT CHAR
+;
+IFCL$$: RETURN  IFCLIT
+;
+;************************************************************
+        SUBTTL  IFCNL   CHART R60
+        DCL     IFCNL
+;************************************************************
+;
+; R60.1
+        OSKIPE  ,NUMFLG
+        OSKIPE  ,NUMFLD
+        JRST    IFCN03
+;
+; R60.2
+        OSETZM  ,NUMFLG
+        JRST    IFCNL$
+;
+; R60.3
+IFCN03: CAIN    STAGE,21
+        JRST    IFCN04
+        OAOS    ,NULFMT
+;
+; R60.3B - .3D
+        CAIE    STAGE,17
+        JRST    IFCN04
+        OMOVE   R5,LMIOC
+        CAIN    R5,1
+        MOVEI   STAGE,16
+;
+; R60.4
+IFCN04: MOVEI   R5,1
+        MOVEM   R5,EFLDFG
+;
+; R60.5
+        OMOVEM  R5,NXTCHR
+        OMOVEM  R0,OLDFMT       ; SAVE PTR TO THIS FMT CHAR
+;
+IFCNL$: RETURN  IFCNL
+;
+;       CHART R61 DOES NOT EXIST
+;
+;************************************************************
+        SUBTTL  IFEOS   CHART R62
+        DCL     IFEOS
+;************************************************************
+;
+; R62.1
+        OSKIPN  ,NULFMT
+        SKIPG   ,ARRAY
+        JRST    IFEOS3
+;
+; R62.2
+        CALL    FMTERR,<RSJMSG+^D12>
+;
+; R62.3
+IFEOS3: MOVEI   R5,IMGSCN
+        OCAMN   R5,FMTFLG
+        JRST    IFEOS6
+;
+; R62.4
+        SETO    R5,
+        OCAMN   R5,NESTP
+        JRST    IFEOS6
+;
+; R62.5
+        CALL    FMTERR,<RSJMSG+^D4>
+;
+; R62.6
+IFEOS6: MOVEI   STAGE,24
+;
+; R62.7
+        MOVEI   R5,1
+        MOVEM   R5,EFLDFG
+;
+; R62.8
+        MOVE    R5,[POINT 7,0(FMTREG)]
+        OMOVEM  R5,FMTPTR
+;
+; R62.9-.11
+        OSETZM  ,NULFMT
+        OSETZM  ,NUMFLG
+        OSETZM  ,NUMFLD
+;
+        RETURN  IFEOS
+;
+;
+;************************************************************
+        SUBTTL  DIGSCN  CHART R64
+        DCL     DIGSCN
+;************************************************************
+;
+; R64.1
+        OAOS    ,NUMFLG
+;
+; R64.2
+        OMOVE   R5,NUMFLD
+        IMULI   R5,10
+        ADD     R5,A0
+        SUBI    R5,^O60
+        OMOVEM  R5,NUMFLD
+;
+        RETURN  DIGSCN
+;
+;
+;************************************************************
+        SUBTTL  FFOD  CHART R69
+        DCL     FFOD
+;************************************************************
+;
+        CALL    PFFSV                   ; FREE FORM OUTPUT
+        RETURN  FFOD
+;
+;
+;************************************************************
+        SUBTTL  ODPIP  CHART R70
+        DCL     ODPIP
+;************************************************************
+;
+        MOVEI   A3,1                    ;R70.1-.3
+        CAIG    STAGE,16
+        SKIPLE  ,ISCEXP
+        SKIPN   ,ISCDIG
+        SETZ    A3,
+OPIP04:                                 ;R70.4
+        SKIPG   ,ISCDIG                 ;R70.5
+        JRST    OPIP10
+        CAIG    STAGE,16                ;R70.6
+        SKIPLE  ,ISCEXP
+        SKIPA
+        JRST    OPIP09
+        IGC(UTPTR)                      ;R70.7
+        SOS     ,ISCDIG                 ;R70.8
+        JRST    OPIP11
+OPIP09: MOVEI   A0,"0"                  ;R70.9    (ZERO)
+        JRST    OPIP11
+OPIP10: MOVEI   A0,"0"                  ;R70.10    (ZERO)
+OPIP11: CALL    .OTCAR                  ;R70.11   E32
+        SKIPE   ,A3                     ;R70.12-.13
+        SOS     ,ISCEXP
+        SOJG    A1,OPIP04               ;R70.14-.15
+;
+        RETURN  ODPIP
+;
+;************************************************************
+        SUBTTL  ODPFP  CHART R71
+        DCL     ODPFP
+;************************************************************
+;
+OPFP01:                                 ;R71.1
+        SKIPG   ,ISCDIG                 ;R71.2
+        JRST    OPFP08
+        CAIG    STAGE,16                ;R71.3
+        SKIPL   ISCEXP
+        SKIPA
+        JRST    OPFP06
+        IGC(UTPTR)                      ;R71.4
+        SOS     ISCDIG                  ;R71.5
+        JRST    OPFP09
+OPFP06: MOVEI   A0,"0"                  ;R71.6    (ZERO)
+        AOS     ,ISCEXP                 ;R71.7
+        JRST    OPFP09
+OPFP08: MOVEI   A0,"0"                  ;R71.8    (ZERO)
+OPFP09: CALL    .OTCAR                  ;R71.9
+        SOJG    A2,OPFP01               ;R71.10-.11
+;
+        RETURN  ODPFP
+;
+;************************************************************
+        SUBTTL  ODPSTR  CHART R72
+        DCL     ODPSTR
+;************************************************************
+;
+        OHRRZ   A2,OCBOP1               ;R72.1  ADDR OF STR DESC
+        HLRZ    A2,1(A2)                ;   PICK UP CURRENT LEN
+        MOVE    A1,A2                   ;R72.2-.4
+        OCAMLE  A2,LMIOC
+        OMOVE   A1,LMIOC
+        JUMPLE  A1,OSTR11               ;R72.5
+OSTR06: IGC(UTPTR)                      ;R72.6-.7
+        CALL    .OTCAR                  ;R72.8
+        SOJG    A1,OSTR06               ;R72.9-.10
+OSTR11: OCAML   A2,LMIOC                ;R72.11
+        JRST    OSTR$$
+        OMOVE   A1,LMIOC                ;R72.12
+        SUB     A1,A2
+        CALL    ODBLNK                  ;R72.13
+;
+OSTR$$: RETURN  ODPSTR
+;
+;************************************************************
+        SUBTTL  ODBLNK  CHART R73
+        DCL     ODBLNK
+;************************************************************
+;
+        MOVEI   A0,^O40
+OBLNK1:                                 ;R73.1
+        CALL    .OTCAR                  ;R73.2  E32
+        SOJG    A1,OBLNK1               ;R73.3-.4
+;
+        RETURN  ODBLNK
+;
+;************************************************************
+        SUBTTL  IODLIT  CHART R74
+        DCL     IODLIT
+;************************************************************
+;
+        OMOVE   R6,FMTPTR               ;R74.1
+        MOVEM   R6,SAVIDX
+IOLT02:                                 ;R74.2
+        OMOVE   R6,FLDBGN               ;R74.3
+        OMOVEM  R6,FMTPTR
+        OMOVE    A4,LMIOC                ;R74.4
+IOLT05:                                 ;R74.5
+        IGC(FMTPTR,OCB)                 ;R74.6
+        CALL    .OTCAR                  ;R74.7
+        SOJG    A4,IOLT05               ;R74.8-.9
+        OSOSLE  ,LFP                    ;R74.10-.11
+        JRST    IOLT02
+        MOVE    R6,SAVIDX               ;R74.12
+        OMOVEM  R6,FMTPTR
+;
+        RETURN  IODLIT
+;
+;*************************************************************
+        SUBTTL  IDSKIP  CHART R76
+        DCL     IDSKIP
+;*************************************************************
+;
+        MOVEM   A0,TMPLOC       ;       (STORE NO. TO SKIP)
+        CALL    IDGFC
+        MOVE    A1,TMPLOC       ; R76.1 (RESTORE NO. TO SKIP)
+        JRST    ISKP06
+ISKP02:                         ; R76.2
+        CALL    IDGCHR          ; R76.3
+        MOVE    R6,TERFLG(FCBREG) ; R76.4
+        CAIGE   R6,3    
+        JRST    ISKP06
+        CALL    CVTERR,<RSJMSG+^D35> ; R76.5
+;
+ISKP06: SOJG    A1,ISKP02       ; R76.6-.7
+        RETURN  IDSKIP
+;
+;*************************************************************
+        SUBTTL  IDGFC  CHART R81
+        DCL     IDGFC
+;*************************************************************
+;
+                                ; R81.1
+        CALL    IDGCHR          ; R81.2
+        TLNN    OCB,FCBTTY!FCBVAL; R81.3
+        JRST    GFC11
+        MOVE    R6,TERFLG(FCBREG) ; R81.4
+        CAIG    R6,3            ; (SKIP IF END OF LINE)
+        JRST    GFC10           ; (CARRAIGE RETURN AT END OF LINE)
+        CALL    IDGLIN          ; R81.5-.6
+        CALL    IDGCHR          ; R81.7-.9
+GFC10:  MOVE    R6,TERFLG(FCBREG) ; R81.10
+        CAIGE   R6,3
+        JRST    GFC$$
+        CAILE   STAGE,12
+        CAIL    STAGE,19
+        JRST    GFC$$
+        CALL    CVTERR,<RSJMSG+^D35> ; R81.10A
+;
+GFC11:  MOVE    R6,TERFLG(FCBREG) ; R81.11
+        CAIN    R6,5
+        JRST    GFC13
+        CAIE    R6,3
+        JRST    GFC$$
+        CAILE   STAGE,12        ; R81.11A
+        CAIL    STAGE,19
+        JRST    GFC$$
+        CALL    CVTERR,<RSJMSG+^D35>
+;
+GFC13:  CALL    ENDFIL          ; R81.13
+;
+GFC$$:  RETURN  IDGFC
+;
+;
+;*********************************************************
+        SUBTTL  SPFO            ;RS98.3.9.4.1   SET POINTER FOR OUTPUT
+        DCL     SPFO
+;*********************************************************
+;
+        CAIGE   STAGE,20        ;RS98.3.9.4.1.1
+        CAIN    STAGE,16
+        JRST    SPFO$$
+        OMOVE   R5,IOTYP        ;RS98.3.9.4.1.2
+        TLZN    R5,ARYMSK
+        JRST    SPFO05
+        SKIPN   ,NOSLIC         ; SKIP IF SLICE
+        JRST    SPFO03
+        CALL    GETSLA          ; GET ADDR OF NEXT ELT
+        TLNE    OCB,FCBSTF      ; SKIP IF NOT STR FUNCTION
+        JRST    SPFO2A
+        OHRRM   R2,BASADR
+        JRST    SPFO3A
+SPFO2A: HRRM    R2,STRSLT       ; STR OF A SLICE
+        JRST    SPFO03
+
+SPFO03: OSKIPL  ,ELTSZ          ;RS98.3.9.4.1.3
+        OAOS    ,BASADR         ; ELTSZ=0 => 2 WORDS
+        OAOS    ,BASADR         ; ELTSZ=1 => 1 WORD
+SPFO3A: OHRRZ   R6,IOTYP        ; YOU'RE NOT GOING TO BELIEVE THIS
+        CAIE    R6,STRING       ; ADDRESS OF STRING DESC GOES IN
+        JRST    SPFO4A          ; OCBOP1; NUMERIC SCALARS ARE
+        OMOVE   R5,BASADR       ; PLACED IN OCBOPD
+        OMOVEM  R5,OCBOP1
+        JRST    SPFO05
+SPFO4A: DMOVE   R5,@BASADR(OCB)  ;RS98.3.9.4.1.4
+        DMOVEM  R5,OCBOPD(OCB)
+SPFO05: OHRRZ    R6,IOTYP        ;RS98.3.9.4.1.5
+        CAIE    R6,STRING
+        JRST    SPFO$$
+        MOVE    R5,[POINT 7,0]  ;RS98.3.9.4.1.6
+        OHRR    R5,@OCBOP1       ; (ADDR OF STRING)
+        OSKIPN  ,@OCBOP1        ; SKIP IF STRING HAS BEEN REFERENCED
+        HRRI    R5,DUMBUF       ; UNREF'D STRING- SET PTR TO GET A NULL
+        MOVEM   R5,UTPTR
+SPFO$$: RETURN  SPFO            ;       END SET POINTER FOR OUTPUT
+;
+;
+        END
