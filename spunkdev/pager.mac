@@ -1,0 +1,1461 @@
+LIST
+
+;	FILE:	PAGER.MAC
+
+	ifndef ftrun, <ftrun==0>
+	ife ftrun, <	TITLE   PAGER>
+	ifn ftrun, <	TITLE   RPAGER>
+	SUBTTL >=<   >=<   >=<   >=<   >=<   >=<   >=<   >=<
+	RADIX	8
+	TWOSEG
+
+	RELOC	^O400000
+
+	DEFINE MAC.OK(NAME)
+	<CKCOMN(NAME,<sr1,S1,sr0,sr5,rwswag,dextag>)
+	ifn $fckt, < ckcomn(name,<HTXag,CTXag,CPWag,sr2,sr3,sr4>)>
+	>
+
+ftxct==	ftrun	; EXTENDED CORE TABLE FEATURE
+
+	EXTERN	CT0, CT1, HT0, HT1, HTSIZE, CTSIZE
+ifn ftrun, < extern pasize, pgarea, ct4, nclblk>
+ifn ftxct, < extern ct2, ct3
+	vpact==ct2	; virtual page address
+	fcbct==ct3	; fcb address in RH, LH non-zero iff sequential
+        clubct==ct4     ; club core table:
+                        ; lh = this page is mapped into core
+                        ; rh = this page is club-locked
+	>
+	EXTERN	.TIME, CHANTB, RUNPPN, VMEMAD
+	EXTERN	PGBASE, PGLIM, SWAP, G2
+	EXTERN	FCBVEC
+	EXTERN	OUTMSG, REPBUF
+	sextern	lockct, pagect
+
+chpg==chpos-pex
+	JOBJDA==^O75
+	MAXPOS==^O377777777777
+
+;	op codes for CHANIO
+c.rel==	0
+c.clos==1
+c.outp==2
+c.inp==	3
+c.look==4
+c.ent==	5
+c.seti==6
+c.seto==7
+c.ren==	11
+c.gsts==17
+c.sttz==20
+c.stto==21
+.chmfp==35
+c.men==41       ;multiple enter
+
+; A macro to generate CHANIO's.  REG is the register you have free
+; for us to work in.
+; The forth argument is either exactly FCB or CHAN or blank.
+; It specifies whether the fifth argument, if present is the 
+; register containing and fcb address or the reg containing a
+; channel number. The forth and fifth arguments had best be
+; blank or non-blank together. 
+; NOTE: argument errors are NOT diagnosed.
+
+define	dochan(op,addr,reg,c.o.f,cfreg) <
+	ifidn <c.o.f> <FCB>, < lchn(reg,cfreg)>
+	ifidn <c.o.f> <fcb>, < lchn(reg,cfreg)>
+	ifidn <c.o.f> <CHAN>, < ifn <reg-cfreg>, <
+		Movei   reg,(cfreg) >>
+	ifidn <c.o.f> <chan>, < ifn <reg-cfreg>, <
+		Movei   reg,(cfreg) >>
+		Hrli	   reg,op
+		Chanio  reg,addr >
+subttl	PAGER TABLES
+
+;	CORE TABLE
+
+;Each entry has two words.  The table is implemented as two arrays
+;with origens at CT0 and CT1.
+;The core table is accessed by core page number.
+;That is, the core table entry related to core address
+;23075 is at CT0+23 and CT1+23.
+;CT0 contains either a use count or the age of the page.
+;If positive, this is the number of active users-1. (zero = 1 user)
+;If negative, this is the value of the cell .TIME when the page
+;went inactive.  .TIME, and all of CT0, are initialized to
+;400000,,000000.  .TIME is incremented whenever a page goes
+;inactive.
+
+;CT1 contains a clean/dirty flag in the left half and the
+;index of the corresponding HASH TABLE entry in the right half.
+;clean = 0, dirty = -1.
+
+;CT2 = vpact
+;CT3 = fcbct
+;CT4 = clubct
+
+;See code at LOCATE for finding a free or usable page, effect of
+;aging, etc.
+
+;	HASH TABLE
+
+;Two word entries, array origens at HT0 and HT1 -- like the core table.
+;Access is by a (bad) hash of the virtual file page number.
+;HT0 contains either -1 (if the slot is free) or the virtual file
+;page number.
+;HT1 contains the index of the associated core table entry.
+;HT1 is initially zero, but is not cleared when a slot is freed.
+
+;See code at search for the hash algorithm, action on collision, etc.
+
+;	SKRPCT -- decrement use count on page, skip if NOT now free.
+;		Bug trap if DEBMOD is on: halt if page wasn't busy...
+
+ife	debmod, <
+	define	skrpct(ctx) <
+		Sosge   ct0(ctx)
+	>
+>
+
+ifn  debmod, <
+	define	skrpct(ctx) <
+		Skipge  ct0(ctx)
+		HALT
+		Sosge   ct0(ctx)
+	>
+>
+	subttl	STARTP
+
+.time0==^o400000	; Beginning of time for pager: ct0 for never-
+			;   used pages
+
+dcl     STARTP
+	HRLZI	R1,.time0
+	MOVEM	R1,.TIME
+
+	SETOM	HT0
+	HRLI	R1,HT0
+	HRRI	R1,HT0+1
+	BLT	R1,HT0+HTSIZE+1
+
+	HRLZI	R3,.time0
+	MOVEM	R3,CT0
+	MOVE	R3,[XWD CT0,CT0+1]
+	BLT	R3,CT0+CTSIZE-1
+
+	MOVEI	R3,HTSIZE+1
+	MOVEM	R3,CT1
+	MOVE	R3,[XWD CT1,CT1+1]
+	BLT	R3,CT1+CTSIZE-1
+
+   ifn ftrun, <	; initp takes care of this in the parse case
+        setzm   nclblk
+	MOVEI	R1,PGAREA+PSIZE-1
+	LSH	R1,-PEX
+	MOVEM	R1,PGBASE
+	MOVEI	R2,PGAREA+PASIZE
+	LSH	R2,-PEX
+	MOVEM	R2,PGLIM
+		; test for CTSIZE big enough
+	skipl	[ <ctsize*psize> - <<pgarea+pasize>&<-psize>>]
+	jrst	sta195
+	outstr	[ asciz "CTSIZE too small"]
+	movei	1,pgarea+pasize
+	HALT
+   >
+
+STA195:	MOVE    R1,[XWD SSTART,SWAP]
+	BLT	R1,SWAP+SEND-1-SSTART
+
+	MOVEI	R1,FCBVEC+<FCBLEN*TERNUM>
+	MOVEM	R1,CHANTB+TERNUM
+
+	MOVEI	R1,FCBVEC+<FCBLEN*STVNUM>
+	MOVEM	R1,CHANTB+STVNUM
+   ife ftrun, <
+	EXTERN	INTRPT, INTTAB
+	MOVEI	R1,INTRPT
+	MOVEM	R1,INTTAB+1
+   >
+STA200:	RETURN  STARTP
+
+	SUBTTL	SSTART -- code copied to SWAP to do RUNSEGs
+SSTART:
+	HRLZI	R1,1
+	CORE	R1,
+	SKIP
+	MOVE	R5,RUNPPN
+	MOVEI	R0,R1
+	HRLI	R0,1
+	HRLZI	R1,'DSK'
+	IFN	DEBMOD, <HRLZI  R3,'HGH'>
+	IFE	DEBMOD, <HRLZI  R3,'SHR'>
+	SETZM	R4
+	SETZM	R6
+	RUNSEG	R0,
+	OUTSTR	SERR-SSTART+SWAP
+	EXIT	0
+	E==:	^O400011
+SERR:	ASCIZ   "
+CANNOT FIND OVERLAY SEGMENT"
+SEND:
+	subttl	jobnum -- set xjobno right half to sixbit job number
+
+	extern	xjobno
+
+dclne     JOBNUM,,dig1ag
+	pjob	r1,
+	idivi	r1,^d10
+	movem	r2,dig1ag
+	idivi	r1,^d10
+	lsh	r1,6
+	or	r1,r2
+	lsh	r1,6
+	or	r1,dig1ag
+	ori	r1,'000'
+	hrrzm	r1,xjobno
+	RETURN	JOBNUM
+
+	subttl	GETVM -- set sixbit block for VMF
+DCL     GETVM,,,1
+;	input:	r0 - address of caller's sixbit block
+
+	movem	r0,r10
+	CALL	JOBNUM
+	hrli	'VMF'
+	hrr	xjobno		; set by JOBNUM
+	movem	sxnam(r10)
+	hrlzi	'TMP'
+	movem	sxext(r10)
+	setzm	sxun(r10)
+	setzm	sxun2(r10)
+	RETURN	GETVM
+
+	subttl	stopt
+dcl     STOPT
+	move	r1,vmemad
+	lsh	r1,-chpos
+	setzm	chantb(r1)	; so we won't bother unloading and closing the VMF
+	CALL	STOPP
+	RETURN	STOPT
+
+dcl     STOPP,,<V0>
+STO10:	MOVEI   R1,NMBCH-1      ; V0 IN R1
+STO20:	SKIPN   CHANTB(R1)
+	jrst	STO40
+STO30:	MOVEM   R1,V0
+	LSH	R1,CHPOS
+	CALL	CLOSEF,<$,R1>
+	MOVE	R1,V0
+STO40:	SOJGE   R1,STO20
+STO50:	RETURN  STOPP
+	subttl	CloCan, Closef, Cancel
+DCLne   CloCan,<,CLOag>,<FCBAag>
+
+; input: r0: Virtual address any word of file
+;	r1: 0 or 40 (for supercede or cancel)
+
+	CALL	UNLOAD,,<,FCBAag>    ; V1, FCBAag IN R1, R2
+	DOchan	(c.CLOS,@CLOag,r1)
+	CALL	RLCHAN,<$,FCBAag>
+	RETURN	CloCan
+
+dcl	closef
+	setz	r1,
+	call	clocan
+	return	closef
+
+dcl	cancel
+	movei	r1,^o40
+	call	clocan
+	return	cancel
+
+	subttl	rlchan
+dcl     RLCHAN
+	MOVEM	R0,R1	   ; V0 IN R1
+	dochan(c.rel,0,r2,FCB,r1)
+	SETZM	CHANTB(R2)
+RLC40:	RETURN  RLCHAN
+	subttl	unload
+; Given a virtual file address, scan the core table for pages occupied
+; by this file.  Write them out as appropriate, and in any case,
+; clear the CT and HT entries.
+
+dcl     UNLOAD,,<V1,V2,ENTRag>
+	LSH	R0,-CHPOS       ; V1 IN R0
+	MOVEM	R0,V1
+	MOVE	R1,R0
+	MOVE	R1,CHANTB(R1)
+	hrlzi	r2,(l.ent)
+	tdze	r2,fcbsts(r1)
+	hrro	r2,r2
+	MOVEM	R2,ENTRag
+	MOVE	R1,PGBASE       ; V2 IN R2
+	MOVE	R2,R1
+	SUB	R2,PGLIM	; -V4 IN R1
+	HRL	R1,R2
+ULD40:	HRRZ    R2,CT1(R1)      ; V3 IN R2
+	MOVE	R3,HT0(R2)
+	LSH	R3,-chpg
+	CAME	R3,R0
+	jrst	ULD90
+	MOVE	R3,ENTRag
+	ANDM	R3,CT1(R1)	; R3 will have -1 in LH iff dirty and enter done
+	MOVEM	R1,V2
+	HRRZ	R0,R1
+	CALL	WRITEP,<,$,R2>
+	MOVE	R0,V1
+	MOVE	R1,V2	   ; V1, V2 IN R0, R1
+	MOVEI	R2,HTSIZE+1
+	MOVEM	R2,CT1(R1)
+	HRLZI	R2,.time0
+	MOVEM	R2,CT0(R1)
+ULD90:	AOBJN   R1,ULD40
+	RETURN	UNLOAD,<$,R0,$,CHANTB(R1)>
+	subttl	readc
+
+COMMENT /
+
+|----------------------------------------------------------------------|
+|								       |
+|								       |
+|   B E G I N   C H A R A C T E R - O R I E N T E D   R O U T I N E S  |
+|								       |
+|								       |
+|----------------------------------------------------------------------|
+/
+
+
+; INPUT:	r1: virtual character address
+;		r2: bits.per.char,, chars.per.word
+
+; locals:	CPWag: chars per word
+;		BPCag: bits per character
+;		OFFag: character offset in word
+
+dcl     READC,<,,,SR3>,<CPWag,BPCag,OFFag>
+	HRRZM	R2,CPWag
+	HLRZM	R2,BPCag
+
+		; break char address into chan, word address,
+		; char offset.
+	LSHC	R1,-CHPOS
+	LSH	R2,CHPOS-^D36
+	IDIV	R2,CPWag
+	MOVEM	R3,OFFag
+
+	MOVE	R3,CHANTB(R1)	; set R3 = FCB address
+				;	( from here to end of routine)
+
+		; form virtual file address (words) and do a READW
+		; to get the core address.
+	LSH	R2,^D36-CHPOS
+	LSHC	R1,CHPOS
+	CALL	READW
+
+		; compute INCNT
+	HLRE	R2,R1
+	MOVN	R2,R2
+	IMUL	R2,CPWag
+	SUB	R2,OFFag
+	MOVEM	R2,INCNT(R3)
+
+		; and OUTCNT
+	HRRO	R2,R1
+	ORI	R2,-PSIZE
+	MOVN	R2,R2
+	IMUL	R2,CPWag
+	SUB	R2,OFFag
+	MOVEM	R2,OUTCNT(R3)
+
+	MOVE	R2,OFFag
+	IMUL	R2,BPCag
+	IMUL	R2,[<-1>_6]
+	ADD	R2,BPCag
+	HRLI	R1,440000(R2)
+	MOVEM	R1,BYTPTR(R3)
+	HRRZ	R1,R3
+	RETURN	READC,<,,$,SR3>
+	subttl	FREEC
+
+;	CLWag = characters in last word
+;	CPWag = characters per word
+
+dcl     FREEC,<,,SR2,SR3,SR4>,<CPWag,CLWag>
+	LDB	R2,POS
+	MOVN	R2,R2
+	ADDI	R2,^D36
+	LDB	R4,SIZE		; bits per char in r4
+	IDIV	R2,R4		; chars in last word in r2
+	movem	r2,CLWag
+	MOVEI	R3,^D36
+	IDIV	R3,R4		; chars per word in r3
+	movem	r3,CPWag
+	hlre	r3,r1		; R/W switch for FreeP
+	HRRz	r1,BYTPTR(R1)
+	ldb	r2,[ point pex,r1,^d35]
+	skipe	CLWag		; skip if no chars in last word
+	addi	r2,1		; to address the first free word
+	call	FreeP
+	skipe	CLWag
+	subi	r1,1		; to address the last word with chars
+	LDB	r3,[point chpos, r1, ^d35]
+	IMUL	r3,CPWag
+	ADD	r3,CLWag
+	DPB     r3,[point chpos, r1, ^d35]
+FC90:	RETURN  FREEC,<,$,SR2,$,SR3,$,SR4>
+
+POS:	POINT   6,BYTPTR(R1),5
+SIZE:	POINT   6,BYTPTR(R1),^D11
+	subttl	LOCC -- character location on file
+
+dcl	locc;	 character location function
+	; input  r1=pointer to BYTPTR in FCB (like for FREEC)
+	LDB	R2,POS
+	MOVN	R2,R2
+	ADDI	R2,^D36
+	LDB	R4,SIZE
+	IDIV	R2,R4
+	call	locw,<,$,bytptr(r1)>
+	MOVEI	R3,^D36
+	IDIV	R3,R4
+	IMUL	R1,R3
+	ADD	R1,R2
+	return	locc
+
+
+SUBTTL	INC
+DCL     INC,<sr0>
+	setcm	r0,bytptr(r1)	; recover the bytptr, complemented
+	trne	r0,psize-1	; skip if WERE all one's: end of page
+	jrst	INC40
+	HRRZS	R1	; input mode flag in left half
+	CALL	TFRC
+	jrst	INC50
+
+INC40:	AOS     INCNT(R1)	; here if not eop: must be eof
+	AOS	OUTCNT(R1)
+	HRLI	R1,400000
+
+INC50:
+	move	r0,sr0
+	RETURN	INC
+
+	SUBTTL	OUTC
+dcl     OUTC
+	HRROS	R1	; output mode flagged in LH(r1)
+	CALL	TFRC
+	RETURN	OUTC
+	SUBTTL	TFRC
+dcl     TFRC,<,,SR2,SR3>,<SR1>
+	HRRZM	R1,SR1
+	HRR	R1,BYTPTR(R1)
+	ADDI	R1,1	; TFRW will expect us to be pointing one word
+			; beyond the current page, and will subtract 1.
+	CALL	TFRW
+	HRRM	R1,@SR1
+	HRR	R1,SR1
+	movei	r2,^o44
+	dpb	r2,[ point  6,bytptr(r1),5]
+	MOVEI	R2,^D36
+	LDB	R3,[ POINT   6,BYTPTR(R1),^D11]
+	IDIV	R2,R3
+	HLRE	R3,R1
+	MOVN	R3,R3
+	IMUL	R3,R2
+	SUBI	R3,1
+	MOVEM	R3,INCNT(R1)
+	HRRZS	R1
+	SKIPG	R3
+	HRLI	R1,400000
+	LSH	R2,PEX
+	SUBI	R2,1
+	MOVEM	R2,OUTCNT(R1)
+tfrcX:	RETURN  TFRC,<,$,SR2,$,SR3>
+	SUBTTL	STEPCR
+dcl     STEPCR,,<S1>
+	DPB     R2,[ POINT  1,R1,0]
+	LDB     R2,SIZE
+	MOVEM	R2,S1
+	CALL    FREEC
+	ADD     R1,R0
+	MOVE    R2,S1
+	MOVEI	R3,^D36
+	IDIV	R3,R2
+	LSH	R2,^D24
+	ADD	R2,R3
+	CALL	READC
+SC50:	RETURN  STEPCR
+
+
+COMMENT /
+
+|----------------------------------------------------------------------|
+|								       |
+|								       |
+|       E N D   C H A R A C T E R - O R I E N T E D   R O U T I N E S  |
+|								       |
+|								       |
+|   B E G I N   W O R D - O R I E N T E D   R O U T I N E S            |
+|								       |
+|----------------------------------------------------------------------|
+/
+
+	SUBTTL	FREEW
+dcl     FREEW,<,,SR2,sr3>
+	ldb	r2,[ point pex,r1,^d35]
+	setz	r3,
+	call	freep
+FW70:	RETURN  FREEW,<,$,SR2,$,sr3>
+
+
+	SUBTTL	WRITW
+
+dcl     WRITW,<,,SR2,SR3>
+	ldb	r2,[ point pex,r1,^d35]
+	seto	r3,
+	call	FreeP
+WW110:	RETURN  WRITW,<,$,SR2,$,SR3>
+
+	SUBTTL	INW
+
+dcl     INW,<,,sr2,sr3>
+	subi	r1,1
+	movei	r2,psize
+	setz	r3,
+	call	FreeP
+	call	readw
+	RETURN	INW,<,$,sr2,$,sr3>
+
+	SUBTTL	outw
+
+dcl     outw,<,,sr2,sr3>
+	subi	r1,1
+	movei	r2,psize
+	seto	r3,
+	call	FreeP
+	call	readw
+	RETURN	outw,<,$,sr2,$,sr3>
+
+	subttl	locw - word location on file
+
+dcl	locw,<,,SR2>
+	ldb	r2,[ point ^d<18-pex>, r1, ^d<35-pex>]
+	move	r2,ct1(r2)
+	ldb	r2,[ point chpg, ht0(r2), ^d35]
+	dpb	r2,[ point ^d<36-pex>, r1, ^d<35-pex>]
+	return	locw,<,$,SR2>
+	SUBTTL	TFRW -- cross a page boundary
+comment /
+
+TFRW is called when a higher level routine called by the user
+discovers it cannot trivially update a core cursor, because the
+'next' word is in a new page.  We have to release (approximately,
+FREE or WRITE) the old page and get (READ) the new one.
+
+input:	LH(R1) = 0 if read, non-zero if write
+	RH(R1) = core address one beyond the last word read (written)
+
+output: R1 = correct core cursor for the 'next' word
+/
+
+dclne	tfrw,<,,SR2,SR3>
+	hlre	r3,r1	; set R/W flag
+	subi	r1,psize	; back into the page we fell out of
+	movei	r2,psize	; words used - always a full page
+	call	freep
+	call	readw
+	RETURN	tfrw,<,$,SR2,$,SR3>
+	SUBTTL	TFR
+
+	DEFINE	BT      (LENGTH,%L20)
+	<JUMPE  LENGTH,%L20
+	HRLZ	R5,R1
+	HRR	R5,R2
+	JUMPE	R3,.+2
+	MOVSS	R5
+	MOVE	R6,R5
+	ADD	R6,LENGTH
+	BLT	R5,-1(R6)
+%L20:	>
+
+; input
+;	r0: count
+;	r1: cursor
+;	r2: data address
+;	r3: i/o switch -- input=0, output= #0
+
+dcl     TFR
+TFR10:			; loop here until only a partial page  to transmit
+	JUMPN	R3,TFR15	; jump if output
+	JUMPGE	R1,TFR65	; bail out if input and no data in page
+	HLRE	R4,R1
+	MOVN	R4,R4
+	jrst	TFR20
+
+TFR15:	MOVE    R4,R1
+	ANDI	R4,PSIZE-1
+	MOVN	R4,R4
+	ADDI	R4,PSIZE
+TFR20:		; here with R4 = pos available words in page
+	CAMLE	R4,R0	; skip if we use all this page
+	jrst	TFR70	; this page does it -- EXIT LOOP
+	BT	R4
+	ADD	R1,R4
+	trne	r1,psize-1		; are we on a page boundary?
+	jrst	tfr21		; No.  Don't call TFRW.
+	HRL	R1,R3
+	CALL	TFRW
+tfr21:
+	ADD	R2,R4
+	SUB	R0,R4
+	jrst	TFR10	; and loop...
+
+TFR65:	HRL     R1,R0
+	jrst	TFR100
+
+TFR70:	BT      R0
+	ADD	R1,R0
+	ADD	R2,R0
+	jumpe	r3,tfr90	; jump if read
+	mark	r1
+TFR90:	HLRE    R4,R1
+	ADD	R4,R0
+	HRL	R1,R4
+TFR100:	RETURN  TFR
+
+;	VALPCA -- validate pager core address
+
+;	WARNING		This code must preceed all referances to
+;			VALPCA -- else phase errors in debug mode
+;			assemblies.
+
+ifn	debmod, <
+
+	extern	pgarea
+
+dcl	valpca
+	hrrzs	r1
+   ifn ftrun, <
+	caile	r1,pgarea!<psize-1>
+	cail	r1,<pgarea+pasize>&<-psize>
+   >
+   ife ftrun, <	; in parse/compile, pgarea is a DATAC cell set
+			; by INITP (in parse7) and we can rely on
+			; an ill mem ref for the upper bound check.
+	camge	r1,pgarea
+   >
+	halt
+	return	valpca
+> ; end of ifn debmod
+	SUBTTL	FreeP --
+comment /
+
+FreeP is called to reduce a use count by one, mess with EOF(fcb)
+and with dirty flags as required, and return a Virtual File Address.
+
+input:	R1 = address of any word in the page to be freed
+	R2 = count of words 'used' in that page (0<=R2<=1000)
+	R3 = zero if input, non-zero if output
+
+output:	R1 = Virtual file address of 'next' word
+	R2, R3 -- Garbaged
+	ELSE	-- Preserved
+
+/
+
+dclne	FreeP,,,1
+
+CTX==	r10
+
+	ifn	debmod, <SOS	LOCKCT>
+ifdef	valpca, <
+	call	valpca
+	>
+	hrrz	ctx,r1
+	lsh	ctx,-PEX	; get page number (CTX)
+ifn	debmod, <
+	skipge	ct0(ctx)
+	HALT
+	>
+	sosl	ct0(ctx)
+	jrst	Freep4
+ife	ftxct, <
+	move	r1,ct1(ctx)	; ht index
+	move	r1,ht0(r1)	; virtual page address
+	lsh	r1,-<chpg>	; channel number
+	move	r1,chantb(r1)	; fcb address
+	move	r1,fcbmsk(r1)	; buncha bits
+	trne	r1,fcbrnd	; skip if sequential
+	>
+ifn	ftxct, <
+	skipl	fcbct(ctx)	; skip if sequential
+	>
+	aosa	r1,.time	;    WOW
+	hrlzi	r1,.time0	; beginning of time
+	movem	r1,ct0(ctx)	; store page age
+    ifn   debmod,< sos pagect>
+
+Freep4:	; get Virtual Page address into r1
+ife	ftxct, <
+	hrrz	R1,CT1(ctx)
+	move	R1,HT0(R1)
+	>
+ifn	ftxct, <
+	move	r1,vpact(ctx)
+	>
+	lsh	R1,PEX		; form word address from page address
+	add	r1,r2		; add in words used
+	jumpe	r3,FreepX	; jump if input
+
+		; output
+	hrros	ct1(ctx)	; mark page dirty
+ife	ftxct, <
+	MOVE	R2,R1
+	LSHC	R2,-CHPOS
+	LSH	R3,CHPOS-^D36
+	MOVE	R2,CHANTB(R2)
+	>
+ifn	ftxct, <
+	move	r3,r1
+	tlz	r3,(-1_chpos)
+	move	r2,fcbct(ctx)
+	>
+	CAMLE	R3,EOF(R2)
+	MOVEM	R3,EOF(R2)
+FreepX:
+	RETURN	FreeP
+subttl	READW -- given virt file address, get into core and mark busy
+
+        dcl     readw,<sr0>
+;save R0
+        setz    r0,
+        call    readwx
+        move    r0,sr0
+        return  readw
+subttl  LOCKP -- given virt file address, club lock the page
+
+        dcl     lockp
+        seto    r0,
+        call    readwx
+        return  lockp
+subttl READWX -- given virt file address, get into core and mark busy, maybe lock
+
+; input:
+; r0 :  make club page if -1; check for fcbmfa if 0
+; r1 :  virt file addr
+; return r1: core word cursor
+
+dclne   READWX,<sr0,SR1,SR2,SR3,SR4>,<CTXag,MICK2>
+	ifn	debmod, <AOS    LOCKCT>
+	SETOM	R2	; Why
+	LSHC	R1,-PEX		; form virt page address
+	CALL	SEARCH
+	jumpGE	R3,rw50		; Jump if in core.
+	CALL	GET,<$,sr0>;	Read data, re-doing the search.
+RW50:	MOVE    R1,HT1(R4)
+	AOSle	CT0(R1)		; skip if page wasn't locked
+	jrst	RW80
+	SETZM	CT0(R1)
+   ifn   debmod, <  AOS     PAGECT>
+   ifn   ftxct, <
+        move    r4,fcbct(r1)
+        move    r4,fcbmsk(r4)
+        trnn    r4,fcbmfa
+        jrst    rw80
+;page not locked and we have a MFA file:
+        skipe   sr0             ;skip if not expected
+        jrst    rw70
+        call    diemsg,<[asciz "Multi-access file page not locked"]>
+rw70:   
+        movem   r1,CTXag
+        movem   r2,mick2
+        move    r2,clubct(r1)
+        camn    r2,[-1]         ;if already club-locked, dont again
+        jrst    gotlok
+        call    lockvp;         ;do club lock
+          jrst    nolock        ;error return
+        aos     nclblk          ;inc global cell = # pages club locked
+        move    r1,CTXag
+        setom   clubct(r1)      ;page mapped and club-locked
+gotlok: move    r2,mick2
+>
+RW80:	HLR     R2,R2
+RW90:	LSHC    R1,PEX
+	HLL	R1,R2
+	MOVE	R3,SR1
+	LSHC	R3,-CHPOS
+	LSH	R4,CHPOS-^D36
+	ORI	R4,PSIZE-1
+	ADDI	R4,1
+   ifn debmod, <
+	skipn	chantb(r3)
+	halt	0		; no channel assigned
+   >
+	MOVE	R3,CHANTB(R3)
+	SUB	R4,EOF(R3)
+	JUMPLE	R4,RW150
+	ANDI	R4,^O377777
+	HRLZ	R4,R4
+	ADD	R1,R4
+RW150:	RETURN  READWX,<,$,SR2,$,SR3,$,SR4>
+
+nolock: call    diemsg,<[asciz "Cannot get club interlock"]>
+	SUBTTL	GET
+; returns
+;	r0: preserved
+;	r1: crap
+;	r2: preserved
+;	r3: 
+;	r4: HTI
+;	r5: preserved
+;	r6: preserved
+
+dclne     GET,<SR0,V1,V2,,V3,SR5,SR6>,<V4>
+	CALL	L,,<V4>    ; find free page
+	MOVE	R0,R1	; be sure page is clear
+	HRRZ	R1,CT1(R1)
+	CALL	WRITEP
+	CALL	SEARCH,<,$,V1>,<,,,V3>  ; find HT slot
+        ifn debmod< jumpl r3,.+2
+                    halt>
+	MOVEM	R1,HT0(R4)	; set HT0, cross-link HT and CT
+	MOVE	r2,V4
+	MOVEM	r2,HT1(R4)
+   ifn ftxct, <
+	movem	r1,vpact(r2)
+	>
+	MOVEM	R4,CT1(r2)
+	SETOM	CT0(r2)
+	CALL	READP,<$,r2,$,R4,$,sr0>	; do the get
+	MOVE	R0,SR0
+	RETURN	GET,<,$,V2,,$,V3,$,SR5,$,SR6>
+	SUBTTL	SEARCH -- find file page in core or free HT slot
+; input	r1: target: a virtual page address
+;
+; output
+;	r0: preserved
+;	r1: 
+;	r2: preserved
+;	r3: HT0(r4) - contents of slot found
+;	r4: HT Index of slot found
+
+dclne     SEARCH
+	hshmul== <<4*HTSIZE/7>_chpg> ! <7*HTSIZE/^d10> ! 1_chpg ! 1
+	MOVE	R3,R1
+	mul	R3,[hshmul]
+	lsh	r4,-<chpg>
+SR20:
+	ANDI	R4,HTSIZE-1
+sr30:
+	CAME	R1,HT0(R4)
+	jrst	sr35
+	RETURN  SEARCH,<,,$,HT0(R4)>
+sr35:
+	SKIPGE	HT0(R4)
+	jrst	SR40
+	SOJge	R4,SR30	 ; V1 IN R4
+	jrst	sr20
+SR40:	RETURN  SEARCH,<,,$,HT0(R4)>
+
+	subttl	...
+ife ftrun, <
+
+	subttl	SETPWK -- set pager working set size
+
+	extern	pgmin, pgwrk
+
+dcl	setpwk
+	add	pgbase	; form absolute page number
+	camge	pgmin
+	move	pgmin
+	camle	pgmax
+	move	pgmax
+	movem	pgwrk	; set pgwrk
+	sub	pglim
+	movem	pgflag	; update pgflag
+	jumpge	spwkx	; jump if not over-allocated
+	call	gross;	  try to get rid of some core
+spwkx:
+	move	pgwrk
+	sub	pgbase
+	return	setpwk
+
+dcl	adjpwk
+	add	pgwrk
+	sub	pgbase
+	call	setpwk
+	return	adjpwk
+	subttl	GROSS -- Get Rid Of Some - We're over-allocated
+
+	extern	.jbrel
+dcl	gross,<sr0,sr1,sr2,sr3,sr4,sr5>; writep uses a lotta regs
+
+groslp:
+	skipl	pgflag	; skip if we're still over
+	jrst	grosck
+	call	grot;	get rid of top page
+	jumpn	r0,groslp	; loop if he did it
+
+grosck:		; see if we can reduce core now
+	move	pglim
+	lsh	pex		; to from core address
+	hrrz	r1,.jbrel
+	sub	r1,r0
+	caige	r1,^o2000		; CORE nops if less than 2 pages
+	jrst	grosx
+	subi	r0,1
+	core	r0,
+
+grosx:
+	move	r0,sr0
+	return	gross,<$,sr1,$,sr2,$,sr3,$,sr4,$,sr5>
+
+	subttl	GROT -- Get Rid Of Top page
+
+	; Gets rid of the page PGLIM-1, if it's not locked.
+
+	; RETURNS:	R0 = zero if page was locked
+	;		   = non-zero on success
+
+dclne	grot
+	setz	r0,		; assume failure exit
+	move	r1,pglim
+	camg	r1,pgbase
+	jrst	grotx
+	subi	r1,1		; now have CTX(top page) in r1
+	skipl	ct0(r1)		; skip if page not locked
+	jrst	grotx		; FAIL
+
+	hrrz	r0,ct1(r1)	; fetch HTX
+	exch	r0,r1		; set up for writep
+	call	writep		; write to disk, adj EOF, LEN, HT0
+	sos	r1,pglim	; adjust pglim and fetch our CTX
+	aos	pgflag
+	hrlzi	r0,.time0
+	movem	r0,ct0(r1)	; mark page virginal
+	movei	r0,htsize+1
+	movem	r0,ct1(r1)	; note r0 now non-zero
+grotx:
+	return	grot
+> ; end of IFE FTRUN bracketing wroking set adj code
+	SUBTTL	LOCATE -- find the oldest free-able page
+
+dclne     LOCATE
+LOC10:	MOVE    R1,PGBASE       ; V0 IN R1
+	HRREI	R2,1(R1)	; V1 IN R2
+	MOVE	R3,R2
+	SUB	R3,PGLIM
+	jumpge	r3,grab1
+	HRLM	R3,R2
+	HLLZ	R3,CT1(R1)
+	TLZ	R3,577777
+	OR	R3,CT0(R1)
+LOC30:
+	CAMG	R3,ct0(r2)
+	jrst	LOC60
+	HRRZ	R1,R2
+	MOVE	R3,ct0(r2)
+LOC60:
+	AOBJN	R2,LOC30
+
+	JUMPL	R3,LOC150	; jump if free page
+		; No page is free. In the parse case, try to expand core
+		; regardless of working set size.  On the runside,
+		; we've bought it.
+grab1:
+   ife ftrun, <
+
+	extern	pgmax, pgflag
+
+	move	r1,pglim
+	caml	r1,pgmax	; skip if we're not at max
+	jrst	die
+	lsh	r1,pex	; form new max core address
+	ori	r1,psize-1
+	core	r1,
+	jrst	die
+	aos	pglim
+	sos	pgflag
+	jrst	loc10	; go around again and find it
+
+die:    call    diemsg,<[asciz "More core needed"]>
+   >
+LOC150:		; We have found a usable page. In the parser case,
+		; we'll want to grab a new page anyway, if we're
+		; below the target paging area size and this
+		; page is not a virgin.
+   ife ftrun, <
+	skiple	pgflag	; skip if we're at target
+	camn	r3,[ xwd .time0,0]	; skip if not virgin
+	jrst	.+2	; just go home
+	jrst	grab1
+   >
+	return	locate
+
+        dclne   diemsg,<msgadr>
+	CALL	OUTMSG,<$,msgadr,1,1>
+	CALL	STOPP
+	EXIT	0
+        return  diemsg
+
+	SUBTTL	WRITEP
+	; Clear the page pointed to (redundantly) by R0,R1.  Update
+	; various things, but don't bother with CT0, CT1. (!)
+
+;input:	r0 = CTXag - core table index
+;	r1 = HTXag - hash table index
+
+dclne     WRITEP,<CTXag,HTXag>
+	MOVEM	R0,R2	   ; HTXag, CTXag IN R1, R2
+	MOVE	R1,HT0(R1)
+	JUMPL	R1,WR190
+	LSH	R1,PEX	  ; virt file addr IN R1
+	HLLZ	R5,CT1(R2)
+	JUMPn	R5,wr90  ; jump if dirty
+
+ifn ftxct, <
+
+        skipge  clubct(r2)
+        jrst    wr100 >
+
+        jrst    wr110
+
+wr90:
+		; Page is dirty: update EOF and LEN, call TRANSFER to
+		; write it out.  Note: if this is not the last page
+		; of the file, we may be updating LEN but not EOF.
+	MOVE	R3,R1
+	LSHC	R3,-CHPOS
+	MOVE	R3,CHANTB(R3)
+	LSH	R4,-^D36+CHPOS	; word address on file
+	MOVE	R2,EOF(R3)
+	SUB	R2,R4
+	CAILE	R2,PSIZE
+	MOVEI	R2,PSIZE
+	ADD	R4,R2
+	CAMLE	R4,LEN(R3)
+	MOVEM	R4,LEN(R3)
+ifn ftxct, <
+        move    r3,CTXag
+        skipge  clubct(r3)
+        jrst    wr100
+>
+	LSH	R0,PEX
+	CALL	TRANSFER,<,,,1>
+
+ifn ftxct, <
+
+        jrst    wr110
+
+wr100:
+        call    pvtize,<,$,CTXag>
+        move    r1,CTXag
+        aosn    clubct(r1)      ;skip if not -1
+        sos     nclblk          ;this page no longer club-locked
+        setzm   clubct(r1)
+>
+
+		; Disk and FCB now straight.  See about garbage
+		; collecting the hash table.
+WR110:	MOVE    R1,HTXag
+	SETOM	HT0(R1)	 ; HTXag IN R1.  Assume we'll need no moves.
+
+		; may loop here shuffling HT
+WR120:	SUBI    R1,1
+	ANDI	R1,HTSIZE-1
+	MOVE	R2,HT0(R1)
+	JUMPL	R2,WR190	; Jump if prev slot empty -- done.
+
+		; There's somebody home.  Call SEARCH to see if he
+		; wants to be in the slot we now have free.
+	MOVEM	R1,HTXag
+	CALL	SEARCH,<,$,R2>  ; V5 IN R4
+	MOVE	R1,HTXag
+	CAMN	R4,R1		; Skip if he wants this slot.
+	jrst	WR120
+
+	MOVE	R2,HT0(R1)
+	MOVEM	R2,HT0(R4)
+	MOVE	R2,HT1(R1)      ; HTXag IN R1
+	MOVEM	R2,HT1(R4)
+	HRRM	R4,CT1(R2)
+	SETOM	HT0(R1)
+	jrst	WR120
+
+WR190:	RETURN  WRITEP
+	SUBTTL	READP
+
+	; input	R0: CTX
+	;	R1: HTX
+        ;       r2: READ/MAP flag: if 0, READ  else -1 (not +1 ! )
+
+dclne     READP,<CTXag,HTXag,MUag>
+
+ifn	ftxct, <	; save ctx to set up extended entries
+	move	r5,r0
+	>
+	LSH	R0,PEX		; form core address from CTX
+	MOVEM	R0,R2	   ; HTX, core address IN R1, R2
+	MOVE	R3,HT0(R1)
+	LSH	R3,PEX	  ; Virt File Addr IN R3
+	MOVEM	R3,R6
+	LSHC	R3,-CHPOS       
+	MOVE	R3,CHANTB(R3)   ; V3 IN R3
+	LSH	R4,-^D36+CHPOS  ; V4 IN R4
+ifn	ftxct, <
+	hrrzm	r3,fcbct(r5)	; save fcb addr
+	move	r1,fcbmsk(r3)
+	trnn	r1,fcbrnd		; skip if not sequential
+	hrros	fcbct(r5)		; flag sequential (for PGF)
+        ;check for multi-access file & agreement w/ MUag
+        trnn    r1,fcbmfa       ;skip if multi
+        tdza    r1,r1           ;zero r1 if not multi
+        hrrzi   r1,1            ;otherwise r1=1
+        xor     r1,MUag
+        trnn    r1,1            ;low order bit = 0 if no error
+        jrst    rdmuok
+        call    diemsg,<[asciz "Attempt to READ multi-access page or vv"]>
+rdmuok: hllzm   r1,clubct(r5)   ;set club count (rh) to zero and LH to -1 if mapped else 0
+                                ;note:this relies on MUag 0/-1 (not +1)
+	>
+	MOVE	R1,LEN(R3)
+	SUB	R1,R4	   ; V5 IN R1
+	JUMPG	R1,RD100
+
+   ifn   ftxct, <
+        skipl   clubct(r5)
+        jrst    rdclok
+        call    diemsg,<[asciz "Attempt to extend multi-access file"]>
+rdclok:
+>
+
+	SETZM	0(R2)
+	HRLZ	R0,R2
+	HRRI	R0,1(R2)
+	BLT	R0,PSIZE-1(R2)
+	jrst	RD220
+
+rd100:
+
+ifn ftxct, <
+        skipge  clubct(r5)
+        jrst    mappag
+>
+	CAIL    R1,PSIZE        ;check for short read
+	jrst	RD150
+
+	MOVE	R5,R2
+	ADD	R5,R1
+	SETZM	0(R5)
+	CAIN	R1,PSIZE-1
+	jrst	RD140
+
+	HRLM	R5,R5
+	ADDI	R5,1
+	BLT	R5,PSIZE-1(R2)
+RD140:	MOVEM   R1,R2
+	jrst	RD160
+
+RD150:	MOVEI   R2,PSIZE
+RD160:	CALL    TRANSFER,<,$,R6,,0>
+
+ifn ftxct, <
+
+        jrst    rd220
+
+mappag: 
+        move    r1,CTXag
+        move    r2,HTXag
+        move    r2,ht0(r2)      ;vp addr in r2
+        lsh     r2,pex          ;virt file addr
+        call    mapize;         ;map the page into core
+        call    lockvp,<,$,CTXag>;and club-lock it
+          jrst    nolock
+        move    r1,CTXag
+        setom   clubct(r1)      ;set page is mapped and club-locked
+        aos     nclblk          ;inc global # pages club-locked
+>
+
+RD220:	RETURN  READP
+	SUBTTL	TRANSFER
+
+; Input r0: start address
+;	r1: virtual word address?
+;	r2: count
+;	r3: inout switch (0=input, 1=output)
+
+; The following switch makes a HALT out of an otherwise friendly
+; JRST if we're in a debug assembly.
+	ife debmod, < prod==0>
+	ifn debmod, < prod==4>
+
+dcl     TRANSFER,<V0,,V2>,<V5>
+	jumpe	r2,tra130	; forget zero-length transfer
+	SETZM	R2
+	LSHC	R1,-CHPOS	       ; V3, V4 IN R1, R2
+	MOVE	R1,CHANTB(R1)	   ; V5 IN R1
+	MOVEM	R1,V5
+	dochan (c.sttZ,^O777760,r0,FCB,r1)
+	jrst	prod,TRA60
+	LSH	R2,-^D36+CHPOS-7	; V6 IN R2
+
+	jumpe	r3,tra.in	; do useti or useto
+	dochan (c.seto,1(r2),r0)
+	jrst	tra50
+
+tra.in:	dochan (c.seti,1(r2),r0)
+
+TRA50:	dochan (c.sttO,^O777760,r0)
+	jrst	TRA80
+	jrst	prod,tra60
+TRA60:	CALL    OUTMSG,<[ASCIZ  "CANNOT POSITION FILE "],1,1>
+	jrst	TRA120
+
+TRA80:	MOVE    R4,V0		; make channel command list in regs
+	SUBI	R4,1
+	MOVN	R5,V2
+	HRL	R4,R5
+	SETZM	R5		; end channel program
+
+	jumpe	r3,tra.ip	; do transfer
+	dochan (c.outp,r4,r0)
+	jrst	tra100
+	jrst	tra110
+
+tra.ip:	dochan (c.inp,r4,r0)
+	jrst	tra100
+	jrst	tra110
+
+TRA100:	dochan (c.sttO,^O777760,r0)
+	jrst	TRA130
+TRA110:	CALL    OUTMSG,<$,ERRTB(R3),1,1>
+tra120:
+TRA130:	RETURN  TRANSFER
+ERRTB:	[ASCIZ  "CANNOT READ FILE "]
+	[ASCIZ  "CANNOT WRITE FILE "]
+	SUBTTL	TFRLOW
+dcl     TFRLOW,<CADRag,V1,CNTag,IOag>
+TL10:	SKIPG   R2
+	jrst	TL100
+	SKIPE	R4,0(R1)
+	jrst	TL40
+	MOVEI	R4,PSIZE
+	ADDB	R4,G2
+	MOVEM	R4,0(R1)
+TL40:	CAILE   R2,PSIZE
+	MOVEI	R2,PSIZE
+	CALL	TRANSFER,<,$,R4>
+	MOVEI	R0,PSIZE
+	ADDB	R0,CADRag
+	AOS	R1,V1
+	HRREI	R2,-PSIZE
+	ADDB	R2,CNTag
+	MOVE	R3,IOag
+	jrst	TL10
+TL100:	RETURN  TFRLOW
+
+ifn ftxct, <
+
+;This begins a multi-page assembly switch
+
+        subttl  lockvp  Club Lock a virtual core page
+
+        dclne   lockvp
+
+;Get club interlock given core page number in r1. clobbers r2
+
+        aos     (p)             ;prepare for successful skip return
+
+        move    r2,r1
+        clbinw  r1,             ;try to get club interlock
+          skipa
+        jrst    lckvp$
+
+        caig    r1,6            ; error if return code more than 6
+        caige   r1,5            ; now skip if 5 or 6: try to join club
+        jrst    lckerr          ;no - a real error
+        move    r1,r2
+        clbadd  r1,
+          skipa                 ;can't join club - error
+        clbinw  r2,             ;get interlock
+lckerr:   sos     (p)
+lckvp$: return  lockvp
+
+        subttl  pvtize   Privatize a page that was mapped
+
+        dclne   pvtize
+
+;Unmap file page, map private page; page no in r1
+
+        hrli    r1,1
+        vremov  r1,
+          jrst    pvtdie
+        add     r1,[3b7]        ;protection read-write
+        vcreat  r1,
+          jrst    pvtdie
+        return  pvtize
+
+pvtdie: call    diemsg,<[asciz "Unable to unmap file page"]>
+
+        subttl  Ulockp   Release on level of club lock
+
+        dcl     ulockp
+
+;r1 = virtual word address
+
+        lsh     r1,-pex
+        call    search;         ;gives HTX in r4
+        jumpl   r3,ulock$       ;not in core
+        move    r3,ht1(r4)      ;get CTX in r3
+ifn debmod, <
+        skipge  ct0(r3)
+        halt
+>
+        skipl   clubct(r3)      ;skip if page mapped
+        jrst    ulpdie
+
+        sosl    ct0(r3)         ;dec lock count and skip if page now FREE
+        jrst    ulock$
+
+;Set page age
+
+        aos     r1,.time
+        movem   r1,ct0(r3)
+
+;Muck with club lock
+
+        hrre    r1,clubct(r3)   ;0 if not locked, else -1
+        jumpge  r1,ulock$
+
+        clbrli  r3,             ;give up club lock
+          jrst    ulpded
+        hllzs   clubct(r3)
+        sos     nclblk
+ulock$: return  ulockp
+
+ulpdie: call    diemsg,<[asciz "Found page of SOPENed file not mapped but in core"]>
+
+ulpded: call    diemsg,<[asciz "Cannot release page lock"]>
+
+        subttl  mapize   Map file page into core
+
+        dclne   mapize
+
+;unmaps private page r1 and maps file page where r2 = virt file addr
+
+        hrli    r1,1            ;set count to 1
+        vremov  r1,             ;unmap the page
+          jrst    mapdie
+        lshc    r2,-chpos       ;get channel number
+        lsh     r3,chpos-^d36-pex; get file page number in r3
+        addi    r3,1            ;kludge to make monitor read 1st DATA page
+        exch    r1,r2
+        add     r2,[3b7]        ;set protection to read-write
+        hrli    r1,.chmfp
+        chanio  r1,r2           ;map file page
+          jrst    mapdie
+        return  mapize
+
+mapdie: call    diemsg,<[asciz "Can't map file page"]>
+
+>       ;end of multi-access special routines FTXCT assembly-switch
+
+	subttl	...
+;	following IF ends just south of label PGRMOD
+
+ife ftrun, <
+
+	; Here followeth code assembled only in the parse/compile
+	; phases.  Table package support stuff.
+
+	subttl	rcln
+dcl	rcln
+	ifn	debmod, <SOS    LOCKCT>
+ifdef   valpca, <
+	call	valpca
+	>
+ifndef	valpca, <
+	hrrzs	r1
+	>
+	ROT	R1,-PEX
+	skrpct(r1)		; decrement use count, skip if still busy
+	jrst	rcln45		; jump if page went free
+rclnx:	return	rcln
+
+rcln45:			; Here to mark page free and set its age
+	aos	.time
+	push	p,.time
+	pop	p,ct0(r1)
+   ifn   debmod, <  sos     pagect>
+	jrst	rclnx
+
+	subttl	rdty
+dcl	rdty
+	ifn	debmod, <SOS    LOCKCT>
+ifdef   valpca, <
+	call	valpca
+	>
+ifndef	valpca, <
+	hrrzs	r1
+	>
+	ROT	R1,-PEX
+	skrpct(r1)		; decrement use count, skip if still busy
+	jrst	rdty45		; jump if page went free
+rdtyx:
+	hrros	ct1(r1)
+	return	rdty
+
+rdty45:			; Here to mark page free and set its age
+	aos	.time
+	push	p,.time
+	pop	p,ct0(r1)
+   ifn   debmod, <  sos     pagect>
+	jrst	rdtyx
+subttl	NVMFPG -- append a new page to the VMF.  Lock it down, mark it dirty
+
+dcl	nvmfpg,<,,sr2,sr3,sr4>
+
+;	input:	none
+;	output:	R1=core address of new page
+
+    ifn   debmod,< aos lockct>
+	movei	r1,psize
+	addb	r1,g2		; form address word zero new page
+	setom	r2		; ?? copied from READW
+	lshc	r1,-pex		; form virt page address
+	call	get	; returns HT index in R4 !!!
+    ifn   debmod,< aos pagect>
+	move	r1,ht1(r4)	; fetch CT index
+	setzm	ct0(r1)		; set use count one
+	hrros	ct1(r1)		; mark page dirty
+			; Now we have to compute a new end of file.
+	move	r1,g2		; Get virtual file address
+	lshc	r1,-chpos	; Leaves channel in R1
+	lsh	r2,chpos-^d36	; word address in r2
+	addi	r2,psize	; form new number words in file
+	move	r1,chantb(r1)	; fetch fcb address
+	ife debmod,< camle r2,eof(r1)>
+	ifn debmod,< camg r2,eof(r1)
+		halt>
+	movem	r2,eof(r1)	; SET NEW EOF
+
+	
+	move	r1,ht1(r4)	; now form the core
+	lsh	r1,pex		;    address of the new page
+
+	return	nvmfpg,<,$,sr2,$,sr3,$,sr4>
+
+intern	pgrmod
+PGRMOD:	;THIS FILE IS CONCATENATED WITH ERRMSG.MAC FOR ASSEMBLY
+	; only when assembling for parse/compile phases
+
+	subttl	...   ...   ...   ...   ...   ...   ...   ...
+
+>	; end of code for parse/compile phases only
+
+ifn ftrun, <
+	lit
+	end>
+&md16
