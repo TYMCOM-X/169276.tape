@@ -1,0 +1,81 @@
+        TWOSEG
+        RELOC   ^O400000
+        TITLE   PARSE9
+
+
+        EXTERN  FUN,HB,NAMDIC,NSV2,WDPRPG
+        EXTERN  BINCDE
+        EXTERN  RFRE,TNEW,TSTART,TNEXT
+
+;                       COMMON CONSTANTS
+BCBGN:: POINT 9,BINCDE
+        SUBTTL   IISC     CHART U11
+        DCL      IISC
+
+;                         IISC 1
+        MOVE     3,1      ;SAVE R1
+        MOVEI    4,0      ;INITIALIZE CHARACTER COUNT
+IISC1A: IDIVI    0,10     ;SET R1 TO REMAINDER
+        ADDI     1,48     ;SET R1 TO CHARACTER
+        LSHC     1,-7     ;MOVE CHARACTER INTO R2
+        MOVEI    4,1(4)   ;INCREMENT CHARACTER COUNT
+        JUMPN    0,IISC1A ;DONE?
+        MOVE     5,4      ;SAVE COUNT IN R5
+
+;                         IISC 2
+IISC2:  LSHC     1,7      ;MOVE CHARACTER INTO R1
+        IDPB     1,3      ;WRITE CHARACTER. BUMP PTR
+        SOJG     4,IISC2  ;DONE?
+        MOVE     1,5      ;SAVE COUNT
+        MOVE     2,3      ;SAVE UPDATED BYTE PTR
+
+;                         EXIT IISC
+        RETURN   IISC
+        SUBTTL   MOVEC CHART U29
+        DCL      MOVEC
+
+;                         MOVEC 1
+        JUMPLE   2,MOVC3
+
+;                         MOVEC 2
+MOVC2:  ILDB     3,1
+        IDPB     3,0
+        SOJG     2,MOVC2
+
+;                         MOVEC 3
+MOVC3:  MOVE     1,0
+
+;                         EXIT MOVEC
+        RETURN   MOVEC
+        SUBTTL  TXVNM CHART UX
+        DCL     TXVNM
+
+;register usage:
+;R0: on input, id no. within, char
+;R1: pointer to buffer to fill with id (we update and return this)
+;R2: count
+;R3: pointer to HB block that contains the id
+
+        MOVE    R2,R0           ;id no
+        ADD     R2,FUN
+        SUB     R2,NSV2         ;get to first user id
+        IDIVI   R2,WDPRPG
+        MOVE    R2,NAMDIC(R2)
+        IMULI   R3,3
+        ADD     R2,R3
+        HRL     R2,R2
+        HRRI    R2,HB
+        BLT     R2,HB+2
+        HLLZS   HB+2            ;clear name table link field
+        SETZ    R2,             ;count
+        M       R3,[POINT 6,HB]
+
+TXVN6A: ILDB    R0,R3
+        JUMPE   R0,TXVN$$
+        ADDI    R0,^O40         ;convert sixbit to ascii
+        IDPB    R0,R1
+        AOJA    R2,TXVN6A
+
+TXVN$$: RETURN  TXVNM
+
+        END
