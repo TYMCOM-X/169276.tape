@@ -1,0 +1,335 @@
+        TITLE   APRTRP
+        TWOSEG
+        RELOC   ^O400000
+        RADIX   8
+
+;   ARITHMETIC ERROR TRAP ROUTINE
+
+        ENTRY   APRTRP,TRPENB
+        EXTERN  .JBTPC,INTTAB,ESCRTN,DIVZER,INTRPT,discnt
+        SUBTTL  TRPENB - enable traps
+
+
+TRPENB:
+;  .1
+        MOVEI   INTRPT
+        MOVEM   INTTAB+1                ;set up monitor trap address
+        MOVEI   R1,INTTAB
+        HRLI    R1,(1B16)
+        INTADR  R1,
+        JRST    [OUTSTR [ASCIZ /INTADR ERROR RETURN/]
+                 EXIT]
+        HRLZI   R1,(3B1)
+        INTENB  R1,
+        JRST    [OUTSTR [ASCIZ /INTENB ERROR RETURN/]
+                 EXIT]
+        MOVEI   R1,-1
+        HRLI    R1,1
+        TINASS  R1,
+        JRST    [OUTSTR [ASCIZ /TINASS ERROR RETURN/]
+                 EXIT]
+        H.OFF   1,H.ESC         ; TURN OFF 'ESCAPE PENDING' FLAG
+;  .2
+        MOVE    R1,[PUSHJ P,APRTRP]
+;  .3
+        SETTR1  R1,
+        JRST    [OUTSTR [ASCIZ /SETTR1 ERROR RETURN/]
+                 EXIT]
+
+;   .3A
+        SETZM   ESCRTN          ;RESET ESCAPE BRANCH SWITCH
+
+        skipn   discnt
+        jrst    trpen2
+        hrlzi   1,1             ; turn escapes back off!!
+        intadr  1,
+        halt
+
+;  .4
+trpen2: JRSTF   @[XWD ^O4000,.+1]
+
+        POPJ    P,
+        SUBTTL  APRTRP  Handle Math Traps
+
+
+APRTRP:
+;  .1
+        MOVEM   R16,RSV
+        POP     P,R16
+        MOVEM   R16,.JBTPC      ;get addr of next instr to be executed w/flags
+        HRRZM   R16,NXTINS      ;same addr but with no flags
+        PUSHJ   P,GETADR        ;put address of faulting instr into INSADR
+                                ;taking into account XCT chains
+;  .2
+        LDB     R16,[POINT 9,@NXTINS,8]; get opcode of next instr
+        CAIN    R16,^O255       ;JFCL?
+        JRST    APR4            ;yes, patch up result (maybe) and return to user code
+;  .3.1         Trap not handled by user
+        HLRZ    R16,.JBTPC      ;get flags
+        ANDI    R16,^O40140     ;FOV,FUN,NDV are all we want to see
+        LSH     R16,-5
+;  .3.2,3
+        TRZE    R16,^O1000              ;FOV
+        IORI    R16,4
+;  .3.4
+        ADDI    R16,ERRVEC
+        MOVEM   R16,ADRS        ;We clobber ADRS because we need a cell
+        MOVE    R16,RSV         ;for the JRST into ERRVEC, but need all AC's
+;  .3.5                         ;clean for the MATH errors (incl R16)
+        JRST    @ADRS
+;  .3.6-11
+ERRVEC: MATH    MTE0            ;INTEGER OVERFLOW
+        JRST    IDVCHK          ;INTEGER DIVIDE CHECK
+        MATH    MTE2            ;ILLEGAL ERROR
+        MATH    MTE2            ;ILLEGAL ERROR
+        MATH    MTE3            ;FLOATING OVERFLOW
+        JRST    FDVCHK          ;FLOATING DIVIDE CHECK
+        MATH    MTE5            ;FLOATING UNDERFLOW
+        MATH    MTE2            ;ILLEGAL ERROR
+
+IDVCHK: SKIPN   DIVZER
+        MATH    MTE1
+        LDB     R16,[POINT 2,@INSADR,8];get last letter or two of mnemonic
+        JRST    @IZERTB(R16)
+
+IZERTB: EXP     DAC,DAC,MEM,DACMEM
+
+FDVCHK: SKIPN   DIVZER
+        MATH    MTE4
+        LDB     R16,[POINT 9,@INSADR,8];opcode
+        CAIN    R16,^O113       ;DFDV
+        JRST    DAC
+        ANDI    R16,7
+        JRST    @FZERTB(R16)
+
+FZERTB: EXP     AC,DAC,MEM,ACMEM,AC,AC,MEM,ACMEM
+
+        define zerac <
+           ldb r16,[point 4,@insadr,12]
+           setzm (r16)>
+
+        define zerdac <
+           zerac
+           setzm 1(r16)>
+
+        define zermem <
+           move r16,insadr
+           setzm @(r16)>
+
+AC:     ZERAC
+        JRST    ZERDON
+
+DAC:    ZERDAC
+        JRST    ZERDON
+
+MEM:    ZERMEM
+        JRST    ZERDON
+
+ACMEM:  ZERAC
+        ZERMEM
+        JRST    ZERDON
+
+DACMEM: ZERDAC
+        ZERMEM
+
+ZERDON: MOVE    R16,RSV         ;restore R16
+        JRST    @NXTINS         ;and return to next instr in user code
+
+;  .4
+APR4:   MOVE    R16,@NXTINS     ;get the JFCL
+        TLNE    R16,^O740       ;AC field = 0 ?
+        JRST    APR13           ;no, just return - user wants to handle trap
+
+;  .6
+        MOVE    R16,.JBTPC      ;what condition did we trap on?
+        TLNE    R16,^O100       ;FUN ?
+        JRST    APR9            ;yes,zero the result(s) and return to user code
+;  .7
+        TLNN    R16,^O40000     ;FOV ?
+        JRST    APR10           ;no, simply return to user code
+;  .8.1         Floating Underflow
+        HLRZ    R16,INST
+        LSH     R16,-5
+        ANDI    R16,^O17        ;AC field
+        MOVEM   R16,ACFLD
+        MOVEM   R16,ADRS
+;  .8.2
+        MOVEI   R16,@INST
+        MOVEM   R16,EADR
+;  .8.3
+        HLR     R16,INST        ;if INST is "to memory"
+        HLL     R16,.JBTPC      ;and the "no-divide" flag is not set
+        AND     R16,[^O40003000]
+        XORI    R16,^O2000
+        JUMPN   R16,APR85
+;  .8.4
+        MOVE    R16,EADR        ;then the result is the effective address
+        MOVEM   R16,ADRS
+;  .8.5
+APR85:  MOVE    R16,@ADRS
+        JUMPGE  R16,APR87
+;  .8.6
+        MOVE    R16,[^O400000000000];largest negative number
+        MOVEM   R16,DFIX1
+        IORI    R16,1
+        MOVEM   R16,FIX
+        MOVEI   R16,1
+        MOVEM   R16,DFIX2
+        JRST    APR88
+;  .8.7
+APR87:  MOVE    R16,[^O377777777777];largest positive number
+        MOVEM   R16,FIX
+        MOVEM   R16,DFIX1
+        MOVEM   R16,DFIX2
+;  .8.8.1
+APR88:  LDB     R16,[POINT 9,INST,8];get opcode
+;  .8.8.2
+        CAILE   R16,^O177       ;Floating instruction?
+        JRST    APR10           ;no, return to user code
+;  .8.8.3
+        CAIL    R16,^O110       ;CHECK FOR DOUBLE FLOATING OPS
+        CAILE   R16,^O113
+        JRST    APR884          ;not double
+        JRST    AP8812          ;double
+;  .8.8.4       Not Double
+APR884: CAIN    R16,^O132       ;FSC ?
+;  .8.8.5
+        MOVEI   R16,^O140       ;yes, treat this special case like reg flt inst
+;  .8.8.6
+        CAIGE   R16,^O140
+        JRST    APR10           ;must have been a FIX or FLT, etc, return to user code
+;  .8.8.7
+        ANDI    R16,7           ;get mode (last letter or two of mnemonic)
+;  .8.8.8
+        JRST    @OVTAB(R16)
+
+OVTAB:  APR889                  ;0  none
+        APR10                   ;1  L
+        AP8811                  ;2  M
+        AP8810                  ;3  B
+        APR889                  ;4  R
+        APR889                  ;5  RI
+        AP8811                  ;6  RM
+        AP8810                  ;7  RB
+
+;  .8.8.9       (AC)
+APR889: MOVE    R16,FIX
+        MOVEM   R16,@ACFLD
+        JRST    APR10
+;  .8.8.10      (AC) , (E)
+AP8810: MOVE    R16,FIX
+        MOVEM   R16,@ACFLD
+        MOVEM   R16,@EADR
+        JRST    APR10
+;  .8.8.11      (E)
+AP8811: MOVE    R16,FIX
+        MOVEM   R16,@EADR
+        JRST    APR10
+;  .8.8.12      Double Floating Operation:
+AP8812: MOVE    R16,DFIX1
+        MOVEM   R16,@ACFLD
+        AOS     ACFLD
+        MOVEI   R16,^O17
+        ANDM    R16,ACFLD
+        MOVE    R16,DFIX2
+        MOVEM   R16,@ACFLD
+;  .8.9
+        JRST    APR10
+
+;  .9.1
+APR9:   LDB     R16,[POINT 9,INST,8];opcode
+;  .9.2
+        CAILE   R16,^O177
+        JRST    APR10
+;  .9.3
+        CAIN    R16,^O132       ;FSC ?
+        MOVEI   R16,^O140       ;treat this special case like reg flt inst
+;  .9.4
+        CAIL    R16,^O110       ;DOUBLE FLOATING OPS ?
+        CAILE   R16,^O113
+        JRST    APR97           ;no
+;  .9.5         Double Floating Operation
+        MOVEI   R16,^O141       ;treat like long flt inst
+;  .9.7
+APR97:  CAIGE   R16,^O140
+        JRST    APR10           ;must have been FIX or FLT etc
+;  .9.8
+        ANDI    R16,7           ;get mode (last letter or two of mnemonic)
+;  .9.9
+        JRST    @UFTAB(R16)
+
+UFTAB:  APR910                  ;0  none
+        APR911                  ;1  L
+        APR912                  ;2  M
+        APR913                  ;3  B
+        APR910                  ;4  R
+        APR910                  ;5  RI
+        APR912                  ;6  RM
+        APR913                  ;7  RB
+
+;  .9.10        (AC)
+APR910: HLLZ    R16,INST
+        TLZ     R16,^O777037
+        TLO     R16,(SETZ)
+        JRST    APR914
+;  .9.11        (AC) , (AC+1)
+APR911: HLLZ    R16,INST
+        TLZ     R16,^O777037
+        IOR     R16,[DMOVE 0,[EXP 0,0]]
+        JRST    APR914
+;  .9.12        (E)
+APR912: MOVE    R16,INST
+        TLZ     R16,^O777740    ;leave the indirect bit and index
+        TLO     R16,(SETZM)
+        JRST    APR914
+;  .9.13        (AC) , (E)
+APR913: MOVE    R16,INST
+        TLZ     R16,^O777000    ;leave the AC, indirect bit, and index
+        TLO     R16,(SETZB)
+;  .9.14
+APR914: XCT     R16             ;zero the result(s)
+;  .10
+APR10:  HRRZ    R16,@NXTINS     ;get address field of the JFCL
+        JUMPE   R16,APR12
+;  .11          an address was specified in the JFCL, use it
+        HRRM    R16,NXTINS
+;  .12
+APR12:  HRLOI   R16,^O337600    ;cause overflow, underflow and no-divide flags to be cleared
+        ANDM    R16,NXTINS
+;  .13
+APR13:  MOVE    R16,RSV
+        JRSTF   @NXTINS
+        subttl  getadr - get address and contents of faulting instruction
+
+GETADR: MOVE    R16,.JBTPC
+        MOVEI   R16,-1(R16)     ;address of instruction
+GETAD1: MOVEM   R16,INSADR
+        MOVE    R16,(R16)       ;get instruction
+        MOVEM   R16,INST
+        LDB     R16,[POINT 9,R16,8];opcode
+        CAIE    R16,^O256       ;XCT?
+        POPJ    P,              ;no, return
+        MOVE    R16,INSADR
+        MOVEI   R16,@(R16)      ;go down to effective address of XCT
+        JRST    GETAD1
+
+        LIT
+
+        RELOC   0
+
+;  VARIABLES
+
+RSV:    BLOCK   1
+NXTINS: BLOCK   1
+INSADR: BLOCK   1
+INST:   BLOCK   1
+ACFLD:  BLOCK   1
+EADR:   BLOCK   1
+ADRS:   BLOCK   1
+DFIX1:  BLOCK   1
+DFIX2:  BLOCK   1
+FIX:    BLOCK   1
+
+
+        END
+    
