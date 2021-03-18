@@ -1,0 +1,428 @@
+detach? 22:
+.TTY TYPE TI350
+.FIND (SYS) DSKCLN.LOG
+DSKCLN.LOG
+{Page 1}
+!DIRECT SYS.TMP=(SYS)~/EVERYTHING
+(SYS)~020487.DAT[1,4] unit 3 page 7740  NOT MARKED IN SAT
+.
+23:
+.TTY TYPE TI350
+.FIND (SYS) DSKCLN.LOG
+DSKCLN.LOG
+{Page 1}
+!DIRECT SYS.TMP=(SYS)~/EVERYTHING
+(SYS)~020487.DAT[1,4] unit 2 page 2775  NOT MARKED IN SAT
+(SYS)~020487.DAT[1,4] unit 0 page 24375  WRONG UFD TIME
+(SYS)~020487.DAT[1,4] unit 2 page 2775  NOT MARKED IN SAT
+(SYS)~020487.DAT[1,4] unit 5 page 3025  NOT MARKED IN SAT
+(SYS)~020487.DAT[1,4] unit 0 page 24375  WRONG UFD TIME
+.
+25:
+.TTY TYPE TI350
+.FIND (SYS) DSKCLN.LOG
+DSKCLN.LOG
+{Page 1}
+!DIRECT SYS.TMP=(SYS)~/EVERYTHING
+.
+26:
+.TTY TYPE TI350
+.FIND (SYS) DSKCLN.LOG
+DSKCLN.LOG
+{Page 1}
+!DIRECT SYS.TMP=(SYS)~/EVERYTHING
+(SYS)~CRA002.SAV[1,4] unit 12 page 34541  DSKCLN detected hole
+(SYS)~LOADII.ACC[1,4] unit 11 page 4501  DSKCLN detected hole
+(SYS)~020487.DAT[1,4] unit 12 page 25135  NOT MARKED IN SAT
+.
+27:
+.TTY TYPE TI350
+.FIND (SYS) DSKCLN.LOG
+DSKCLN.LOG
+{Page 1}
+!DIRECT SYS.TMP=(SYS)~/EVERYTHING
+(SYS)~SPAGES.SYS[1,4] unit 0 page 224  NOT MARKED IN SAT
+(SYS)~SPAGES.SYS[1,4] unit 0 page 224  NOT MARKED IN SAT
+(SYS)~SPAGES.SYS[1,4] unit 0 page 13  Bad retrieval pointer
+(SYS)~SPAGES.SYS[1,4] unit 0 page 13  Bad retrieval pointer
+(SYS)~SPAGES.SYS[1,4] unit 0 page 13  DSKCLN detected hole
+(SYS)~SPAGES.SYS[1,4] unit 0 page 13  DSKCLN detected hole
+(SYS)~SPAGES.SYS[1,4] unit 0 page 13  UFD ALLOCATION MISMATCH
+(SYS)~SPAGES.SYS[1,4] unit 0 page 13  ALLOCATION WRONG
+(SYS)~020487.DAT[1,4] unit 4 page 37122  WRONG UFD TIME
+(SYS)~CRA003.SAV[1,4] unit 3 page 221  Multiply-Used Page
+(SYS)~CRA003.SAV[1,4] unit 2 page 13057  Bad retrieval pointer
+(SYS)~CRA003.SAV[1,4] unit 2 page 13057  UFD ALLOCATION MISMATCH
+(SYS)~CRA003.SAV[1,4] unit 2 page 13057  ALLOCATION WRONG
+(SYS)~CRA001.SAV[1,4] unit 6 page 7636  DSKCLN detected hole
+(SYS)~SPAGES.SYS[1,4] unit 0 page 224  Multiply-Used Page
+(SYS)~SPAGES.SYS[1,4] unit 0 page 13  Bad retrieval pointer
+(SYS)~SPAGES.SYS[1,4] unit 0 page 224  Multiply-Used Page
+(SYS)~SPAGES.SYS[1,4] unit 0 page 13  Bad retrieval pointer
+(SYS)~SPAGES.SYS[1,4] unit 3 page 221  Multiply-Used Page
+(SYS)~SPAGES.SYS[1,4] unit 0 page 13  Bad retrieval pointer
+(SYS)~SPAGES.SYS[1,4] unit 3 page 221  Multiply-Used Page
+(SYS)~SPAGES.SYS[1,4] unit 0 page 13  Bad retrieval pointer
+(SYS)~SPAGES.SYS[1,4] unit 0 page 13  DSKCLN detected hole
+(SYS)~SPAGES.SYS[1,4] unit 0 page 13  DSKCLN detected hole
+(SYS)~CRA003.SAV[1,4] unit 3 page 221  Multiply-Used Page
+(SYS)~CRA003.SAV[1,4] unit 2 page 13057  Bad retrieval pointer
+(SYS)~CRA003.SAV[1,4] unit 2 page 13057  UFD ALLOCATION MISMATCH
+(SYS)~CRA003.SAV[1,4] unit 2 page 13057  ALLOCATION WRONG
+(SYS)~CRA001.SAV[1,4] unit 6 page 7636  DSKCLN detected hole
+.
+29:
+.TTY TYPE TI350
+.FIND (SYS) DSKCLN.LOG
+DSKCLN.LOG
+{Page 1}
+!DIRECT SYS.TMP=(SYS)~/EVERYTHING
+(SYS)~020487.DAT[1,4] unit 3 page 51043  NOT MARKED IN SAT
+.
+30:
+.TTY TYPE TI350
+.FIND (SYS) DSKCLN.LOG
+DSKCLN.LOG
+{Page 1}
+!DIRECT SYS.TMP=(SYS)~/EVERYTHING
+.
+31:
+.TTY TYPE TI350
+.FIND (SYS) DSKCLN.LOG
+DSKCLN.LOG
+{Page 1}
+!DIRECT SYS.TMP=(SYS)~/EVERYTHING
+(SYS)~020487.DAT[1,4] unit 12 page 126325  NOT MARKED IN SAT
+(SYS)~020487.DAT[1,4] unit 16 page 107004  WRONG UFD TIME
+.
+33:
+.TTY TYPE TI350
+.FIND (SYS) DSKCLN.LOG
+DSKCLN.LOG
+{Page 1}
+!DIRECT SYS.TMP=(SYS)~/EVERYTHING
+(SYS)~020487.DAT[1,4] unit 7 page 12377  NOT MARKED IN SAT
+(SYS)~020487.DAT[1,4] unit 6 page 4635  WRONG UFD TIME
+(SYS)~JQUEUE.SYS[1,4] unit 0 page 16307  WRONG UFD TIME
+.
+34:
+.TTY TYPE TI350
+.FIND (SYS) DSKCLN.LOG
+DSKCLN.LOG
+{Page 1}
+!DIRECT SYS.TMP=(SYS)~/EVERYTHING
+(SYS)~020487.DAT[1,4] unit 5 page 111152  WRONG UFD TIME
+(SYS)~020487.DAT[1,4] unit 5 page 16241  NOT MARKED IN SAT
+(SYS)~020487.DAT[1,4] unit 5 page 111152  WRONG UFD TIME
+.
+35:
+.TTY TYPE TI350
+.FIND (SYS) DSKCLN.LOG
+DSKCLN.LOG
+{Page 1}
+!DIRECT SYS.TMP=(SYS)~/EVERYTHING
+(SYS)~020487.DAT[1,4] unit 6 page 2743  NOT MARKED IN SAT
+(SYS)~CRAM.SAV[1,4] unit 2 page 12  DSKCLN detected hole
+.
+37:
+.TTY TYPE TI350
+.FIND (SYS) DSKCLN.LOG
+DSKCLN.LOG
+{Page 1}
+!DIRECT SYS.TMP=(SYS)~/EVERYTHING
+(SYS)~020487.DAT[1,4] unit 15 page 16760  NOT MARKED IN SAT
+(SYS)~020487.DAT[1,4] unit 16 page 165505  NOT MARKED IN SAT
+.
+38:
+.TTY TYPE TI350
+.FIND (SYS) DSKCLN.LOG
+DSKCLN.LOG
+{Page 1}
+!DIRECT SYS.TMP=(SYS)~/EVERYTHING
+.
+54:
+.TTY TYPE TI350
+.FIND (SYS) DSKCLN.LOG
+DSKCLN.LOG
+{Page 1}
+!DIRECT SYS.TMP=(SYS)~/EVERYTHING
+(SYS)~020487.DAT[1,4] unit 5 page 20336  NOT MARKED IN SAT
+(SYS)~BIONIC.LOG[1,4] unit 5 page 5722  DSKCLN detected hole
+(SYS)~BIONIC.LOG[1,4] unit 5 page 5722  DSKCLN detected hole
+(SYS)~BIONIC.LOG[1,4] unit 5 page 5722  DSKCLN detected hole
+.
+55:
+.TTY TYPE TI350
+.FIND (SYS) DSKCLN.LOG
+DSKCLN.LOG
+{Page 1}
+!DIRECT SYS.TMP=(SYS)~/EVERYTHING
+(SYS)~020487.DAT[1,4] unit 7 page 10141  WRONG UFD TIME
+(SYS)~020487.DAT[1,4] unit 7 page 10141  WRONG UFD TIME
+.
+56:
+.TTY TYPE TI350
+.FIND (SYS) DSKCLN.LOG
+DSKCLN.LOG
+{Page 1}
+!DIRECT SYS.TMP=(SYS)~/EVERYTHING
+.
+57:
+.TTY TYPE TI350
+.FIND (SYS) DSKCLN.LOG
+DSKCLN.LOG
+{Page 1}
+!DIRECT SYS.TMP=(SYS)~/EVERYTHING
+(SYS)~XOBLAM [1,4] unit 5 page 11611  WRONG UFD TIME
+(SYS)~LUD.SYS[1,4] unit 5 page 15547  WRONG UFD TIME
+(SYS)~020487.DAT[1,4] unit 1 page 75475  NOT MARKED IN SAT
+(SYS)~020487.DAT[1,4] unit 4 page 170706  WRONG UFD TIME
+.
+58:
+.TTY TYPE TI350
+.FIND (SYS) DSKCLN.LOG
+DSKCLN.LOG
+{Page 1}
+!DIRECT SYS.TMP=(SYS)~/EVERYTHING
+.
+62:
+.TTY TYPE TI350
+.FIND (SYS) DSKCLN.LOG
+DSKCLN.LOG
+{Page 1}
+!DIRECT SYS.TMP=(SYS)~/EVERYTHING
+(SYS)~SPAGES.SYS[1,4] unit 0 page 13  DSKCLN detected hole
+(SYS)~020487.DAT[1,4] unit 2 page 57604  WRONG UFD TIME
+.
+65:
+.TTY TYPE TI350
+.FIND (SYS) DSKCLN.LOG
+DSKCLN.LOG
+{Page 1}
+!DIRECT SYS.TMP=(SYS)~/EVERYTHING
+(SYS)~SPAGES.SYS[1,4] unit 0 page 224  NOT MARKED IN SAT
+(SYS)~SPAGES.SYS[1,4] unit 0 page 224  NOT MARKED IN SAT
+(SYS)~SPAGES.SYS[1,4] unit 0 page 13  Bad retrieval pointer
+(SYS)~SPAGES.SYS[1,4] unit 3 page 221  NOT MARKED IN SAT
+(SYS)~SPAGES.SYS[1,4] unit 3 page 221  NOT MARKED IN SAT
+(SYS)~SPAGES.SYS[1,4] unit 0 page 13  Bad retrieval pointer
+(SYS)~SPAGES.SYS[1,4] unit 0 page 13  DSKCLN detected hole
+(SYS)~SPAGES.SYS[1,4] unit 0 page 13  DSKCLN detected hole
+(SYS)~SPAGES.SYS[1,4] unit 0 page 13  UFD ALLOCATION MISMATCH
+(SYS)~SPAGES.SYS[1,4] unit 0 page 13  ALLOCATION WRONG
+(SYS)~013187.DAT[1,4] unit 6 page 7431  DSKCLN detected hole
+(SYS)~010487.DAT[1,4] unit 3 page 24026  DSKCLN detected hole
+(SYS)~SPAGES.SYS[1,4] unit 0 page 224  Multiply-Used Page
+(SYS)~SPAGES.SYS[1,4] unit 0 page 13  Bad retrieval pointer
+(SYS)~SPAGES.SYS[1,4] unit 0 page 224  Multiply-Used Page
+(SYS)~SPAGES.SYS[1,4] unit 0 page 13  Bad retrieval pointer
+(SYS)~SPAGES.SYS[1,4] unit 3 page 221  Multiply-Used Page
+(SYS)~SPAGES.SYS[1,4] unit 0 page 13  Bad retrieval pointer
+(SYS)~SPAGES.SYS[1,4] unit 3 page 221  Multiply-Used Page
+(SYS)~SPAGES.SYS[1,4] unit 0 page 13  Bad retrieval pointer
+(SYS)~SPAGES.SYS[1,4] unit 0 page 13  DSKCLN detected hole
+(SYS)~SPAGES.SYS[1,4] unit 0 page 13  DSKCLN detected hole
+(SYS)~SPAGES.SYS[1,4] unit 0 page 13  ALLOCATION WRONG
+(SYS)~013187.DAT[1,4] unit 6 page 7431  DSKCLN detected hole
+(SYS)~020487.DAT[1,4] unit 0 page 104672  WRONG UFD TIME
+(SYS)~010487.DAT[1,4] unit 3 page 24026  DSKCLN detected hole
+.
+70:
+.TTY TYPE TI350
+.FIND (SYS) DSKCLN.LOG
+DSKCLN.LOG
+{Page 1}
+!DIRECT SYS.TMP=(SYS)~/EVERYTHING
+(SYS)~SSPICE.OVL[1,4] unit 2 page 3741  DSKCLN detected hole
+(SYS)~SPAGES.SYS[1,4] unit 0 page 13  ALLOCATION WRONG
+(SYS)~LOADII.ACC[1,4] unit 7 page 21564  NOT MARKED IN SAT
+(SYS)~020487.DAT[1,4] unit 3 page 251527  NOT MARKED IN SAT
+(SYS)~020487.DAT[1,4] unit 11 page 110717  WRONG UFD TIME
+(SYS)~120186.DAT[1,4] unit 4 page 155523  DSKCLN detected hole
+.
+74:
+.TTY TYPE TI350
+.FIND (SYS) DSKCLN.LOG
+DSKCLN.LOG
+{Page 1}
+!DIRECT SYS.TMP=(SYS)~/EVERYTHING
+(SYS)~020487.DAT[1,4] unit 33 page 55400  NOT MARKED IN SAT
+(SYS)~020487.DAT[1,4] unit 14 page 47101  NOT MARKED IN SAT
+.
+95:
+.TTY TYPE TI350
+.FIND (SYS) DSKCLN.LOG
+DSKCLN.LOG
+{Page 1}
+!DIRECT SYS.TMP=(SYS)~/EVERYTHING
+.
+930:
+.TTY TYPE TI350
+.FIND (SYS) DSKCLN.LOG
+DSKCLN.LOG
+{Page 1}
+!DIRECT SYS.TMP=(SYS)~/EVERYTHING
+(SYS)~SPAGES.SYS[1,4] unit 0 page 13  DSKCLN detected hole
+(SYS)~020487.DAT[1,4] unit 2 page 76153  WRONG UFD TIME
+.
+  !WATCH DAY
+
+!DIRECT SYS.TMP=(SYS)/EVERYTHING
+[12:41:38]
+
+!DELETE SYS.TMP
+[12:43:13]
+
+
+!UNDELETE/PURGE
+[12:43:14]
+
+SYS   .TMP;  48 pages; created  7-FEB-87 12:41:41 [expunged]
+
+
+!DAYTIME
+7-FEB-1987 12:43:16 PST
+
+!ASSIGN TTY LPT
+TTY201 assigned
+
+!RUN (OSU)DSKCLN
+[12:43:16]
+
+     D-S-K-C-L-N  36J(103)
+
+SYSTEM IS NOT IN AUTO-RESTART.
+ONLY CHECKING FUNCTION WILL BE PERFORMED.
+DSKB MODE CODE: 7
+
+D27-P035/B
+DSKB.  MODE: FULL.     ANALYSIS BEGUN AT  20:43:17  07-FEB-1987 GMT
+
+(ISISDOC)ISIS2.DOC[11334,247524] unit 0 page 22353  DSKCLN detected hole
+Unit 0 page 22353 index 120, value 0,1  reason     !
+(ISISDOC)ISIS2.DOC[11334,247524] unit 0 page 22353  DSKCLN detected hole
+Unit 0 page 22353 index 132, value 0,1  reason     !
+(ISISDOC)ISIS2.DOC[11334,247524] unit 0 page 22353  DSKCLN detected hole
+Unit 0 page 22353 index 162, value 0,1  reason     !
+
+(ISISDOC)RAID.MAN[11334,247524] unit 4 page 26533  DSKCLN detected hole
+Unit 4 page 26533 index 67, value 0,1  reason     !
+
+(ISISDOC)PUB.DOC[11334,247524] unit 2 page 43602  DSKCLN detected hole
+Unit 2 page 43602 index 104, value 0,1  reason     !
+
+(ISISDOC)NAD.DOC[11334,247524] unit 5 page 24444  DSKCLN detected hole
+Unit 5 page 24444 index 76, value 0,1  reason     !
+
+(ISISDOC)TOOLS.DOC[11334,247524] unit 1 page 25324  DSKCLN detected hole
+Unit 1 page 25324 index 51, value 0,1  reason     !
+
+(ISIS)LOADII.SAV[11334,201464] unit 3 page 42215  DSKCLN detected hole
+Unit 3 page 42215 index 62, value 0,1  reason     !
+
+(M8045)BANQUE.FRM[15767,216377] unit 4 page 26401  DSKCLN detected hole
+Unit 4 page 26401 index 71, value 0,1  reason     !
+
+(M8045)TABL.AFF[15767,216377] unit 6 page 31351  DSKCLN detected hole
+Unit 6 page 31351 index 56, value 0,1  reason     !
+
+(INSDGSS1)TBASRT.SHR[11011,371163] unit 5 page 26202  DSKCLN detected hole
+Unit 5 page 26202 index 72, value 0,1  reason     !
+
+(SYS)SPAGES.SYS[1,4] unit 0 page 13  UFD ALLOCATION MISMATCH
+
+(SYS)CRA001.SAV[1,4] unit 6 page 7636  DSKCLN detected hole
+Unit 6 page 7636 index 434, value 0,1  reason     !
+
+[1,4].UFD[1,1] unit 0 page 20315  USED COUNT INCORRECT
+[1,4].UFD[1,1] unit 0 page 20315  MAXIMUM USED COUNT INCORRECT
+
+(HWPROD)EQUIP.TST[14717,404113] unit 4 page 27235  DSKCLN detected hole
+Unit 4 page 27235 index 64, value 0,1  reason     !
+
+(HWPROD)I0MOMI.MR1[14717,404113] unit 6 page 24441  DSKCLN detected hole
+Unit 6 page 24441 index 116, value 0,1  reason     !
+
+(HWPROD)INVOIC.TST[14717,404113] unit 1 page 30621  DSKCLN detected hole
+Unit 1 page 30621 index 75, value 0,1  reason     !
+(HWPROD)INVOIC.TST[14717,404113] unit 1 page 30621  DSKCLN detected hole
+Unit 1 page 30621 index 231, value 0,1  reason     !
+
+(HWPROD)BZ8GJH.MX1[14717,404113] unit 2 page 40124  DSKCLN detected hole
+Unit 2 page 40124 index 67, value 0,1  reason     !
+
+(JMS)FMUP1.BAD[3,431116] unit 2 page 117437  Other hole
+Unit 2 page 115701 index 557, value 100000,157  reason  HOLE
+(JMS)FMUP1.BAD[3,431116] unit 2 page 117437  Other hole
+Unit 2 page 115701 index 656, value 100000,224  reason  HOLE
+(JMS)FMUP1.BAD[3,431116] unit 2 page 117437  UFD ALLOCATION MISMATCH
+(JMS)FMUP1.BAD[3,431116] unit 2 page 117437  ALLOCATION WRONG
+
+(JMS)FMUP2.BAD[3,431116] unit 6 page 21745  Other hole
+Unit 6 page 21745 index 53, value 100014,145  reason  HOLE
+(JMS)FMUP2.BAD[3,431116] unit 6 page 21745  UFD ALLOCATION MISMATCH
+(JMS)FMUP2.BAD[3,431116] unit 6 page 21745  ALLOCATION WRONG
+
+(JMS)FMUP3.BAD[3,431116] unit 6 page 21751  Other hole
+Unit 2 page 40132 index 461, value 100006,153  reason  HOLE
+(JMS)FMUP3.BAD[3,431116] unit 6 page 21751  UFD ALLOCATION MISMATCH
+(JMS)FMUP3.BAD[3,431116] unit 6 page 21751  ALLOCATION WRONG
+
+(JMS)FMUP4.BAD[3,431116] unit 3 page 120764  Other hole
+Unit 6 page 1402 index 300, value 100014,146  reason  HOLE
+(JMS)FMUP4.BAD[3,431116] unit 3 page 120764  UFD ALLOCATION MISMATCH
+(JMS)FMUP4.BAD[3,431116] unit 3 page 120764  ALLOCATION WRONG
+
+(JMS)DSKCLN.LOG[3,431116] unit 2 page 31524  WRONG UFD TIME
+
+[3,431116].UFD[1,1] unit 6 page 14740  USED COUNT INCORRECT
+
+(ISGFM)NOV.01[47167,474035] unit 6 page 32206  DSKCLN detected hole
+Unit 6 page 32206 index 57, value 0,1  reason     !
+
+[47256,46356].UFD[1,1] unit 4 page 17710  USED COUNT INCORRECT
+[47256,46356].UFD[1,1] unit 4 page 17710  MAXIMUM USED COUNT INCORRECT
+
+
+
+D27-P035/B
+DSKB.  MODE: FULL.     ANALYSIS BEGUN AT  20:55:03  07-FEB-1987 GMT
+
+
+THERE ARE NO FREE PAGES (NOT MARKED IN USE, BUT IN SOME FILE).
+
+THERE ARE NO MULTIPLY USED PAGES (BELONG TO MORE THAN ONE FILE).
+
+ERRORS DETECTED WHICH MAY CAUSE SYSTEM CRASHES. SUGGEST FIXING
+ERRORS BEFORE BRING SYSTEM UP FOR USERS
+
+DSKCLN DONE AT  20:55:21  07-FEB-1987 GMT
+
+
+EXIT
+
+!
+!VERSION
+[12:55:21]
+DSKCLN 36J(103)
+!PSP
+[12:55:22]
+DSKB:	190391
+BPA0(DSKB0:270400):  SDATAI(CTRL:0 DRV:ACONDITION HAS NO MESSAGE) SCONI(
+ Recoverable data check Count error) SLBN(CYL:282 HEAD:9 RECORD:1) SDAT:1
+BPA1(DSKB1:270401):  SDATAI(CTRL:0 DRV:CCONDITION HAS NO MESSAGE) SCONI(
+ Recoverable data check Count error) SLBN(CYL:523 HEAD:10 RECORD:10) SDAT:2
+BPA3(DSKB3:270403):  SDATAI(CTRL:0 DRV:ECONDITION HAS NO MESSAGE) SCONI(
+ Recoverable data check Count error) SLBN(CYL:692 HEAD:11 RECORD:8) SDAT:4
+BPA5(DSKB5:270405):  SDATAI(CTRL:0 DRV:GCONDITION HAS NO MESSAGE) SCONI(
+ Recoverable data check Count error) SLBN(CYL:804 HEAD:17 RECORD:15) SDAT:11
+BPA6(DSKB6:270406):  SDATAI(CTRL:0 DRV:HCONDITION HAS NO MESSAGE) SCONI(
+ Recoverable data check Count error) SLBN(CYL:568 HEAD:2 RECORD:2) SDAT:2
+
+OPR message on the CTY or CHKPNT terminated
+
+!LOGOUT
+[12:56:00]
+3665.71 tru
+terminal time: 0:14:23
+    
