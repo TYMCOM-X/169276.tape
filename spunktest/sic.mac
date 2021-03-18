@@ -1,0 +1,657 @@
+        TITLE   SIC  U12     String to Internal Conversion
+        TWOSEG
+        RELOC ^O400000
+        RADIX 8
+
+        ifndef ftrun, <ftrun==0>
+        INT==1
+        REAL==2
+        DBL==3
+
+;  NOTE:  SIC USES REGISTERS 0-6
+
+
+        DCL      SIC
+
+        EXTERN  ISCK, LINPTR, CCHR
+
+;  SIC  01
+        JFCL    17,.+1          ;CLEAR FLAGS
+        MOVEM    R0,SCSRCE              ;input argument
+
+;  SIC  02  Initialize
+        BCALL    SICNIT
+
+        ifn ftrun,<     ;runside
+           HRLZI   R0,(POINT 7,)
+           HRR     R0,R1                ;input arg, string address
+           MOVEM   R0,LINPTR
+           GET
+>
+
+        MOVE    R1,LINPTR
+        MOVEM   R1,MKLNPT               ;save
+        MOVE    R0,CCHR
+        MOVEM   R0,MKCCHR
+
+;  SIC 07  Scan Number
+SIC07:  SKIPE    SCSTAT                 ;everything ok?
+        JRST     SIC09                  ;no, found the end of our number
+
+;  SIC 08
+        BCALL   SCSCAN;                 ;evaluate next character of # and accumulate value
+        JRST     SIC07
+
+;  SIC  09  End of Number
+SIC09:  BCALL   CKSCAN;                 ;check for errors in the scan
+
+;  SIC 10
+        SKIPGE  R3,SCSTAT               ;any errors?
+        JRST    SIC12                   ;yes
+
+;  SIC 11
+SIC11:  BCALL    SCFMT;                 ;check for octal and resolve scale and type of number
+
+;  SIC 12
+SIC12:  RETURN  SIC
+        SUBTTL   SICNIT  U12.2  Initialize SIC
+        BDCL     SICNIT
+
+;  SICNIT  01  See below for definitions of these cells
+        SETZM    SICBUF                 ;accumulator for number
+        SETZM    SICBUF+1
+        SETZM    MNTSGN
+        SETZM    EXPCHR
+        SETZM    EXPSGN
+        SETZM    DECFLG
+        SETZM    MZRO
+        SETZM    MNTDGS
+        SETZM    EXPDGS
+        SETZM    DAD
+        SETZM    SCSTAT
+        SETZM    EXPBUF
+
+        BRETURN  SICNIT
+        SUBTTL   SCSCAN  U128  Scan string for number char by char
+        BDCL     SCSCAN
+
+;  SCSCAN  01
+        CAIE    R0,"d"
+        CAIN    R0,"e"
+        SUBI    R0,^O40
+        CAIE     R0,"E"
+        CAIN     R0,"D"
+        JRST     SCSC05                 ;exponent char
+        CAIN    R0," "
+        JRST    SCSC5A                  ;blank
+        CAILE    R0,"9"
+        JRST     SCSC06                 ;other character
+        CAIL     R0,"0"
+        JRST     SCSC04                 ;numeric digit
+        CAIN     R0,"."
+        JRST     SCSC03                 ;decimal point
+        CAIE     R0,"-"
+        CAIN     R0,"+"
+        JRST     SCSC02                 ;sign
+        JRST     SCSC06                 ;other character
+
+;  SCSCAN  02 Sign
+SCSC02: BCALL    PLMIPR
+        JRST     SCSC07
+
+;  SCSCAN  03 Decimal point
+SCSC03: BCALL    PERPR
+        JRST     SCSC07
+
+;  SCSCAN  04 Numeric digit
+SCSC04: BCALL    DIGPR
+        JRST     SCSC07
+
+;  SCSCAN  05 Exponent char
+SCSC05: BCALL    EXPPR
+        JRST     SCSC07
+
+;  SCSCAN 5A Blank
+SCSC5A: BCALL   BLNKPR
+        JRST    SCSC07
+
+;SCSCAN  06 Other character
+SCSC06: SKIPN   R0
+        MOVEI   R0,^O777 ; ODDITY DUE TO ZERO TERMINATOR WHILE
+        MOVEM   R0,SCSTAT ; SCSTAT=0 => CONTINUE SCANNING
+
+;  SCSCAN  07
+SCSC07: SKIPE    SCSTAT
+        JRST     SCSC$$
+
+;SCSCAN 10 Get next character while still scanning
+        GET
+
+SCSC$$: BRETURN  SCSCAN
+        SUBTTL   PLMIPR  U12.8.2 Plus or Minus
+        BDCL     PLMIPR
+
+;  PLMIPR  01
+        SKIPE    MNTSGN
+        JRST     PMPR03                 ;already determined mantissa sign
+
+;  PLMIPR  02
+        MOVEM    R0,MNTSGN              ;set mantissa sign
+        JRST     PMPR$$
+
+;  PLMIPR  03
+PMPR03: SKIPE    EXPCHR                 ;have we not seen an exponent char?
+        SKIPE   EXPSGN                  ;or already have a sign?
+        JRST    PMPR07                  ;yes, so sign is illegal
+
+;  PLMIPR  06
+        MOVEM    R0,EXPSGN              ;set exponent sign
+        JRST     PMPR$$
+
+;  PLMIPR  07
+PMPR07: MOVEM    R0,SCSTAT
+
+PMPR$$: BRETURN  PLMIPR
+        SUBTTL   PERPR  U12.8.3 Decimal Point
+        BDCL     PERPR
+
+;  PERPR  01
+        SKIPN   DECFLG                  ;already seen a decimal point
+        SKIPE   EXPCHR                  ;or the exponent char?
+        JRST    PRPR05                  ;yes, so error
+
+;  PERPR  03
+        MOVEM    R0,DECFLG              ;set decimal point
+
+;  PERPR  3A
+        SKIPN   MNTSGN                  ;has mantissa sign been determined?
+        SETOM   MNTSGN                  ;no, set positive
+        JRST    PRPR$$
+
+;  PERPR  05
+PRPR05: MOVEM    R0,SCSTAT
+
+PRPR$$: BRETURN  PERPR
+        SUBTTL   DIGPR  U12.8.4 Numeric Digit
+        BDCL     DIGPR
+
+;  DIGPR  01
+        SKIPE    EXPCHR         ;seen exponent char?
+        JRST     DGPR09         ;yes, so add to exponent
+
+;  DIGPR  02
+        BCALL    CHKMAN;        ;accumulate mantissa in SICBUF
+
+;  DIGPR  03
+        AOS     MNTDGS          ;add to count of mantissa digits
+
+;  DIGPR  04
+        SKIPE    DECFLG
+
+;  DIGPR  05
+        AOS      DAD            ;add to count of digits after decimal
+
+;  DIGPR  06
+        SKIPN   MNTSGN          ;determined mantissa sign?
+        SETOM   MNTSGN          ;no, set positive
+        JRST    DGPR$$
+
+;  DIGPR  09
+DGPR09: BCALL    EXPACC;        ;accumulate exponent in EXPBUF
+
+;  DIGPR  10
+        AOS      EXPDGS         ;add to count of exponent digits
+
+;  DIGPR  11
+        SKIPN   EXPSGN          ;determined exponent sign?
+        SETOM   EXPSGN          ;no, set positive
+
+DGPR$$: BRETURN  DIGPR
+        SUBTTL  CHKMAN  U12.8.4.2 Accumulate mantissa, defer zeroes
+        BDCL    CHKMAN
+
+;  CHKMAN  01
+        CAIE    R0,"0"
+        JRST    CKMN04
+
+;  CHKMAN  02  Digit Zero
+        SKIPN   SICBUF
+        SKIPE   SICBUF+1
+
+;  CHKMAN  03
+        AOS     MZRO            ;add to zeros count if any # exists yet
+        JRST    CKMN$$
+
+;  CHKMAN  04 Digit not zero
+CKMN04: BCALL   MANACC;         ;accumulate
+
+CKMN$$: BRETURN CHKMAN
+        SUBTTL   MANACC  U12.8.4.2.4 Add non-zero digit into mantissa
+        BDCL     MANACC
+
+;  MANACC  01
+        SUBI     R0,"0"
+        MOVE    R1,R0
+
+;  MANACC  02
+        MOVE     R1,FLCTAB(R1)  ;get floating value of this digit
+        SETZ     R2,            ;make double
+
+;  MANACC  03
+        MOVE    R5,MZRO
+        SETZM   MZRO
+        CAIG    R5,^D38
+        JRST    MANC3A
+
+;  MANACC  3A,3B Too many imbedded zeros
+        HRREI   R0,-3
+        MOVEM   R0,SCSTAT
+        JRST    MANC$$
+
+MANC3A: ADDI    R5,R1           ;add one to make room for the current digit
+        ASH     R5,1            ;multiply by two because table is 2-word
+        DMOVE   R3,ISCK(R5)     ;table of double powers of ten
+
+;  MANACC  04
+        DFMP     R3,SICBUF      ;scale our number up accordingly
+        JFOV    MANC5B
+
+        DFAD     R3,R1          ;add in current digit
+
+;  MANACC 5A-5B
+        JFOV     MANC5B
+        JRST    MANC6
+
+MANC5B: HRREI   R0,-3
+        MOVEM   R0,SCSTAT
+
+;  MANACC  06
+MANC6:  DMOVEM   R3,SICBUF
+
+MANC$$: BRETURN  MANACC
+
+FLCTAB: EXP 0.,1.,2.,3.,4.,5.,6.,7.,8.,9.
+        SUBTTL  EXPACC  U12.8.4.9 Accumulate exponent
+        BDCL     EXPACC
+
+;  EXPACC 01
+        SUBI     R0,"0"
+        MOVE    R2,EXPBUF
+        IMULI   R2,^D10
+        ADD     R2,R0
+        MOVEM   R2,EXPBUF
+        CAIG    R2,^D38
+        JRST    EXAC$$
+        HRREI   R0,-3
+        MOVEM   R0,SCSTAT
+EXAC$$: BRETURN  EXPACC
+        SUBTTL   EXPPR  U12.8.5 Exponent char
+        BDCL     EXPPR
+
+;  EXPPR  01
+        SKIPN   EXPCHR          ;already seen exp char?
+        SKIPN   MNTDGS          ;or have no mantissa digits been entered?
+        JRST    XPPR05          ;error
+;  EXPPR  03
+        MOVEM    R0,EXPCHR      ;set exponent char
+        JRST     XPPR$$
+
+;  EXPPR  05
+XPPR05: MOVEM    R0,SCSTAT
+
+XPPR$$: BRETURN  EXPPR
+        SUBTTL  BLNKPR Blank
+        BDCL    BLNKPR
+
+;  BLNKPR 01-02
+        SKIPE   MNTSGN          ;has mantissa sign been determined?
+        MOVEM   R0,SCSTAT       ;yes, so blanks other than leading are illegal
+
+        BRETURN BLNKPR
+        SUBTTL   CKSCAN  U12.9 Check Scan
+        BDCL     CKSCAN
+
+;  CKSCAN 00
+        MOVE    R0,SCSTAT
+        CAIN    R0,^O777        ;indicates that terminator was Nul
+        SETZM   SCSTAT
+
+;  CKSCAN  01
+        SKIPN    MNTDGS         ;mantissa digits are required
+        JRST     CKSC05
+
+        SKIPE   EXPCHR
+        SKIPE   EXPDGS          ;have an exponent char but no digits?
+        JRST    CKSC06
+
+;  CKSCAN  05  Error
+CKSC05: SETOM   SCSTAT          ;-1 ==> invlaid numeric constant
+        JRST    CKSC$$
+
+;  CKSCAN 06
+CKSC06:
+
+        ifn ftrun,<     ;runside
+           SKIPG   SCSTAT
+           JRST    CKSC$$
+           BCALL   CHKTRM;      ;check terminator is Nul
+>
+
+CKSC$$: BRETURN  CKSCAN
+        ifn ftrun,<
+        SUBTTL  CHKTRM Check runside terminator - must be nul
+        BDCL    CHKTRM
+
+;  CHKTRM 01
+        MOVE    R0,SCSTAT
+        CAIN    R0," "          ;Blank?
+        JRST    CTRM02          ;yes
+        CAIE    R0,"B"
+        CAIN    R0,"b"
+        JRST    CTRM02          ;check for Blanks after B
+        JRST    CTRM07          ;terminator not blank not B is error
+
+;  CHKTRM 02-03
+CTRM02: GET
+
+;  CHKTRM 04
+        CAIN    R0," "
+        JRST    CTRM02
+
+;  CHKTRM 05
+        JUMPN   R0,CTRM07       ;character after blanks not null is error
+
+;  CHKTRM 06
+        JRST    CTRM$$
+
+;  CHKTRM 07
+CTRM07: HRREI   R0,-5           ;bad terminator
+        MOVEM   R0,SCSTAT
+        JRST    CTRM$$
+
+CTRM$$: BRETURN CHKTRM
+>
+        SUBTTL   SCFMT  U12.11   Get Value into proper format
+        BDCL     SCFMT
+
+;Get value into R1,R2; get status into R3.
+
+;  SCFMT  01
+        SKIPN    EXPCHR         ;seen exponent char
+        SKIPE    DECFLG         ;or decimal point?
+        JRST     SCFT2A         ;yes, value must be floating
+        MOVE    R1,SCSTAT
+        CAIE    R1,"B"
+        CAIN    R1,"b"
+        SKIPA
+        JRST     SCFT2A
+
+;  SCFMT  02
+        BCALL    OCTFMT;        ;get octal integer constant
+        JRST     SCFT$$
+
+;  SCFMT 2A
+SCFT2A: BCALL   SCALEM;         ;scale the mantissa as appropriate
+
+;  SCFMT 2B
+        SKIPGE  R3,SCSTAT
+        JRST    SCFT$$          ;error
+
+;  SCFMT 03
+        BCALL   OTHFMT;         ;determine type
+
+SCFT$$: BRETURN  SCFMT
+        SUBTTL   OCTFMT  U12.11.2  Get Octal Integer Constant
+        BDCL     OCTFMT
+
+;  OCTFMT  01
+        MOVE    R1,MKLNPT       ;restore pointer
+        MOVEM   R1,LINPTR
+        MOVE    R0,MKCCHR
+        MOVEM   R0,CCHR
+
+;  OCTFMT  02
+        CAME    R0,"+"
+        CAMN    R0,"-"
+        JRST    OCFM03
+        JRST     OCFM04
+
+;  OCTFMT  03 Plus or Minus
+OCFM03: GET
+
+;  OCTFMT  04
+OCFM04: SETZB   R2,R3
+
+;  OCTFMT  05
+OCFM05: CAIG    R0,"7"
+        CAIGE   R0,"0"
+        JRST    OCFM07          ;error- first char must be an octal digit
+        SUBI    R0,"0"
+
+        LSHC    R2,3
+
+;  OCTFMT  09
+        IOR     R3,R0
+
+;  OFTFMT  10
+        JUMPE   R2,OCFM12
+
+;  OCTFMT  11  Overflow
+OCFM11: HRREI   R3,-3
+        JRST    OCFM$
+
+OCFM07: SETO    R3,
+        JRST    OCFM$
+
+;  OCTFMT  12
+OCFM12: GET
+
+;  OCTFMT  13
+        CAIN    R0,"b"
+        JRST    OCFM14
+        CAIE     R0,"B"
+        JRST     OCFM05         ;continue scan
+
+;  OCTFMT  14  End of Number
+OCFM14: GET
+
+;  OCTFMT  15
+        MOVE     R1,MNTSGN
+        CAIE    R1,"-"
+        JRST     OCFM19
+
+;  OCTFMT  16
+        CAMN    R3,[^O400000000000]
+        JRST     OCFM11         ;largest ng# has no positive complement
+
+        MOVN    R3,R3
+
+;  OCTFMT  19
+OCFM19: MOVEM   R3,R1
+        SETZ    R2,
+        MOVEI   R3,INT
+
+OCFM$:  BRETURN  OCTFMT
+        SUBTTL  SCALEM U12.11.2A  Scale Mantissa
+        BDCL    SCALEM
+
+;  SCALEM  01
+        SKIPN   MZRO            ;any trailing zeros?
+        JRST    SCAM07          ;no
+
+;  SCALEM  02
+        SKIPN   DAD             ;any fraction?
+        JRST    SCAM07          ;no
+        MOVE    R1,DAD
+        CAML    R1,MZRO
+        JRST    SCAM05
+
+;  SCALEM  03  There were trailing zeros in both integer and fraction parts
+        MOVNS   R1
+        ADDM    R1,MZRO         ;get significant trailing zeros (integer part)
+
+;  SCALEM  04
+        SETZM   DAD
+        JRST    SCAM07
+
+;  SCALEM  05  Trailing zeros in fractional part only
+SCAM05: SUB     R1,MZRO
+        MOVEM   R1,DAD          ;# of significant fractional digits
+
+;  SCALEM  06
+        SETZM   MZRO
+
+;  SCALEM  07
+SCAM07: BCALL   DBLFMT
+        BRETURN SCALEM
+        SUBTTL   DBLFMT CHART U12.11.2A.7  Scale the number
+        BDCL     DBLFMT
+
+;                         DBLFMT 1
+        MOVE     R3,EXPBUF
+
+;                         DBLFMT 2-3
+        MOVE     R1,EXPSGN
+        CAIN     R1,"-"
+        MOVN     R3,R3
+
+;                         DBLFMT 4
+        ADD     R3,MZRO
+        SUB      R3,DAD
+        JUMPE   R3,DBLF$$
+
+;                         DBLFMT 5,6,6A
+        CAML    R3,[-^D38]
+        JRST    DBLF6A
+        HRREI   R0,-2
+        MOVEM   R0,SCSTAT
+        JRST    DBLF$$
+DBLF6A: CAIG    R3,^D38
+        JRST    DBLF7
+        HRREI   R0,-3
+        MOVEM   R0,SCSTAT
+        JRST    DBLF$$
+
+;                         DBLFMT 7
+DBLF7:  ASH     R3,1             ;index into 2-word table
+        JUMPG   R3,DBLF7E
+
+;  DBLFMT  7A  Negative Exponent
+        DMOVE   R1,SICBUF
+        MOVMS   3
+        DMOVE   R3,ISCK(R3)
+        DFDV    R1,R3
+        JFOV    DBLF7C
+        DMOVEM  R1,SICBUF
+        JRST    DBLF$$
+
+;  DBLFMT  7C
+DBLF7C: HRREI   R0,-2
+        MOVEM   R0,SCSTAT
+        JRST    DBLF$$
+
+;  DBLF7D
+
+;  DBLFMT  7E
+DBLF7E: DMOVE   R1,ISCK(R3)
+        DFMP    R1,SICBUF
+        JFOV    DBLF7G
+        DMOVEM  R1,SICBUF
+        JRST    DBLF$$
+
+;  DBLF7G
+DBLF7G: HRREI   R0,-3
+        MOVEM   R0,SCSTAT
+
+;                         EXIT DBLFMT
+DBLF$$: BRETURN DBLFMT
+        SUBTTL   OTHFMT  U12.11.3  Determine Type and resolve sign
+        BDCL     OTHFMT
+
+;Convert the number in SICBUF to the proper type (# is not octal).
+;If a specific type was requested, convert to that type if possible (else error).
+;If no type was requested, set the type of the number
+;according to the following rules:
+;
+;1. If NOT ("D" OR "E" OR ".") AND # < 2**36 then Integer.
+;2. If "D" or (#digits > 8 and there is double significance) then Double.
+;3. Else round to Real.
+
+;Number in SICBUF is currently double.
+;Set SCSTAT to type of successfully converted number.
+
+        SKIPG   R1,SCSRCE       ;specific type requested
+        JRST    DEFTYP
+
+        CAIN    R1,INT
+        JRST    CNVINT
+        CAIN    R1,REAL
+        JRST    CNVREL
+        JRST    SETDBL          ;anything else gets Double
+
+DEFTYP: SKIPN   EXPCHR          ;seen an exponent char?
+        SKIPE   DECFLG          ;or a decimal point?
+        JRST    NOTINT          ;yes, so not integer
+        MOVE    R1,SICBUF
+        CAMGE   R1,[^O244400,,0]; is # < 2**36 ?
+        JRST    CNVINT          ;yes, so integer
+
+NOTINT: MOVE    R1,EXPCHR
+        MOVE    R2,MNTDGS
+        CAIE    R1,"D"
+        CAILE   R2,^D8
+        JRST    SETDBL
+
+CNVREL: DMOVE   R1,SICBUF
+        PUSHJ   P,.DSING
+        EXTERN  .DSING
+        SETZ    R2,
+        MOVEI   R3,REAL
+        JRST    OTHFM$
+
+CNVINT: DMOVE   R2,SICBUF
+        HLRZ    R4,R2
+        LSH     R4,-^D9         ;extract exponent
+        SUBI    R4,^O200        ;remove excess
+        CAIGE   R4,^D36         ;too large?
+        JRST    CNVIN1
+        HRREI   R3,-3
+        JRST    OTFM$$
+CNVIN1: LSH     R3,1            ;left-justify second order word
+        LSHC    R2,^D9          ;left-justify entire mantissa
+        MOVEI   R1,0            ;clear
+        LSHC    R1,(R4)         ;shift the mantissa into R1
+        SETZ    R2,
+        DMOVEM  R1,SICBUF
+        MOVEI   R3,INT
+        JRST    OTHFM$
+
+SETDBL: DMOVE   R1,SICBUF
+        MOVEI   R3,DBL
+
+OTHFM$: MOVE    R0,MNTSGN
+        CAIN    R0,"-"
+        DMOVN   R1,R1
+
+OTFM$$: BRETURN  OTHFMT
+
+        LIT
+
+        RELOC 0
+
+DAD:    BLOCK 1                 ;count of digits after decimal
+DECFLG: BLOCK 1                 ;decimal point seen flag
+EXPBUF: BLOCK 1                 ;integer exponent buffer
+EXPCHR: BLOCK 1                 ;exponent character
+EXPDGS: BLOCK 1                 ;count of exponent digits
+EXPSGN: BLOCK 1                 ;exponent sign ("-" if neg, else pos)
+MNTDGS: BLOCK 1                 ;count of mantissa digits incl fractional
+MNTSGN: BLOCK 1                 ;mantissa sign ("-" if neg, else pos)
+MZRO:   BLOCK 1                 ;count of imbedded or trailing zeros
+SCSRCE: BLOCK 1                 ;input argument - type requested or -1
+SCSTAT: BLOCK 1                 ;status flag
+MKLNPT: BLOCK 1                 ;save LINPTR
+MKCCHR: BLOCK 1                 ;save CCHR
+SICBUF: BLOCK   2               ;accumulator for number
+
+        END
