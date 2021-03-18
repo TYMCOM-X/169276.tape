@@ -1,0 +1,79 @@
+
+;+
+;.first title
+;.page.nf
+;.paper size 54,73
+;.title STRING RELEASE SUBROUTINES
+;-
+
+;+
+; .RLSTR - string release routine
+;       arguments:      r1      address of string descriptor
+;       action:         release string body, if any
+;-
+
+        TWOSEG
+        RELOC 400000
+        TITLE   .RLSTR - string release routine
+        ENTRY   .RLSTR
+        EXTERN  RELSP
+
+.RLSTR: SKIPE   1,(1)           ;don't release non-existant body
+        PUSHJ   17,RELSP
+        POPJ    17,
+
+        PRGEND
+
+;+
+;.s
+; .CREL1 - conditional release of one string
+;       arguments:      r1      address of string descriptor
+;                       r2      conditional release code
+;       action:         release string body if r2 is non-zero
+;-
+
+        TWOSEG
+        RELOC 400000
+        TITLE   .CREL1 - conditional release of one string
+        ENTRY   .CREL1
+        EXTERN  RELSP
+
+.CREL1: JUMPE   2,CREL1$
+        SKIPE   1,(1)
+        PUSHJ   17,RELSP
+CREL1$: POPJ    17,
+
+        PRGEND
+
+;+
+;.s
+; .CREL2 - condition release of two strings
+;       arguments:      r1      address of first string descriptor
+;                       r2      address of second string descriptor
+;                       r3      conditional release code
+;       action:         release first string body if bit 33 in r3 is on;
+;                       release second string body if bit 35 in r3 is on.
+;-
+
+        TWOSEG
+        RELOC 400000
+        TITLE   .CREL2 - conditional release of two strings
+        ENTRY   .CREL2
+        EXTERN  RELSP
+
+.CREL2: TRZN    3,1B33
+        JRST    CREL22
+        SKIPE   1,(1)
+        PUSHJ   17,RELSP
+
+CREL22: TRZN    3,1B35
+        JRST    CREL2$
+        SKIPE   1,(2)
+        PUSHJ   17,RELSP
+CREL2$: POPJ    17,
+
+        PRGEND
+
+        END
+
+;&.f
