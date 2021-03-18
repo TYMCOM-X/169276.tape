@@ -1,0 +1,312 @@
+        title   profil
+        radix   8
+        twoseg
+        reloc   400000
+
+        extern  %mod.n          ; Partition Module names in sixbit
+        extern  %lin.s          ; Starting line number
+        extern  %lin.e          ; Ending line number
+        extern  %prndx          ; Beginning index into tables
+        extern  %prlst          ; Index to last partition "clocked in"
+        extern  %prmod          ; Flags defining data to gather
+
+;
+; Register definitions
+;
+mod.here==16                    ; current core address
+line.here==1                    ; current line number
+ndx==2                          ; for indexing partition tables
+fnd==3                          ; for indexing partition data tables
+lst==4                          ; previous index to partition data tables
+t1==5
+t2==6
+t3==7
+
+;
+;       Welcome to the TBA profiler!
+;
+;       This code gathers statistics over up to PARMAX user defined
+;       partitions, plus a hypothetical partition called OTHER. Each
+;       partition is defined by a starting module address, ending
+;       module address, starting line number, and ending line number,
+;       respectively contained in the tables %mod.s, %mod.e, %lin.s,
+;       and %lin.e. These tables are indexed by partition number,
+;       starting at zero and running to PARMAX-1.
+;
+;       The statistics are gathered in DATMAX tables, named
+;       %dat0 through %dat'DATMAX-1, one table per type of
+;       statistic to be gathered. Note carefully that these
+;       tables are indexed by partition number starting at one(!!)
+;       and running to PARMAX. An index of zero is a special case internally,
+;       causing some routines to increment a "dummy" counter during
+;       clean up and causing others not to store a value the first time
+;       through. PARMAX+1 is used to index the hypothetical
+;       partition OTHER.
+;
+;       Aside from the partition definition tables, three other external
+;       variables are used to control the profiler. The variable %PRMOD
+;       has one bit turned on for each type of statistic to be
+;       gathered. These bit definitions can be found in the file PRODEF.
+;       The variable %PRLST is used internally to keep track of the
+;       partition being "clocked" and when set to zero causes the
+;       profiler to initialize itself by zeroing all the data tables
+;       and reading %PRMOD to decide what statistics to gather.
+;       The variable %PRNDX should contain the number of active
+;       user defined partitions.
+;
+;       Although there can only be PARMAX types of statistics being
+;       gathered at the same time, there can be up to 35 (decimal)
+;       different types of statistics defined. What happens is that
+;       at initialization time, each active routine is assigned
+;       a data table and linked to the next routine in line. This
+;       is all handled by four tables FNDPTR, LSTPTR, ST.CLK, and NX.RTN,
+;       each 35 words long and indexed by routine bit number.
+;
+;       FNDPTR and LSTPTR contain the base address of the data table
+;       assigned to a particular routine, indexed by FND and LST
+;       respectively, e.g., %dat0(fnd) or %dat0(lst).
+;
+;       NX.RTN contains the address of the next routine to branch to.
+;
+;       ST.CLK contains the value of the "clock" when we "clocked in"
+;       this partition.
+;
+;       For those of you who might need to know, the data tables are
+;       assigned in reverse order, i.e., %dat'parmax-1 is assigned to
+;       the active routine with the lowest bit number.
+;
+;
+        entry   profil
+
+profil: skipn   %prlst          ; initialize?
+        pushj   17,intpro
+
+        hrrz    mod.here,mod.here       ; strip down r16!
+        move    line.here,(mod.here)    ; fetch line number
+
+;
+; Note that the following range checks are coded weirdly because each
+; check must use the same amount of "time". Thus, CAML/CAMLE combinations,
+; for example, cannot be used since sometimes we would execute
+; them both and sometimes we would only execute the first one.
+;
+; The initial SKIPE/SKIPN sequence is, however, legal because we never
+; really expect the used to run a profile with no partitions. On the other
+; hand, we must do something reasonable if he does.
+;
+        skipe   %prndx                  ; do we have any partitions?
+        skipn   ndx,%prlst              ; do we have a current partition?
+        jrst    pro2                    ; can't try for current match...
+
+; try current partition first
+        movei   ndx,-1(ndx)
+        move    t1,mod.here
+        sub     t1,%mod.s(ndx)
+        move    t2,%mod.e(ndx)
+        sub     t2,mod.here
+        ior     t1,t2
+        move    t2,line.here
+        sub     t2,%lin.s(ndx)
+        move    t3,%lin.e(ndx)
+        sub     t3,line.here
+        ior     t2,t3
+        ior     t1,t2
+        skipge  t1
+        jrst    pro2
+        movei   fnd,1(ndx)
+        jrst    eloop
+
+pro2:   move    ndx,%prndx              ; initial index + 1
+        movei   fnd,parmax+1
+        jrst    stloop
+
+loop:   move    t1,mod.here
+        sub     t1,%mod.s(ndx)
+        move    t2,%mod.e(ndx)
+        sub     t2,mod.here
+        ior     t1,t2
+        move    t2,line.here
+        sub     t2,%lin.s(ndx)
+        move    t3,%lin.e(ndx)
+        sub     t3,line.here
+        ior     t2,t3
+        ior     t1,t2
+        ash     t1,-^d35
+        and     fnd,t1
+        setca   t1,t1
+        andi    t1,1(ndx)
+        ior     fnd,t1
+stloop: sojge   ndx,loop
+
+eloop:  move    lst,%prlst
+        jrst    @st.rtn
+
+home:   movem   fnd,%prlst
+        popj    17,
+
+;
+;       Individual routines for gathering data
+;
+
+
+
+;
+; Macro for defining data gathering rotines
+;
+define dclrtn (rtn,bit) <
+assign rtn,\bit
+rtn:>
+define assign (rtn,cnt) <
+define mine(tab)<tab+cnt>
+%rtn'cnt==rtn>
+
+; Macro for clocking a partition
+define clocker (tnum)<
+camn fnd,%prlst
+jrst @mine(nx.rtn)
+hrroi t1,tnum
+gettab t1,
+halt
+move t2,mine(st.clk)
+movem t1,mine(st.clk)
+sub t1,t2
+addm t1,@mine(lstptr)
+jrst @mine(nx.rtn)>
+
+; Count statements executed within given partition
+        block   2
+        dclrtn  stmcnt,stm
+        aos     @mine(fndptr)
+        jrst    @mine(nx.rtn)
+
+
+; Count entries to given partition
+        block   2
+        dclrtn  entcnt,ent
+        came    fnd,%prlst
+        aos     @mine(fndptr)
+        jrst    @mine(nx.rtn)
+
+; Count trus for given partition
+        block   2
+        dclrtn  trucnt,tru
+        clocker 4
+
+; Count microcycles for given partition
+        block   2
+        dclrtn  miccnt,mic
+        clocker -15
+
+; Count core pages per statement
+        dclrtn  corcnt,cor
+        hrrz    t1,.jbrel##
+        hlrz    t2,.jbhrl##
+        addi    t1,^d1025(t2)
+        lsh     t1,-^d10
+        addm    t1,@mine(fndptr)
+        jrst    @mine(nx.rtn)
+
+;
+;       profile initializer
+;
+
+intpro:
+
+        move    ndx,%prndx              ; scan names, set module bounds
+        jrst    bstrt
+bloop:  move    t1,maporg##
+sloop:  addi    t1,2
+        move    t2,(t1)
+        camn    t2,[sixbit /SYSTEM/]
+        halt
+        came    t2,%mod.n(ndx)
+        jrst    sloop
+        hrrz    t2,1(t1)
+        movem   t2,%mod.s(ndx)
+        hrrz    t2,3(t1)
+        movem   t2,%mod.e(ndx)
+bstrt:  sojge   ndx,bloop
+
+        movei   ndx,datmax-1            ; zero data tables
+zloop:  setzm   @dtab(ndx)
+        hrl     t1,dtab(ndx)
+        hrr     t1,dtab(ndx)
+        addi    t1,1
+        hrrz    t2,dtab(ndx)
+        blt     t1,parmax+1(t2)
+        sojge   ndx,zloop
+
+        movei   ndx,datmax              ; for assigning data tables
+        movei   lst,st.rtn              ; for back-linking routines
+        move    t1,%prmod               ; routine bits
+        lsh     t1,-1                   ; so JFFO will work
+
+trynxt: jffo    t1,setnxt
+
+        movei   t3,home                 ; point last routine to HOME
+        movem   t3,(lst)
+
+        popj    17,                     ; we're all done!!
+
+setnxt: sojge   ndx,.+2                 ; any more data tables?
+        halt
+
+        lsh     t1,(t2)                 ; turn off routine bit
+        tlz     t1,400000
+        movn    t3,t2
+        lsh     t1,(t3)
+
+        subi    t2,1                    ; decrement routine number
+
+        move    t3,vtab(t2)             ; link last routine to this one
+        movem   t3,(lst)
+        movei   lst,nx.rtn(t2)          ; provide pointer for next linkage
+
+        move    t3,dtab(ndx)            ; link to data table, indexed by FND
+        hrli    t3,fnd
+        movem   t3,fndptr(t2)
+
+        hrli    t3,lst                  ; link to data table, indexed by LST
+        movem   t3,lstptr(t2)
+
+        jrst    trynxt
+
+; addresses of routines
+define vct(i)<
+ifdef %rtn'i,<%rtn'i>
+ifndef %rtn'i,<nortn>>
+        v==0
+vtab:   repeat  ^d35,<
+        vct     \v
+        v==v+1>
+
+nortn:  halt            ; come here if non-existent routine called
+
+; addresses of data tables
+        v==0
+dtab:   repeat  datmax,<
+        datlab  \v,##
+        v==v+1>
+
+; linkage tables
+        reloc
+fndptr: block   ^d35            ; link to data tables, indexed by FND
+lstptr: block   ^d35            ; link to data tables, indexed by LST
+st.clk: block   ^d35            ; "clock in" values
+nx.rtn: block   ^d35            ; address of next routine
+st.rtn: block   1               ; address of 1st routine
+
+; Module bounds
+%mod.s: block   parmax+1        ; module starting addresses
+%mod.e: block   parmax+1        ; module ending addresses
+        reloc
+
+;
+;       This entry is provided to "clock out" pending partitions
+;       before departing the runside
+;
+        entry   prowrp
+prowrp: setz    fnd,
+        jrst    eloop
+
+        end
