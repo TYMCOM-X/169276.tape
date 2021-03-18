@@ -1,0 +1,69 @@
+TITLE  .RNDA   TBALIB          08-19-75
+        TWOSEG
+        RELOC   ^O400000
+;
+;
+;PSEUDO RANDOM NUMBER GENERATOR
+;
+;THE CALLING SEQUENCE FOR .RNDA IS AS FOLLOWS:
+;
+;       PUSHJ   P,.RNDA
+;       R1 = INPUT ARGUMENT
+;       RESULT IS RETURNED IN R1
+;       THE RESULT IS A SINGLE PRECISION FLOATING POINT NUMBER
+;       BETWEEN 0 AND 1.
+;
+;THE .RNDA "MODE" IS SELECTED BY THE INPUT
+;ARGUMENT AS FOLLOWS:
+;       R1>0;   R1 IS USED AS THE INITIAL NUMBER
+;               IN THE PSEUDO RANDOM SEQUENCE
+;       R1=0    THE NEXT PSEUDO RANDOM NUMBER
+;                IN THE CURRENT SEQUENCE IS GENERATED.
+;       R1<0    THE INTERNAL CLOCK PROVIDES THE
+;               INITIAL VALUE FOR THE PSEUDO
+;               RANDOM SEQUENCE.
+;
+        P=17
+
+        ENTRY   .RNDA
+        EXTERN  CEED
+        INTERN  .RNDNI
+
+.RNDA:  JUMPG   1,RND1          ;R1>0, JUMP
+        JUMPE   1,RND2          ;R1=0, JUMP
+        CALLI   1,23            ;R1<0, GET TIME IN MILLISECONDS
+;
+RND1:   TLZ     1,760000        ;MASK 5 BITS FOR SAFETY
+        JUMPN   1,.+2           ;SKIP IF ARGUMENT NONZERO
+RND1X:  MOVE    1,X0            ;GET DEFAULT STARTING VALUE
+        MOVEM   1,CEED          ;SAVE VALUE
+;
+RND2:   SKIPN   CEED            ;CHECK FOR ZERO INITIAL VALUE
+        JRST    RND1X           ;SET DEFAULT STARTING VALUE
+        MOVE    1,K             ;GET [14**29(MOD 2**31 - 1)]
+        MUL     1,CEED          ;MULTIPLY WITH LAST NUMBER
+        ASHC    1,4             ;SEPARATE RESULT INTO TWO 31
+        LSH     2,-4            ; BIT WORDS
+        ADD     1,2             ;ADD THEM
+        TLZE    1,760000        ;SKIP IF RESULT < 31 BITS
+        ADDI    1,1             ;
+        MOVEM   1,CEED          ;SAVE NEW RN IN INTEGER MODE
+        HLRZ    2,1             ;CONVERT TO FP IN TWO STEPS
+        FSC     2,216           ; IN ORDER TO PRESERVE LOW ORDER
+        HRLI    1,0             ;BITS
+        FSC     1,174
+        FAD     1,2
+
+        POPJ    P,            ;EXIT
+;
+.RNDNI: MOVE    0,SEED          ;INITIALIZATION ROUTINE
+        MOVEM   0,CEED          ;PUT SEED IN CEED
+        POPJ    P,
+;
+SEED:   ^D524287
+K:      ^D630360016             ;14**29(MOD 2**31 - 1)
+X0:     ^D524287                ;DEFAULT STARTING VALUE
+;
+        LIT
+;
+        END
