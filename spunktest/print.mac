@@ -1,0 +1,1048 @@
+        TITLE   PRINT
+        subttl  DECLARE STORAGE AND CONSTANTS
+;
+;
+;
+
+        ENTRY   RPRTV,RPRTS,PFFSV,GCRLF,ISC,ISCDIG,ISCEXP,TRISC
+        ENTRY PRINT1,E191,SIOPRZ,NOSLIC,GETSLA
+        EXTERN  OUTW
+        EXTERN  ISCK,AFILE,TFR,FPRINT,ARRAY,UTPTR,.OTCAR,LINLEN
+        EXTERN  .ASCN1,.AINC1
+        EXTERN  STRSTR,DSCIN,STRSLT,VALIPT,RDXMX,BNDRY,SIGNIF,FILERR
+        TWOSEG
+        RELOC   0       ; LOWSEG        TEMP CELLS FOR CONVERSION
+ISCBUF: 0
+ISCSCX: BLOCK   24      ; FOR GENERATING DIGIT STRINGS
+ISCSCB: 0       ; ALLIGNMENT WORD       DONT' DETACH FROM ISCSCX
+ISCBRP=ISCSCX+12        ; TEMPORARY SLOT FOR REAL PART OF COMPLEX ISC
+ISCOVF: 0       ; OVERFLOW FLAG (#0 = LARGEST NEG INTEGER)
+ISCDIG: 0       ; NUMBER OF GENERATED DIGITS
+ISCEXP: 0       ; DECIMAL EXPONENT OF CONVERTED RESULT >
+ISCSGN: 0       ; INDICATION OF SIGN (#0 = NEGATIVE)
+ISCED:  0       ; FORMATTED COUNT OF EXPOENT DIGITS
+ISCID:  0       ; FORMATTED INTEGER DIGITS
+ISCFD:  0       ; FORMATTED     FRACTIONAL DIGITS
+;
+;
+NOSLIC: 0       ; NON-ZERO = A SLICED ARRAY
+CSSLC:  0       ; NON-ZERO =    A COMPLEX SLICED ARRAY SHUDDER!
+;
+;
+;
+
+
+;
+        ;
+PAF:    0; ARRAY FLAG
+PAAD:   0       ; ACTIVE DIMENSION COUNTER
+PALD:   0; NUMBER OF ELEMENTS IN LAST DIMENSION
+PAP:    0       ; PUNCTUATION CODE
+SIORR0: BLOCK   5
+SIORR5: 0
+;
+BLKBUF: BLOCK   6       ; SCRATCH BLOCK FOR PUNCTUATION BLANKS
+        ;
+        ;
+        
+        
+        
+A0=1
+A1=2
+A2=3
+A3=4
+
+RETREG=17
+ISCPTR=5
+FCBREG=7
+        
+        
+        
+        RELOC   400000
+        subttl  SIOPRZ -- PARAMETER SETUP ROUTINE USED BY INPUT AND PRINT
+; SIOPRZ        IS A PARAMETER SETUP ROUTINE USED BY INPUT AND PRINT
+; SETS OCBPARAMETERS AND SUCH VAGARIES AS ARRAY (FOR
+; FORMATTED OPERATIONS) AND PAF,PAAD,PALD FOR FREE FORM
+; ARRAY PRINTS....... CALLED WITH A PUSHJ 17,SIOPRZ
+;
+; THE ASSUMTION (SIC) IS THAT THE NEXT CALL ON THE STACK
+; IS THE ORIGINAL CALL TO RIOI/RIOF FROM THE GENERATED CODE
+; AND SIOPRZ INCREMENTS THE RETURN ADDRESS TO SKIP THE
+; TYPE WORD FOLLOWING THE CALL !!!!!!!!!!!!!!!!!!!
+; YOU WERE WARNED !!!!!!!!
+;
+;       The following is thought to be an exaustive(ing?) list of
+;       the cells set by SIOPRZ
+
+; ARRAY         Number of data elemants to print. Thus, zero if
+;       punctuation only. May be *2 if complex is being faked as
+;       reals. Counted down by Rick.
+; BASADR(OCB)   Address of data element. If array, BASADR is initially
+;       low by eletsize, so people can AOS before fetching.
+;       Also has elet size if array: sign bit set if 1 word/elet,
+;       clear if 2 words/elet.
+; CSSLC		Indicates COMPLEX to GETSLA so it will
+;               return half of element each call.
+;               CSSLC = 0, not complex...
+;               Bits 34/35 # 0, Do next REAL element (i.e., call ARYSCN).
+;               bits 34/35 = 0, Increment BASADR for next element.
+;               If CSSLC is non-zero, it is complemented by each call
+;               to GETSLA. The actual use is thusly (in binary, not octal!):
+;                       0    = not complex
+;                       1000 = complex array. inc BASADR.
+;                       0100 = complex array. inc BASADR.
+;                       1011 = complex array. call ARYSCN.
+;                       0111 = complex array. call ARYSCN.
+;                       1010 = complex scalar!! inc BASADR.
+;                       1001 = complex scalar!! inc BASADR.
+;                       0110 = complex scalar!! inc BASADR.
+;                       0101 = complex scalar!! inc BASADR.
+; IOTYP(OCB)    Type. (0=L, 1=I, 2=R (but maybe fake of complex), 3=D,
+;       4=C, 5=S) Also has 2000oct set in left half if array.
+;       =-1 iff no value to print (punctuation only)
+; JUNK(OCB)     Zero if no temps to release, else RH=address of body
+;       to dump, LH=count of strings in array, if that's our problem.
+; NOSLIC        Hopefully zero, else we have a subarray and NOSLIC=
+;       the R1 arg to AREMAP (called by GETSLA later)
+; NUMELT(OCB)   Number of elements in array, zero if scalar. Counted
+;       down by Frank, up by Rick.
+; OCBOPD(,+1)(OCB)      Operand, often doubleword. Sometimes
+;       the address of something instead, but I haven't figured that
+;       out yet.
+; OCBOTP(OCB)   Operand type. Very similar to IOTYP(OCB), but does
+;       not have array bit set, and is used ONLY by print.mac
+; PAAD          Print Array Active Dimension. Current subscript of last
+;       dimension. When this = PALD, issue a carriage return, if we're
+;       printing free-form arrays.
+; PALD          Number of elements in the last dimension. See PAAD.
+; PAF           Print Array Flag. Zero if scalar, else number of elets
+;       in array. Used only in print.mac. Very similar to numelt(ocb).
+;       * * * * * * * * THIS VARIABLE WILL DIE. * * * * * * * * *
+; PAP           Punctuation code. ?
+;       runs to numelt-1, suitable for AREMAP arg.
+; STRSLT        ? Somebody said string result.
+; VALIPT                VAL input. String descriptor address.
+
+SIOPRZ: ;
+        MOVE    FCBREG,[XWD     0,SIORR0]
+        BLT     FCBREG,SIORR5   ; SAVE FIRST SIX REGS
+        MOVE    OCB,AFILE
+        MOVE    FCBREG,OCBFCB(OCB)
+        MOVE    FMTREG,FMTADR(OCB)
+        DMOVEM  1,OCBOPD(OCB)   ; FOR INPUT AND PRINT OF SCALARS
+        SETZM   PAF     ;FLAG NOT ARRAY
+        SETZM   numelt(ocb)     ;FLAG NOT ARRAY
+        SETZM   NOSLIC  ; INDICATE NOT A SLICE
+        MOVEI   0,1
+        MOVEM   0,ARRAY ; SET ARRAY PROVISIONALLY AS A SCALAR
+        EXTERN  IOJUNK
+        PUSHJ   17,IOJUNK       ; GET RID OF ANY EXPRESSION CARCASSES
+        MOVE    5,[ XWD SIORR0,0]
+        BLT     5,5     ; RESTORE REGS
+        MOVEM   1,BASADR(OCB)   ; SET BASADR IN CASE ITS INPUTTTTT
+        TLNN    OCB,FCBVAL+FCBSTF+FCBRED
+        JRST    SIOP4
+        MOVE    5,13    ; SLIDE THE TYPE INTO 5
+        TLZ     5,1     ; SCREEN THE FRIGGING STRING SCALAR IN LH MAYBE
+        CAIGE   5,2000  ; SKIP IF ITS STR OR VAL OF ARRAYS
+        JRST    SIOP5   ; GO TO SIOP5 HERE FOR FURTHER SCALER TWIDDLING
+        TLNN    OCB,FCBRED      ; SKIP IF ITS READ
+        JRST    SIOPVF  ; ITS VAL OR STR FUNCTIONS
+        MOVE    3,1     ; SET UP ARRAY ARG FOR READ 
+        JRST    SIOP5
+SIOPVF: TLNN    OCB,FCBVAL      ; SKIP IF ITS ARRAY VAL
+        JRST    SIOSTF  ; ARRAY STR
+
+;  val of array
+        HRLZ    0,VALIPT
+        MOVEI   3,2     ; SET REAL TYPE IN 3
+        PUSHJ   17,SIOTAI       ; SETUP TARGET ARRAY
+        MOVE    3,VALIPT
+        HLRZ    0,.amap(3)  ; LOOK FOR SLICE BITS IN LEFT HALF OF WORD ZERO
+        JUMPE   0,.+3   ; NOT A SLICE IN LEFT HALF
+        MOVEM   3,NOSLIC
+        SKIPN   SIORR0  ; SKIP IF INPUT CAN BE SCRATCHED AFTER
+        JRST    SIOVF1
+        HLLZ    0,.absz(3)  ; GET SIZE OF ARRAY
+        LSH     0,-1
+        ADD     0,3
+        MOVEM   0,JUNK(OCB)
+SIOVF1: HRRZ    0,0(3)  ; NOW GET BASE ADR
+        SUBI    0,2
+        MOVEM   0,VALIPT
+        MOVE    3,1     ; DUMMY TARGET ARRAY
+        MOVE    5,13    ; GET TYPE FROM 13
+        JRST    SIOP5A
+
+;  str of array
+SIOSTF: HRLZ    0,3     ; SOURCE ARRAY HEADER INTO R0
+        SKIPE   SIORR0
+        HRRZM   3,JUNK(OCB)
+        MOVE    1,STRSLT
+        MOVEI   2,400   ; DEFAULT 256 LENGTH
+        MOVEI   3,5     ; STRING TYPE
+        PUSHJ   17,SIOTAI       ; SETUP DUMMY ARRAY
+        MOVE    1,STRSLT
+        HRR     0,0(1)
+        SUBI    0,2
+        MOVEM   0,STRSLT
+        HLRZ    5,.atyp(3)  ; GET TYPE OF INPUT ARRAY
+        ADDI    5,2000  ; ARRAY TYPE OF IN
+        JRST    SIOP5A  
+;
+;
+SIOTAI: ; SETUP DUMMY ARRAYS FOR ARRAY STRING AND VAL
+        ADD     0,1
+        BLT     0,15(1) ;this absolute 15 is probably a bug. But i (jah) cant
+;         figure what this code is supposed to be doing and this code will
+;         never be executed anyway because string and val for arrays arnt
+;         and never will be implemented this way
+        SETZM   0,.aloc(1)
+        HRLM    3,.atyp(1)  ; SET TYPE FROM 3
+        PUSHJ   17,RDXMX
+        MOVE    5,[XWD  SIORR0,0]
+        BLT     5,5
+        MOVE    FCBREG,OCBFCB(OCB)
+        POPJ    17,0
+;
+;
+;
+;
+;
+SIOP4:  SETOM   IOTYP(OCB)      ;FLAG JUST PUNCTUATION
+        MOVE    6,-1(RETREG)    ; FISH UP THE CALL+1 FROM THE CODE
+        MOVE    5,0(6)
+        SKIPN   INOUT(OCB)      ; SKIP IFF INPUT
+        JRST    .+3     ; SHUFFLE INPUT PARS
+        MOVE    3,1     ; INPUT HAS ALL VAR ARGS IN R1  (NEAT!!)
+        JRST    SIOP5   ; INPUT HAS DIFFERENT FW1 IN THE CODE AUSSI
+        HRRZM   5,PAP   ;SET PUNCTUATION
+        CAIL    5,4
+        JRST    .+3     ;; NOT SIMPLY PUNC
+        SETZM   ARRAY   ; SET FUNNY FLAG FOR RICK
+        JRST    SIOP15  ;JUST PUNCTUATION
+        HLRZ    5,5     ;NOW LOOK AT TYPE
+SIOP5:  TRZ     5,1000  ;SCREEN SCALARS BIT
+        TLZ     5,1     ; DO FUNNY THINGS FOR INPUT     SCREEN SCALARA STRING FIRST
+        TLZE    5,2     ; TEST FOR ARRAYS IN LEFT       HALF
+        ADDI    5,2000  ; SET INPUT LIKE OUTPUT 
+SIOP5A: MOVEM   5,IOTYP(OCB)
+        MOVEM   5,OCBOTP(OCB)   ; SAAVE IOTYPE  TWICE
+        CAIGE   5,5     ;SKIP IF ARRAY OR STRING
+        JRST    SIOP12  ; SCALAR VALUE
+        CAIE    5,5     ; SKIP  IF STRING SCALAR
+        JRST    SIOP5B  ; 
+        SKIPE   INOUT(OCB)      ; skip if output
+        JRST    SIOP12
+        MOVE    0,OCBOP1(OCB)
+        SKIPE   SIORR5
+        MOVEM   0,JUNK(OCB)
+        JRST    SIOP12
+;
+;
+SIOP5B: HLRZ    5,.atyp(3)  ; PICK UP ARRAY TYPE FROM HEADER
+        MOVEM   5,OCBOTP(OCB)
+        MOVEM   5,IOTYP(OCB)    ; SET ARRAY CODE IN LEFT HALF
+        MOVEI   1,2000
+        HRLM    1,IOTYP(OCB)
+        HRRZ    1,.aloc(3)  ;ADR OF 1ST ELEMENT
+        SKIPN   R1                      ;is array declared?
+        ERROR   ME15            ;Reference to undeclared array
+        HRLI    1,400000        ; ASSUME EL SIZE OF ONE
+        HLRZ    0,.absz(3)  ;SIZE OF BODY
+        CAIG    5,2     ; ANYTHING > REAL REDUCE SIZE BY 2
+        JRST    .+3
+        HRLI    1,0     ; SET ELEMENT SIZE TO 2
+        LSH     0,-1
+        JUMPL   1,.+2   ; SKIP 1ST SUBTRACT IFF REAL OR LESS
+        SUBI    1,1
+        SUBI    1,1
+        MOVEM   1,BASADR(OCB)   ; SET BASADR WITH E-SIZE IN LH
+        MOVEM   0,PAF
+        MOVEM   0,NUMELT(OCB)   ;NUMBER OF ELEMENTS
+        MOVEM   0,ARRAY ; SET SIZE YET AGAIN IN ARRAY
+        HRRZ    0,3(3)  ; COPUTE ELEMENTS IN LAST DIM 
+        HLRZ    2,3(3)
+        SUB     0,2
+        ADDI    0,1
+        MOVEM   0,PAAD  ;SIZE OF LAST DIM
+        MOVEM   0,PALD
+        SKIPN   JUNK(OCB)
+        SKIPE   INOUT(OCB)
+        JRST    CHKSLC
+        SKIPN   SIORR0
+        JRST    CHKSLC
+        HRRZM   3,JUNK(OCB)
+        CAIE    5,5     ; SKIP IF ITS STRING
+        JRST    CHKSLC
+        MOVE    0,numelt(ocb)
+        HRLM    0,JUNK(OCB)
+CHKSLC: ; CHECK FOR SLICES (ARGH!)
+        PUSH    P,3
+        PUSH    P,7
+        MOVE    1,3
+        PUSHJ   17,.ASCN1       ; INITIALIZE ARYSCN...
+        POP     P,7
+        POP     P,3
+        TLNE    OCB,FCBVAL      ; SKIP  IF NOT VAL FUNCTION
+        JRST    SIOP12  ; VAL HAS ALREADY PLACYED SLICES
+        HLRZ    0,0(3)  ; PICK UP LEFT HALF OF DESCRIPTOR WORD 0
+        JUMPE   0,SIOP12        ; NOT A SLICE IF NOT BITS ON
+        MOVEM   3,NOSLIC        ; TURN ON TO SLICES
+        SETZM   CSSLC   ; INDICATE ITS NOT COMPLEX 
+        hlrz    0,1(3)          ; set # of elements honest
+        MOVEM   0,PAF
+        MOVEM   0,NUMELT(OCB)   ;NUMBER OF ELEMENTS
+        MOVEM   0,ARRAY ; SET SIZE YET AGAIN IN ARRAY
+SIOP12: ; CHECK FOR FORMATTED & COMPLEX AND FUNNY IT
+; IN THE CASE OF COMPLEX INPUT OR FORMATTED COMPLEX OUTPUT
+; SIMULATE A REAL ARRAY OF DOUBLE SIZE (2) FOR SCALARS
+;
+;
+; THE FOLLOWING HIJINX RESULT FROM NO PROVISION FOR COMPLEX VAL
+        hrrz    0,iotyp(OCB)    ; CHEEK TYPE FOR COMPLEX 
+        CAIN    0,4     ; SKIP IF NOT COMPLEX
+        TLNN    OCB,FCBVAL              ; SKIP IF VAL (& COMPLEX)
+        JRST SIO12A
+        MOVEI   0,STRCPX
+        MOVE    1,OCBFOP(OCB)   ; FILE NUM --ASSUMING SOMEONE SETS IT
+        PUSHJ   17,FILERR
+;
+;
+;
+SIO12A: SKIPLE  FMTFLG(OCB)     ; SKIP IF UNFORMATTED OR BINARY
+        JRST .+3        ; FORMATTED STICKS AROUND
+        SKIPN   INOUT(OCB)      ; SKIP IF INPUT
+        JRST    SIOP15  ; UNFORMATTED OUTPUT
+        MOVE    0,OCBOTP(OCB)
+        CAIE    0,4     ; SEE IF ITS COMPLEX
+        JRST    SIOP15  ; NOT COMPLEX   ..ESCHEW THE FUNNIES
+; NOW   WE HAVE ONLY COMPLEX INPUT OR FORMATTED COMPLEX OUTPUT
+SIOCX:  MOVEI   0,2
+        MOVEM   0,OCBOTP(OCB)   ; SET REAL TYPE
+        HRLI    0,2000  ; AND ARRAY IN ALL CASES
+        MOVEM   0,IOTYP(OCB)
+;
+        SKIPN   PAF     ; SKIP IF ITS A COMPLEX ARRAY
+        JRST SIOCX5     ; SCALARS IN THEIR OWN C&4
+        MOVE    0,ARRAY
+        LSH     0,1     ; DOUBLE THE SIZE
+        MOVEM   0,ARRAY
+        MOVEM   0,NUMELT(OCB)   ; HERE TWO (SIC!) TOOOOO
+        MOVEI   0,^O13          ; COMPLEX ARRAY!! (SEE JPS)
+        MOVEM   0,CSSLC
+        MOVE    0,BASADR(OCB)
+        HRLI    0,400000        ; SET ELTSIZ OF 1
+        ADDI    0,1     ; KICK UP TO 1ST ELEMENT-1 (NEE -2)
+        MOVEM   0,BASADR(OCB)
+        JRST    SIOP15
+;
+SIOCX5: ; MAKE A 2 ELEMENT REAL ARRAY (FROM SOW'S EAR)
+        MOVEI   0,^O12          ; COMPLEX SCALAR!! (SEE JPS)
+        MOVEM   0,CSSLC
+        MOVEI   0,2
+        MOVEM   0,ARRAY
+        MOVEM   0,NUMELT(OCB)
+        MOVEI   0,OCBOPD(OCB)
+        SKIPE   INOUT(OCB)      ; SKIP IF ITS OUTPUT
+        MOVE    0,BASADR(OCB)   ; INPUT REALLY POINTS TO VALUE
+        ;
+        HRLI    0,400000        ; SET REAL CODE IN BASADR
+        SUBI    0,1     ; POINT BEFORE FIRST ELEMENT
+        MOVEM   0,BASADR(OCB)
+SIOP15: AOS     -1(RETREG)      ; INCREMENT RETURN 
+        POPJ    RETREG, ; RETURN
+        subttl  GETSLA
+
+
+        ; DELIVER       ELEMENT OF SLICED ARRAY
+        ; VALUE IF OUTPUT OTHERWISE ADDRESS IN OCBOPD
+GETSLA:
+
+; IF CSSLC # 0 AND CSSLCI _ BNOT CSSLCI = 0 & ! Do 2nd half for complex? !
+
+                        SKIPN   CSSLC
+                        JRST    GETSL2
+                        SETCMB  0,CSSLC
+                        TRNN    0,3
+                        JRST    GETSL2
+
+; THEN R2 _ INC BASADR(OCB) &
+
+                        AOS     2,BASADR(OCB)
+                        JRST    GETSL3
+
+; ELSE DO
+
+;   R1 _ .AINC1 ! Get next element address !
+
+                GETSL2: CALL    .AINC1
+
+;   IF R2 _ R1 = 0 THEN ERROR(ME0) ! Array subscript out of bounds !
+
+                        SKIPN   2,1
+                        ERROR   ME0
+
+;   FMTREG _ FMTADR( OCB _ AFILE) ! Restore regs !
+
+        MOVE    OCB,AFILE
+        MOVE    FCBREG,OCBFCB(OCB)
+                        MOVE    FMTREG,FMTADR(OCB)
+
+; END
+
+; [OCBOPD(OCB); OCBOPD(OCB)+1] _ & ! Stuff operand or address of !
+; ( IF INOUT(OCB) # 0 THEN [R2; R1] ELSE [0(R2); 1(R2)] )
+
+                GETSL3: MOVE    0,2
+                        SKIPN   INOUT(OCB)
+                        DMOVE   0,0(2)
+                        DMOVEM  0,OCBOPD(OCB)
+
+; BASADR(OCB) _ R2 ! Set current element address !
+
+                        HRRM    2,BASADR(OCB)
+
+; RETURN
+
+        POPJ    17,
+        SUBTTL  PRINT1 (RPRTV)
+
+RPRTV:
+PRINT1: ;
+        PUSHJ   17,SIOPRZ       ; SET ARRAY & SCALAR PARS
+PRINT2: MOVE    1,FMTFLG(OCB)
+        JUMPG   1,FPRINT        ;FORMATTED
+;PRINT4
+        MOVEI   13,20   ; SOMETHING STRANGE FOR RICK'S STUFF IN .OTCAR
+        SKIPGE  IOTYP(OCB)      ; SKIP  IF TYPE (ELSE JUST PUNC)
+        JRST    PRINT9  ;PUNCTUATE ONLY
+        skipn   paf             ; skip if array
+        jrst    print7
+        call    print6
+        jrst    printx
+
+PRINT7: PUSHJ   RETREG,PFFSV    ; print free-form scalar value
+PRINT9:                 ; HANDLE PUNCTUATION
+        call    punc
+printx:
+        call    iojunk          ; clear temp expression body NOW
+        popj    retreg,
+
+;       array output
+
+PRINT6: ;ARYOUT
+        SKIPE   NOSLIC  ; SKIP IF ITS NOT A SLICE
+        JRST    OAEBYE  ; ALWAYS EBYE   FOR SLICES
+        MOVE    0,OCBOTP(OCB)
+        CAIL    0,5     ;SKIP IF NOT STRING
+        JRST    OAEBYE
+        TLNE    OCB,FCBBIN
+        JRST    OAACHK  ;BINARY ARRAY TRY AS A CHUNK
+;(OAEBYE FOLLOWS)
+OAEBYE: ;OUTPUT ARRAY ELEMENT BY ELEMENT
+        TLNE    OCB,FCBBIN
+        JRST    OAEB4
+        MOVNI   0,4
+        ADDB    0,PAP
+        SKIPG   PAP
+        AOS     PAP
+OAEB4:  PUSHJ   RETREG,PFFSV
+        PUSHJ   RETREG,PUNC
+OAEB6:  SOSLE   PAAD
+        JRST    OAEB9
+        TLNE    OCB,FCBBIN
+        JRST    OAEB9
+        PUSHJ   RETREG,GCRLF
+        MOVE    0,PALD
+        MOVEM   0,PAAD
+OAEB9:  SOSLE   NUMELT(OCB)
+        JRST    OAEB4
+        POPJ    RETREG,0
+        subttl  PFFSV    PRINT FREE FORM SCALAR VALUE.........
+
+PFFSV:  SKIPg   numelt(ocb)     ;SKIP IF ARRAY
+        JRST    PFFS4
+
+        SKIPN   NOSLIC          ; *** TO BE DELETED LATER (JPS)...
+        JRST    PFFSVA          ; *** TO BE DELETED LATER (JPS)...
+
+        CALL    GETSLA
+
+        JRST    PFFS4           ; *** TO BE DELETED LATER (JPS)...
+PFFSVA: SKIPL   BASADR(OCB)     ; *** TO BE DELETED LATER (JPS)...
+        AOS     BASADR(OCB)     ; *** TO BE DELETED LATER (JPS)...
+        AOS     BASADR(OCB)     ; *** TO BE DELETED LATER (JPS)...
+        MOVE    2,BASADR(OCB)   ; *** TO BE DELETED LATER (JPS)...
+        DMOVE   0,0(2)          ; *** TO BE DELETED LATER (JPS)...
+        DMOVEM  0,OCBOPD(OCB)   ; *** TO BE DELETED LATER (JPS)...
+
+PFFS4:  TLNE    OCB,FCBBIN
+        JRST    PFFS5   ;BINARY
+PFFS6:  MOVE    0,OCBOTP(OCB)
+        CAIGE   0,5
+        JRST    PFFS8
+        MOVE    1,OCBOP1(OCB)   ; PICK UP       DESCRIPTOR ADDDR
+        SKIPE   PAF     ; SKIP IF ITSA SCALAR STRING
+        MOVEI   1,OCBOPD(OCB)   ; ARRAYS ARE PACKED FUNNY HERE
+        HLRZ    0,1(1)  ; GET LENGTH IN 0
+        SKIPN   1,0(1)  ; BASE IN 1
+        SETZ    R0,     ; if no string, set length to zero regardless
+        JRST    PFFS10
+PFFS8:  MOVEI   A0,1
+        PUSHJ   17,E191
+        MOVEI   1,F
+PFFS10: TLNE    OCB,FCBSTF      ; SKIP IF NOT STR
+        JRST    FFSTRF  ; DO FREE FORM STRING STORE
+        HRRZ    0,0     ; ZERO OUT LEFT HALF
+        HRL     1,0
+        MOVEM   1,UTPTR
+        TLNN    OCB,FCBTTY      ; do line-folding only if TTY
+        JRST    PFFS14
+        ADD     0,FCBPOS(FCBREG)
+        ADD     0,FCBOWB(FCBREG)
+        CAMG    0,LINLEN
+        JRST    PFFS13
+        SKIPE   FCBPOS(FCBREG)  ; SKIP IF NOTHING DOING
+        PUSHJ   17,GCRLF
+PFFS13: HLRZ    0,UTPTR         ; RESOTRE R0 := LENGTH OF STRING
+PFFS14: MOVE    2,[POINT 7,0]
+        HRR     2,UTPTR
+        JUMPE   0,.+4
+        ILDB    1,2
+        PUSHJ   17,.OTCAR
+        SOJG    0,.-2
+        ;
+        POPJ    RETREG, ; BAIL  OUT
+;
+;
+FFSTRF: ; FREE FORM STRING FUNCTION FINISH FROM PRINT
+        MOVE    2,STRSLT
+        SKIPE   PAF     ; SKIP IF NOT ARRAY
+        ADDI    2,2     ; POINT TO NEXT ENTRY TO ASSUAGE RICK
+        MOVEM   2,STRSLT        ; STORE IT BACK ALTERED FOR RICK
+        SKIPN   PAF     
+        SETZM   0(2)    ; INITIALISE SCALAR STR DESC FOR DUMB JOHN MAC 
+        MOVEM   0,1(2)  ; INIT RIGHT HALF OF TARGET DESCRIPTOR
+        HRL     0,0     ; LENGTH IN BOTH HALVES
+        MOVEM   1,DSCIN
+        MOVEM   0,DSCIN+1
+        PUSHJ   17,STRSTR       ; STORE IT AWAY OL'     MISSISSIP
+        POPJ    17,0
+
+PFFS5:  MOVE    0,OCBOTP(OCB)
+        CAIGE   0,5     ;SKIP ON STRING
+        JRST    BINNSO
+        MOVE    4,OCBOP1(OCB)   ;LENGTH IN 0
+        SKIPE   PAF     ; SKIP IF SCALAR
+        MOVEI   4,OCBOPD(OCB)   ; ARRAYS HAVE DESCRIPTOR IN OCB (HURRAY)
+        HLRZ    0,1(4)  ; NOW LENGTH IN 0
+        SETZM   ISCBUF
+        JUMPE   0,PFFS5A
+        ADDI    0,5     ; PROVIDE FOR TERMS
+        IDIVI   0,5     ; MAKE IT WORDS
+        HLL     0,1(4)  ; PUT CHAR COUNT IN LEFT HALF OF CONTROL WORD
+        MOVEM 0,ISCBUF  ; WORD COUNT IN RH      , CHAR COUNT IN LH
+PFFS5A: MOVE    1,FCBCUR(FCBREG)
+        OUT     0,1
+        SKIPN   ISCBUF  ; SKIP IF LENGTH WAS NON-ZERO
+        JRST    PFFS5Z  ; JUST OUTPUT SINGLE WORD FOR 0-LENGTH
+;
+        MOVE    2,0(4)  ; BASE ADDRESS IN 2
+        HRRZ    0,ISCBUF        ; RECOVER WORD LENGTH
+        MOVEI   3,1     ; OUT CODE IN R3
+        PUSHJ   RETREG,TFR
+PFFS5Z: MOVEM   1,FCBCUR(FCBREG)
+        POPJ    RETREG,0
+
+BINNSO: MOVE    0,OCBOPD(OCB)
+        MOVE    2,FCBCUR(FCBREG)
+        OUT     0,2
+        MOVE    3,OCBOTP(OCB)
+        CAIGE   3,3
+        JRST    BINNS1
+        MOVE    1,OCBOP1(OCB)   ; RELOAD THE 2ND HALF (DBL OR COMPLEX)
+        OUT     1,2
+BINNS1: MOVEM   2,FCBCUR(FCBREG)
+        POPJ    RETREG,0
+
+OAACHK: ;OUTPUT NUMERIC ARRAY
+        ;AS A CHUNK
+        MOVE    0,NUMELT(OCB)
+        MOVE    1,OCBOTP(OCB)
+        CAILE   1,2
+        LSH     0,1     ;NUMBER OF WORDS IN 0
+        HRRZ    2,BASADR(OCB)
+        ADDI    2,1     ; ALIGN TO FIRST ELEMENT
+        SKIPL   BASADR(OCB)
+        ADDI    2,1     ; TWO WORDS FOR DOUBLE
+        MOVE    1,FCBCUR(FCBREG)
+        MOVEI   3,1
+        PUSHJ   RETREG,TFR
+        MOVEM   1,FCBCUR(FCBREG)
+        POPJ    RETREG,0
+
+GCRLF:  TLNE    OCB,FCBBIN      ; SKIP IF NOT BINARY
+        POPJ    RETREG,0
+        MOVEI   1,15
+        PUSHJ   17,.OTCAR
+        SETZM   FCBPOS(FCBREG)
+        SETZM   FCBOWB(FCBREG)
+        POPJ    17,0
+
+RPRTS:  MOVEM   3,PAP   ; SAVE PUNCTUATION CODE FROM 3
+PUNC:   TLNE    OCB,FCBBIN+FCBSTF       ; SKIP IF NOT BIN OR STR FUN
+        POPJ    RETREG,0
+        MOVE    1,PAP
+        CAIL    1,4
+        SUBI    1,4
+        JRST    .+1(1)
+        JRST    GCRLF   ;CR
+        JRST    PUNC3   ;,
+        POPJ    RETREG,0        ;:
+        MOVEI   1,3     ;;
+        JRST    PUNC5
+PUNC3:  MOVEI   1,17    ; 15 SPACES FOR , SPACING
+PUNC5:  MOVE 2,FCBPOS(FCBREG)
+        ADD     2,FCBOWB(FCBREG)
+        MOVE 3,2
+        IDIV 3,1        ; R1    CONTAINS THE PUNCTUATION SPACING
+        SUB     1,4     ; SUBTRACT THE REMAINDER
+        ADD     2,1     ; NEW FCBPOS IF < FCBLOL
+        TLNE    OCB,FCBTTY      ; don't line fold unless TTY
+        CAMG    2,LINLEN        ; SKIP IF       OVER    LINE LENGTH
+        JRST PUNC10
+
+PUNC8:  PUSHJ   RETREG,GCRLF
+        POPJ    17,0
+PUNC10: ADDM    1,FCBOWB(FCBREG)
+        POPJ    RETREG,0
+
+TRISC:  MOVEI   OCB,BLKBUF-OCBOTP       ; SET UP A DUMMY SHORT OCB ->TYPE
+        MOVEM   0,OCBOTP(OCB)
+        DMOVE   0,0(1)  ; NOW PICK UP OPERAND
+        DMOVEM 0,OCBOPD(OCB)
+        MOVEI   A0,1    ; SET FREE FORM IN A0 (R1)
+        PUSHJ   17,E191
+        MOVEI   1,ISCBUF
+        POPJ    17,0    ; R1 POINTS TO FIRST WORD OF CONVERSTED VALUE
+        subttl  ISC     internal to string conversion
+;
+E191:   ; INTERNAL TO STRING CONVERSION
+ISC:
+        SETZM   ISCBUF  ; ZERO OUT STRING BUFFER FOR ASCIZ 
+
+        JUMPE   A0,SAVEFP       ; E191.12
+        MOVE    A0,OCBOTP(OCB)
+        JRST    .+1(A0)
+
+        JRST    ISC3    ; LOGICAL
+        JRST    ISC3    ; INT
+        JRST    ISC4    ; REAL
+        JRST    ISC5    ; DOUBLE
+        JRST    ISC8    ; COMPLEX
+
+ISC3:   MOVE    A1,OCBOPD(OCB)
+        PUSHJ   RETREG,RIISC
+        SETZ    ISCPTR,
+        PUSHJ   RETREG,CFFOS
+        JRST    ISC11   ; COMPUTE LENGTH
+
+ISC4:   MOVE    FR1,OCBOPD(OCB)
+        SETZ    FR2,
+        JRST    ISC5A
+
+ISC5:   DMOVE   FR1,OCBOPD(OCB)
+        ORI     FR2,1
+ISC5A:  PUSHJ   RETREG,FISC
+        SETZ    ISCPTR,0
+        PUSHJ   RETREG,CFFOS
+
+ISC11:  LDB     0,[POINT 6,ISCPTR,5]
+        SUBI    0,44
+        MOVM    0,0
+        IDIVI   0,6
+        HRRZ    1,ISCPTR
+        SUBI    1,ISCBUF
+        IMULI   1,5
+        ADD     0,1     ; LENGTH IN 0
+        SETZ    1,0     ; GENERATE A TRAILING 0 BYTE FOR ASCIZ OUTPUT
+        IDPB    1,ISCPTR
+        POPJ    RETREG,0
+
+ISC8:   MOVE    FR1,OCBOPD(OCB)
+        SETZ    FR2,
+        PUSHJ   RETREG,FISC
+        SETZ    ISCPTR,0
+        PUSHJ   17,CFFOS
+        PUSHJ   RETREG,FISCIP   ; FISC IMAGE PORT
+        JRST    ISC11
+
+SAVEFP: ; SAVE FORMAT PARAMETERS
+
+        JUMPGE  A2,.+2  ; WEED OUT NEGATIVE VALUES IN FD AND ED
+        SETZ    A2,
+        JUMPGE  A3,.+2
+        SETZ    A3,
+        MOVEM   A1,ISCID        ; INT DIGITS
+        MOVEM   A2,ISCFD        ; FRACTIONAL DIGITS
+        MOVEM   A3,ISCED        ; EXPONENT DIGITS
+
+        MOVE    A0,OCBOTP(OCB)
+        JRST    .+1(A0)
+
+        JRST    ISC14   ; LOGICAL
+        JRST    ISC14   ; INT
+        JRST    ISC15   ; REAL
+        JRST    ISC17   ; DOUBLE
+        ; FORMATTED COMPLEX = 2 REALS !!
+
+ISC14:  MOVE    A1,OCBOPD(OCB)
+        PUSHJ   RETREG,RIISC
+        JRST    ISC18
+
+ISC15:  MOVE    FR1,OCBOPD(OCB)
+        SETZ    FR2,
+        JRST    ISC17A
+
+ISC17:  DMOVE   FR1,OCBOPD(OCB)
+        ORI     FR2,1   ; FORCE DOUBLE CONVERSION
+ISC17A: PUSHJ   RETREG,FISC
+
+ISC18:  PUSHJ   RETREG,GFSAS
+
+        POPJ    RETREG,0
+
+GFSAS:  ;GENERATE FORMATTED DIGIT STRING AND/OR STATUS
+
+        SKIPE   ISCDIG
+        JRST    GFSAS3
+        SETZ    A0,
+        POPJ    RETREG,0
+
+GFSAS3: MOVE    0,ISCED
+        JUMPLE  GFSAS9  ; NO EXP PART
+
+        CAIE    0,1
+        JRST    GFDSE   ; EOFRMAT       USES FULL DIGIT FIELD
+        MOVM    0,ISCEXP
+        CAIGE   0,12
+        JRST    GFDSE   ; SPECIAL E FORMAT HANDLING
+        MOVE    A0,[-2]
+        POPJ    RETREG,0
+
+GFSAS9: MOVE    0,ISCEXP
+        CAMG    0,ISCID ; CHECK FOR TOO BIG TO FIT
+        JRST    GFDS
+        MOVE    A0,[-1]
+        POPJ    RETREG,0
+
+
+
+GFDSE:  MOVE    A1,ISCID        ; USE HIS WHOLE WORKS
+        JRST    GFDSA   ; FOR E FORM FIELDS
+;
+GFDS:   MOVE    A1,ISCID
+        CAME    A1,ISCEXP
+        MOVE    A1,ISCEXP
+GFDSA:  ADD     A1,ISCFD
+        CAML    A1,ISCDIG
+        JRST    GFDSIZ
+        JUMPGE  A1,GFDS5        ; KEEP GOING IF WE HAVE SIG     DIGITS
+        SETZB   A0,ISCDIG       ; RECORD GOOD STATUS BUT NO DIGITS
+        POPJ    RETREG,
+GFDS5:  MOVEM   A1,ISCDIG
+        MOVE    0,ISCSCX(A1)
+        CAIGE   0,5
+        JRST    GFDSIZ
+        SOJGE   A1,GFDS9        ; REDUCE ISCDIG
+        MOVEI   A0,1
+        MOVEM   A0,ISCSCX
+        MOVEM   A0,ISCDIG
+        AOS     ISCEXP
+        JRST    GFDSIZ  ; SLIDE CHECK AT GFDS15
+GFDS9:  MOVEI   A0,1
+        ADDB    A0,ISCSCX(A1)
+        CAILE   A0,9
+        JRST    GFDS5
+
+GFDSIZ: MOVE    ISCPTR,[POINT 7,ISCBUF]
+        SETZ    A0,
+GFDS13: MOVE    0,ISCSCX(A0)
+        ADDI    0,60
+        IDPB    0,ISCPTR
+        ADDI    A0,1
+        CAMGE   A0,ISCDIG
+        JRST    GFDS13
+        SKIPE   ISCSGN
+        MOVNS   ISCDIG
+
+; GFDS19        RESTORE REGS ^ FADR??
+
+        SETZ    A0,
+        MOVE    0,[POINT 7,ISCBUF]
+        MOVEM   0,UTPTR
+        POPJ    RETREG,0
+CFFOS:  ;
+
+        JUMPN   ISCPTR,.+2
+        MOVE    ISCPTR,[POINT 7,ISCBUF]
+        ; CFFOSI IS ENTRY FO R IP OF FREE FORM COMPLEX
+CFFOSI: MOVEI   0,40    ; LOAD SPACE FOR SIGN
+        SKIPE   ISCSGN
+        MOVEI   0,55    ; MINUS SIGN
+
+        IDPB    0,ISCPTR
+
+        MOVE    0,OCBOTP(OCB)
+        MOVE    A1,ISCEXP       ; A1=   DEC     EXP
+        CAIG    0,1
+        JRST    CFFO22  ; INT OR LOGICAL
+        CAIG    A1,7
+        CAIGE   A1,0    ; -1 < ISCEXP <= 8
+        JRST    CFFOS8
+
+CFFO22: SKIPE   ISCDIG
+        JRST    CFFO23  ; NON ZERO RESULT
+        MOVEI   0,60
+        IDPB    0,ISCPTR
+        JRST    CFFOUT
+
+CFFO23: SETZ    A2,     ; COUNTER OF DIGITS
+
+CFFO24: CAME    A1,A2   ; A1=DEC EXP    A2=GEN'D DIGITS
+        JRST    CFFO27
+        MOVEI   0,56
+        IDPB    0,ISCPTR
+CFFO27: MOVE    0,ISCSCX(A2)
+        ADDI    0,60
+        IDPB    0,ISCPTR
+        ADDI    A2,1
+        CAMGE   A2,ISCDIG
+        JRST    CFFO24
+CFFO28: CAMG    A1,A2   ; DO WE NEED TO SLIP IN ZEROES
+        JRST CFFOUT     ; NO
+        MOVEI   0,60
+        IDPB    0,ISCPTR
+        ADDI    A2,1
+        JRST CFFO28     ; LOOP UNTIL ALL ZEROES ARE OUT
+;
+;
+;
+CFFOUT: POPJ    RETREG,0
+
+CFFOS8: MOVEI   0,56    ; DECIMAL POINT
+        IDPB    0,ISCPTR
+
+        SETZ    A2,
+
+CFFO10: MOVE    0,ISCSCX(A2)
+        ADDI    0,60
+        IDPB    0,ISCPTR
+        ADDI    A2,1
+
+        CAMGE   A2,ISCDIG
+        JRST    CFFO10
+
+        MOVEI   0,105   ; 'E'
+        IDPB    0,ISCPTR
+
+        MOVE    A0,ISCEXP
+        MOVEI   0,53    ; "+"
+        JUMPGE  A0,.+3
+        MOVEI   0,55    ; "-"
+        MOVN    A0,A0
+        IDIVI   A0,12
+        ADDI    A0,60
+        ADDI    A1,60
+        IDPB    0,ISCPTR        ; SIGN
+        IDPB    A0,ISCPTR       ; EXPONENT
+        IDPB    A1,ISCPTR       ; DIGITS
+
+        POPJ    RETREG,0
+
+FISCIP: ; HANDLE IMAGINARY PART OF FREE FORM COMPLEX
+
+        MOVEI   0,54    ;
+        IDPB    0,ISCPTR
+        MOVE    A0,[XWD ISCBUF,ISCBRP]
+        BLT     A0,ISCBRP+2     ; 3 WORDS
+        ADDI    ISCPTR,ISCBRP-ISCBUF
+        MOVEM   ISCPTR,UTPTR
+        SETZ    FR2,
+        MOVE    FR1,OCBOP1(OCB)
+        PUSHJ   RETREG,FISC
+        MOVE    ISCPTR,UTPTR
+        PUSHJ   RETREG,CFFOSI
+        MOVE    A0,[XWD ISCBRP,ISCBUF]
+        BLT     A0,ISCBUF+5
+        SUBI    ISCPTR,ISCBRP
+        ADDI    ISCPTR,ISCBUF
+        POPJ    RETREG,0        ; FINISH UP
+;
+;
+;
+RIISC:  JUMPE   A1,SCLZER       ; DO A MANNERED ZERO CONVERSION
+        SETZB   SIG,ISCSGN      ; ASSUME POSITIVE
+        SETZM   ISCOVF  ; FLAG NO OVERFLOW
+        JUMPGE  A1,RII3
+        SETOM   ISCSGN
+        MOVN    A1,A1
+        JUMPG   A1,RII3 ; NORMALLY A POSITIVE RESULT
+        SETCA   A1,; LARGEST NEG INTEGER IS JIMMIED
+        SETOM   ISCOVF  ; MARK TO ADJUST IT DOWNSTREAM
+RII3:   ; NOW CONVERT BY REPEATED DIVISION
+RII5:   IDIVI   A1,12
+        MOVEM A2,ISCSCB(SIG)    ; DEPOSIT DIGIT
+        SUBI    SIG,1
+        JUMPG   A1,RII5
+        MOVN    SIG,SIG ; NOW TURN AROUND AND ALLIGN SIGITS IN SICBUF
+        MOVEM   SIG,ISCEXP      ; SET GENERATED DIGITS AND DECIMAL EXPONENT
+        MOVEM   SIG,ISCDIG      ; GEN'D DIGS
+        MOVEI   A1,ISCSCB+1
+        SUB A1,SIG
+        HRL A1,A1
+        HRRI    A1,ISCSCX
+        BLT     A1,ISCBUF(SIG)  ; ISCBUF IS ISCSCX-1
+        SKIPE   ISCOVF  ; OVERFLOW MUST INC LAST DIGIT
+        AOS     ISCSCX+12       ; 11TH DIGIT GETS BUMPED FOR LARGEST NEG INT.
+        SKIPE   ISCSGN
+        MOVN    SIG,ISCDIG      ; FLAG NEGATIVE SIGN
+RIIFIN: POPJ    RETREG,0
+
+
+FISC:   JUMPE   FR1,SCLZER      ; BAIL OUT ON ZERO
+        MOVE    SIG,SIGNIF
+        JUMPLE SIG,.+2
+        CAILE   SIG,22  ; 18 DIGITS MAX
+        MOVEI   SIG,22  ; DEFAULT TO 18
+        JUMPN FR2,.+3   ; JUMP IF DOUBLE
+        CAILE   SIG,7
+        MOVEI   SIG,7   ; ONLY 7 DIGS FOR REAL
+        MOVN    SIG,SIG
+        HRLZ    SIG,SIG
+        HRR     SIG,SIGMSK      ; 
+FISC2:  ;
+        SETZ    UBE,0   ; RUNSIDE FLOATING CONVERSION ROUTINE
+        SETZM   ISCSGN; PROVISIONALLY SET POSITIVE SIGN
+        JUMPGE  FR1,SCALE; JUMP IF POS
+        DMOVN FR1,FR1
+        SETOM   ISCSGN
+        JUMPGE  FR1,SCALE       ; CONTINUE IF VALUE >=0
+        MOVE    FR1,[377777777777]      ; HANDLE LARGEST NEG VALUE SPECIALLY
+        MOVE    FR2,FR1
+        
+SCALE:  CAMGE   FR1,BNDRY       ; TREAT LESS THAN BNDRY AS ZERO
+        JRST    SCLZER
+        LDB     UBE,FISCP       ; UNPACK        EXPONENT
+        SETZM   ISCEXP  ; SET DEC EXPONENT =0
+        CAILE   UBE,200
+        JRST    SCAL3   ; BINARY EXPONENT       >200
+        CAILE   UBE,174
+        JRST    SCAL7
+        SUBI    UBE,200
+        MOVN    UBE,UBE
+        MUL     UBE,LOGT2
+        MOVNM UBE,ISCEXP        ; SAVE THE PROVISIONAL DECIMAL EXPONENT
+        ROT     UBE,1
+        DFMP    FR1,ISCK(UBE)
+        JRST    SCAL7
+SCAL3:  SUBI    UBE,201
+        MUL UBE,LOGT2
+        ADDI    UBE,1; INCREMENT BINARY EXPONENT
+        MOVEM   UBE,ISCEXP      ; SAVE PROVISONAL DEC EXPONENT
+        ROT     UBE,1
+        DFDV    FR1,ISCK(UBE)
+SCAL7:  CAMGE   FR1,BEMZ
+        CAMGE   FR1,BEM4
+        JRST FNLSCL     ; FURTHER SCALING REQUIRED
+        SETZ    0
+        LDB     UBE,FISCP       ; RECOVER EXPONENT
+        SUBI    UBE,200
+        AND     FR1,[777777777] ; CLEAR THE EXPONENT FIELD
+SCAL11: ASHC FR1,0(UBE) ; ALLIGN ON THE EXPONENT 
+        PUSHJ   RETREG,GENDIG   ; GENERATE A DIGIT IF POSSIBLE
+        JUMPG   0,SCLGEN        ; GOT THE FIRST DIGIT GEN THE REST
+        SOS     ISCEXP  ; REDUCE THE DECIMAL EXPOENENT
+        ORI     FR2,2   ; RETRIEVE ANY LOST IMAGINARY PRECISION
+        JRST SCAL11+1
+        ;
+        ; 
+SCLGEN: ; NOW GENER@TE THE DIGIT STRING FOR THIS BEAUTY
+        ; SIG   CONTAINS THE SIGNIFICANCE MASK
+        JRST    .+2     ; BEND THE STRUCTURE SLIGHTLY..EVER SO SLIGHTLY
+        PUSHJ   RETREG,GENDIG   ; GENERATE NEXT DIGIT IN RO
+        MOVEM   0,0(SIG)        ; STACK THE DIGIT
+        JUMPG   FR1,.+2 ; CHECK FOR ZERO ACCUM
+        JUMPE   FR2,ISCCLN      ; ZERO QUITS CLEAN CONVERSION
+        AOBJN   SIG,.-4 ; LOOP FOR DIGITS
+        CAMGE   FR1,[377400000] ; ROUND AT .499023475
+        JRST    ISCOUT  ; NO ROUNDING INDICATED
+        HRRZ    UBE,SIG
+        SUBI    UBE,ISCSCX      ; DETERMINE NUMBER OF GEN'D DIGITS
+        MOVE    0,-1(SIG)       ; POP LAST DIGIT
+        ADDI    0,1
+        CAIG    0,11    ; >9
+        JRST    ISCRND  ; JUST ROUND LAST DIGIT
+        SUBI    SIG,1
+        SOJG    UBE,.-5
+        AOS     ISCEXP  ; BUMP THE DECIMAL EXPONENT
+        MOVEI   2,1
+        MOVEM   2,ISCSCX
+        JRST ISCFIN
+        ;
+        ;
+ISCCLN: AOJA SIG,ISCRN1 ; KICK THE DIGIT COUNT
+;
+;
+        SUBI    SIG,1
+ISCOUT: SKIPE   -1(SIG)
+        JRST    ISCRND+1
+        JRST    ISCOUT-1
+ISCRND: MOVEM   0,-1(SIG)       ; REPLACE ROUNDED DIGIT
+ISCRN1: SUBI    SIG,ISCSCX
+        HRRZ    2,SIG
+ISCFIN: MOVEM   2,ISCDIG
+        POPJ    RETREG,0        ; RETURN ON STACKED CALL
+;
+;
+;
+SCLZER: SETZM   ISCEXP  ; SET DE =0
+        SETZM   ISCSGN
+        SETZM   ISCDIG
+        POPJ    RETREG,0
+
+
+GENDIG: IMULI   FR1,12
+        MULI    FR2,12
+        ADD     FR1,FR2 ; HIGH + HIIGH(LOW)
+        MOVE    FR2,FR3 ; ADJUNCT THE LOW MANTISSA
+        LDB     0,FISCP ; CAPTURE DIGIT IN R0
+        AND FR1,[777777777]     ; CLEAR THE HIGH BITS
+        POPJ    RETREG,0
+;
+;
+;
+FNLSCL: CAMGE   FR1,BEMZ
+        JRST FNLS1; UBE <0
+        DFDV    FR1,ISCK+2
+        AOS     ISCEXP  ; KICK DECIMAL EXPONENT
+        JRST    SCAL7
+FNLS1:  DFMP    FR1,ISCK+2
+        SOS     ISCEXP  ; DECREMENT DECIMAL EXPOENENT
+        JRST SCAL7
+FISCP:  POINT   8,FR1,8
+BEM4:   175400000000
+        0
+BEMZ:   1.0
+        0
+LOGT2:  115040465037    ; LOG BASE 10   OF 2 (WITH LOW BITS ON  17)
+UBE=4
+FR1=1
+FR2=2
+FR3=3
+SIG=6
+        ;
+SIGMSK: IOWD    7,ISCSCX+1
+        END
+  *J
