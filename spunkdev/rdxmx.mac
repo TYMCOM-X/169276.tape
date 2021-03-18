@@ -1,0 +1,395 @@
+        TITLE   RDXMX
+        TWOSEG
+        RELOC   ^O400000
+
+;  RDXMX:   ARRAY DECLARATION
+;         R1=ADDRESS OF ARRAY DESCRIPTOR
+;         R2=DECLARED STRING LENGTH (FOR STRING ARRAY ONLY)
+
+
+        ENTRY   RDXMX,MASF,RDXMXD
+        EXTERN  PREG,RSMREL,DEBGSW
+
+        ENTRY   GAA,GAAD                ; TEMPORARY FIX. JPS.
+        EXTERN  GAAPT,GAADPT
+
+
+        OPDEF   ERROR   [^O32B8]
+
+        RADIX   10
+
+
+RXP==15
+
+;  RDXMX.1
+        DCL     RDXMX,<,ADSRX,MSLX>;NOTE****MUST BE IDENTICAL TO RDXUX DCL!!!!**
+        HLRZ    R3,.amap(R1)    ;map bits for slice
+        SKIPE   R3
+        SETZM   .aloc(R1)       ;if slice or other garbage, zero pointer word
+        JRST    RDXM1A  ;jump in past the slice check
+        RETURN  RDXMX
+;  .1.1
+RDXMXD:                 ; DUMMY ENTRY POINT FOR LATER USE BY COMPILE SIDE
+        DCL     RDXUX,<,ADSR,MSL>
+
+;Check to make sure the array descriptor is not a slice descriptor:
+
+        HLRZ    3,.aloc(1)
+        SKIPE   3
+        ERROR   NOCORE+2        ;Attempt to redimension a subarray
+
+
+;Check all dimensions for lower bound <= upper bound:
+
+RDXM1A: HRRZI   5,.hdsiz(1)     ;address of first dimension's bounds
+        HRRZ    6,.andim(1)     ;/ANDIM
+
+RDXCHK: SOJL    6,RDXREL
+        HLRE    3,(5)           ;lower bound for this dimension
+        HRRE    4,(5)           ;upper bound
+        CAMLE   3,4             ;MUST BE <=
+        ERROR   ESCMSG+3
+        AOJA    5,RDXCHK
+
+;  .1.2
+RDXREL: HRRZ    3,.aloc(r1)     ;aloc
+        JUMPE   3,RMX17
+;  .1.3
+        HLRZ    R0,.atyp(R1)    ;/ATYP
+        CAIE    R0,5
+        JRST    RMX15
+;  .1.4
+        CALL    RSMREL
+        JRST    RMX16
+;  .1.5 
+RMX15:  REL          ;ADDRESS IN R1
+;  .1.6
+RMX16:  MOVE    1,ADSR
+;  .1.7
+RMX17:  HRRZ    7,.andim(1)
+        MOVE    6,7     ;SAVE /ANDIM
+        ADDI    7,3(1)  ;/ANDIM+3+ADSR
+        HRLI    7,^O442200
+;  .2,.3,.4,.5
+        HLRZ    0,.atyp(1)
+        MOVEI   2,2
+        CAIGE   0,3
+        MOVEI   2,1
+;  .6
+        CALL    MASF
+;  .7
+        HRRZ    6,.andim(1)
+        MOVE    3,.cadr(6)     ;DSZ
+        MOVE    4,3             ;SAVE DSZ
+        ADD     3,1             ;ACCADR
+        MOVE    8,3
+;  .8
+        CAILE   6,2
+        JRST    RMX11
+        CAIL    6,2
+        JRST    RMX10
+;  .9
+;  .9.1
+        MOVEI   4,arycdl(1)-1(3)
+        HRLI    8,AAC1
+        BLT     8,(4)
+;  .9.2
+        MOVE    4,.hdsiz(1)
+        HLRM    4,(3)   ;LB
+        HRRM    4,1(3)  ;UB
+;  .9.3
+        MOVE    4,.hdsiz+1(1)   ;access coefficient for 1 dim array
+        HLRM    4,5(3)  ;ACOEF
+;  .9.4
+        HRRM    5,6(3)  ;/ABASE
+;  .9.5
+        JRST    RMX12
+;  .10
+;  .10.1
+RMX10:  MOVEI   4,arycdl(2)-1(3)
+        HRLI    8,AAC2
+        BLT     8,(4)
+;  .10.2
+        MOVE    4,.hdsiz(1)
+        HLRM    4,(3)   ;LB0
+        HRRM    4,1(3)  ;UB0
+        MOVE    4,.hdsiz+1(1)
+        HLRM    4,6(3)  ;LB1
+        HRRM    4,7(3)  ;UB1
+;  .10.3
+        MOVE    4,.hdsiz+2(1)
+        HLRM    4,5(3)  ;ACOEF0
+        HRRM    4,11(3)  ;ACOEF1
+;  .10.4
+        HRRM    5,13(3)  ;/ABASE
+;  .10.5
+        JRST    RMX12
+;  .11
+;  .11.1,2,3,4
+RMX11:  MOVEI   2,GAAC
+        SKIPE   DEBGSW
+        MOVEI   2,GAACD 
+        HLL     4,(2)   ;DESCRIPTOR SIZE (DSZ) IN RIGHT HALF FROM .7
+        MOVE    5,1(2)
+        DMOVEM  4,(3)   ;R3=ACCADR
+;  .12
+;  .12.1
+RMX12:  HLRZ    0,1(1)  ;/ABSZ
+        HLRZ    3,2(1)  ;/ATYP
+;  .12.2,3,4
+        SETZ    2,      ;.3
+        CAIN    3,5     ;.2
+        MOVEI   2,1     ;.4
+;  .12.5
+        ALLOC
+;  .13
+;  .13.1
+        MOVE    5,ADSR
+        HLRZ    6,2(5)  ;/ATYP
+        HLRZ    7,1(5)  ;/ABSZ
+
+        HRRZ    2,0(5)  ;NDX
+        MOVE    4,2     ;SAVE NDX
+;  .13.2
+        SETZM   ,(2)
+        MOVEI   3,1(2)
+        HRL     3,2
+        ADDI    2,-1(7)
+        BLT     3,(2)
+;  .13.3
+        CAIE    6,5     ;/ATYP=5?
+        JRST    RMX14   ;NO
+;  .13.4
+        ADD     7,4     ;LIM
+        HRRZ    0,MSL   ;STOR
+;  .13.5
+RMX135: MOVEM   0,1(4)
+        ADDI    4,2
+;  .13.6
+        CAMGE   4,7
+        JRST    RMX135
+;  .14
+RMX14:  RETURN  RDXUX
+
+
+;  MAKE ARRAY STORAGE FUNCTION
+
+MASF:
+;  .6.1
+        JUMPE   6,RMX67         ; ZERO DIM SLICE??
+
+        IDPB    2,7
+        MOVE    4,1     ;I
+        SETZ    5,      ;BASE
+        MOVE    3,2     ;COPY TMP
+;  .6.2
+RMX62:  HLRE    0,3(4)  ;LB
+        IMUL    2,0     ;TMP*LB
+        ADD     5,2     ;BASE+TMP*LB
+;  .6.3
+        HRRE    2,3(4)  ;UB
+        SUB     2,0     ;UB-LB
+        ADDI    2,1     ;(UB-LB)+1
+        IMUL    3,2     ;  *TMP
+        MOVE    2,3     ;COPY TMP
+;  .6.4
+        ADDI    4,1     ;I+1
+;  .6.5
+        SOJE    6,RMX67
+;  .6.6
+        IDPB    2,7     ;STORE ACOEF
+        JRST    RMX62
+;  .6.7
+RMX67:  HRL     2,2     ;/ABSZ
+;  .6.8
+        MOVN    5,5     ;-BASE=
+        HRR     2,5     ;/ABASE
+        MOVEM   2,1(1)
+
+        POPJ    RXP,
+
+
+
+
+
+;  ARRAY ACCESS CODE FOR ONE, TWO, AND GENERAL DIMENSIONALITY CASES
+
+;       SINGLE DIMENSION CASE
+
+AAC1:   HRREI   0,      ;.1
+        HRREI   3,
+        CAML    1,0
+        CAMLE   1,3
+        ERROR   ME0     ;.2
+        IMULI   1,      ;.3
+        ADDI    1,
+        JSP     2,PCTOR2
+        HRRZ    2,^D-13(2)
+        ADDI    2,(1)
+        POPJ    RXP,    ;.4
+
+
+;       DOUBLE DIMENSION CASE
+
+AAC2:   HRREI   0,      ;.1
+        HRREI   3,
+        CAML    1,0
+        CAMLE   1,3
+        ERROR   ME0     ;.2
+        IMULI   1,      ;.3
+        HRREI   0,      ;.4
+        HRREI   3,
+        CAML    2,0
+        CAMLE   2,3
+        ERROR   ME0     ;.5
+        IMULI   2,      ;.6
+        ADD     1,2
+        ADDI    1,
+        JSP     2,PCTOR2
+        HRRZ    2,^D-21(2)
+        ADDI    2,(1)
+        POPJ    RXP,    ;.7
+
+
+;       GENERAL CASE
+
+GAAC:   MOVEI   2,              ;NO DEBUG
+        JSP     1,@GAAPT        ; TEMPORARY FIX. JPS.
+
+
+GAACD:  MOVEI   2,              ;DEBUG
+        JSP     1,@GAADPT       ; TEMPORARY FIX. JPS.
+
+
+
+;  ERROR ROUTINE
+
+ERROUT: ERROR   ME0             ;ARRAY SUBSCRIPT OUT OF BOUNDS
+
+
+
+
+
+; TO GET THE PC TO R2
+; USED TO GET ADRESS OF THE BODY OF ONE AND TWO DIMENSIONAL ARRAYS
+
+PCTOR2: JRST    (2)
+
+
+;  NON DEBUG ACCESS
+
+;  .1
+GAA:    HRRZ    1,1     ;CLEAR OUT FLAGS
+        SUBI    1,2(2)  ;DESCRIPTOR ADDRESS
+        HRRZ    2,.andim(1)
+        MOVE    3,2
+        ADDI    3,3(1)
+        HRLI    3,^O442200
+
+        SETZ    4,      ;NDX
+        MOVEI   5,PREG  ;PSEUDO REG. ADDRESS
+;  .2
+GAA2:   ILDB    6,3
+        IMUL    6,(5)
+        ADD     4,6
+;  .3
+        ADDI    5,1
+; .4
+        SOJG    2,GAA2
+;  .5
+        MOVE    2,.absz(1)
+        HLRZ    5,2     ;/ABSZ
+        HRRE    2,2     ;/ABASE
+        ADD     4,2
+;  .6
+        JUMPL   4,ERROUT  ;.7
+        CAML    4,5
+        JRST    ERROUT    ;.7
+;  .8
+        HRRZ    2,0(1)
+        ADD     2,4
+;  .9
+        POPJ    RXP,
+
+
+
+
+;  DEBUG ACCESS
+
+;  .1
+GAAD:   HRRZ    1,1     ;CLEAR OUT FLAGS
+        SUBI    1,2(2)  ;DESCRIPTOR ADDRESS
+        HRRZ    2,.andim(1)
+        MOVE    3,2
+        ADDI    3,3(1)  ;ADSR+3+/ANDIM
+        HRLI    3,^O442200      ;BTYE PTR TO ACOEF'S
+
+        SETZ    4,      ;NDX
+        MOVEI   5,PREG  ;PSEUDO REG ADDRESS
+        MOVEI   6,3(1)  ;ADRS+3
+;  .2
+GAAD2:  MOVE    0,(5)   ;COORD
+        HLRE    7,0(6)  
+        CAMGE   0,7
+        JRST    ERROUT  ; .3
+        HRRE    7,0(6)
+        CAMLE   0,7
+        JRST    ERROUT  ; .3
+;  .4
+        ILDB    7,3
+        IMUL    7,0
+        ADD     4,7
+;  .5
+        ADDI    5,1
+        ADDI    6,1
+;  .6
+        SOJG    2,GAAD2
+;  .7
+        HRRE    2,1(1)
+        ADD     4,2
+        HRRZ    2,0(1)
+        ADD     2,4
+;  .8
+        POPJ    RXP,
+
+
+;  DESCRIPTOR DATA AREA SIZE TABLE
+;This is the offset distance between the top of the descriptor
+;and the first word of the access code. The numbers are valid for both
+;sliced and non.
+
+.cadr:: CADRTB
+
+;Table of total descriptor sizes for non-slice descriptors.
+;Use routine .DSCSZ to get the size of an arbitrary array descriptor.
+
+        INTERN  .szdsc
+
+.szdsc: SZTARY
+
+;Routine to calculate the size of an arbitrary array descriptor.
+;Input: R1 - address of the descriptor, containing the slice bits and the
+;number of dimensions, at least.
+;Output: R1 - total descriptor size
+
+        DCL     .DSCSZ
+
+        HLRZ    R2,.ahcnt(R1)   ;slice bits
+        JUMPE   R2,NOTSLC
+
+        HRRZ    R0,.andim(R1)   ;# dims
+        LSH     R2,-^D14        ;get count of # of hidden dims
+        MOVE    R1,R2
+        CALL    .SLCDR          ;get size
+        JRST    DSCSZ$
+
+NOTSLC: HRRZ    R1,.andim(R1)   ;# dims
+        MOVE    R1,.SZDSC(R1)   ;total size
+
+DSCSZ$: RETURN  .DSCSZ
+
+;Generate the .SLCDR routine:
+
+        slcdsr
+
+        END
