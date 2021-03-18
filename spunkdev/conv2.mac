@@ -1,0 +1,115 @@
+        TITLE   CONV2
+        TWOSEG
+        RELOC   ^O400000
+        ENTRY   CONV2
+        RADIX   10
+
+R8==8
+R9==9
+RXP==15
+;
+;
+;   CONV2 ROUTINE
+;
+;
+CONV2:
+;  .1
+        MOVE    R7,(R1)         ;R1=ONDX
+;  .2
+        JRST    @CVTBL1(R6)     ;R6=NT
+CVTBL1: CON3                    ;LOGICAL
+        CON5                    ;INTEGER
+        CON7                    ;REAL
+        CON7                    ;DOUBLE
+        CON7                    ;COMPLEX
+        CON7                    ;STRING-NOT-POSSIBLE
+;  .3
+CON3:   JUMPE   R7,CON8
+;  .4
+        MOVEI   R7,1
+        JRST    CON8
+;  .5
+CON5:   JUMPE   R5,CON8         ;OT=LOG?
+;  .6.1
+        CAIN    R5,3            ;OT=DBL?
+        JRST    CON63
+;  .6.2
+        FIXR    R7,R7
+        JRST    CON8
+;  .6.3
+CON63:  MOVE    R9,R7
+        TLNN    R7,^O400000
+        TLZA    R7,^O377000
+        TLO     R7,^O377000
+;  .6.4
+        ASH     R9,-27
+        TRNE    R9,^O400
+        SETCA   R9,0
+        SUBI    R9,128+27
+        MOVE    R8,1(R1)        ;VLO=$(ONDX+1)
+        ASHC    R7,0(R9)
+        TLNE    R8,^O200000
+        ADDI    R7,1
+;  .7.1
+CON7:   SETZ    R8,
+;  .7.2
+        JRST    @CVTBL2(R5)     ;R5=OT
+CVTBL2: CON73                   ;LOGICAL
+        CON75                   ;INTEGER
+        CON712                  ;REAL
+        CON710                  ;DOUBLE
+        CON712                  ;COMPLEX
+        CON712                  ;STRING-NOT-POSSIBLE
+;  .7.3
+CON73:  JUMPE   R7,CON712
+;  .7.4
+        HRLZI   R7,^O201400
+        JRST    CON712
+;  .7.5
+CON75:  CAIN    R6,3            ;NT=DBL?
+        JRST    CON77
+;  .7.6
+        FLTR    R7,R7
+        JRST    CON712
+;  .7.7
+CON77:  SETZ    R9,             ;FLG
+        JUMPGE  R7,.+3
+        MOVN    R7,R7
+        MOVEI   R9,1
+;  .7.8
+        JFFO    R7,.+2
+        JRST    CON79X
+        MOVE    R10,R8          ;T1
+        SETZ    R8,
+        LSHC    R7,-9(R10)
+        MOVEI   R11,128+36      ;T2
+        SUB     R11,R10
+        LSH     R11,27
+        IOR     R7,R11
+;  .7.9
+        JUMPE   R9,CON712
+        DMOVN   R7,R7
+CON79X: JRST    CON712
+;  .7.10
+CON710: MOVE    R10,1(R1)       ;T1
+;  .7.11
+        TLNN    R10,^O200000
+        JRST    .+4
+        ADDI    R7,1
+        TLNN    R7,^O400000
+        TLO     R7,^O400
+;  .7.12
+CON712: CAIN    R6,3            ;NT=DBL?
+        JRST    CON713
+        CAIE    R6,4            ;NT=CMPLX
+        JRST    CON8
+;  .7.13
+CON713: MOVEM   R8,1(R2)        ;VLO
+;  .8
+CON8:   MOVEM   R7,0(R2)        ;VHI
+;
+        POPJ    RXP,
+;
+;
+        LIT
+        END
