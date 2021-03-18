@@ -1,0 +1,43 @@
+        TITLE   RRMOV - REMOVE file
+
+        TWOSEG
+        RELOC   400000
+
+        EXTERN  .OPEN, .LNDRY, RELSP, PUBFER
+
+        DCL     RRMOV,<,,STR1,,,STRCOD>,<RETCOD,SIXADR>
+
+        MOVE    R0,(R2)
+        SETZ    R1,
+        MOVSI   R2,RMVFIL
+        CALL    .LNDRY,,<RETCOD,SIXADR>
+        MOVE    R1,STRCOD
+        TRNN    R1,3B35
+        JRST    RRMOV1
+        MOVE    R1,STR1
+        MOVE    R1,(R1)
+        PUSHJ   P,RELSP
+RRMOV1: SKIPGE  R1,RETCOD
+        JRST    RRMV10          ;ignore TERMINAL
+        JUMPE   R1,RRMOV2
+        MOVE    R2,STR1
+        MOVE    R0,(R2)
+        HRREI   R2,RMVFIL
+        PUSHJ   P,PUBFER
+RRMOV2: MOVEI   R1,DELMD        ;delete
+        LSH     R1,6
+        ADD     R1,[RMVFIL&^O77]
+        LSH     R1,^D18
+        TRO     R1,O.CL
+        MOVE    R0,SIXADR
+        CALL    .OPEN
+        SKIPLE  R1
+        CAIN    R1,PGRMSG+6             ;file not found is ok
+        JRST    RRMV10
+        MOVE    R2,STR1
+        MOVE    R0,(R2)
+        HRREI   R2,RMVFIL
+        PUSHJ   P,PUBFER
+RRMV10: RETURN  RRMOV
+
+        END
