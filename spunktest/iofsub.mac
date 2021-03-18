@@ -1,0 +1,1150 @@
+        TWOSEG
+        RELOC   ^O400000
+        RADIX   10
+;
+;************************************************************
+        TITLE   IOFSUB  I/O SUBROUTINES FOR "FORM ONLY" SEGMENT
+;************************************************************
+;
+        EXTERN  ODBLNK, .OTCAR, ERROR, FMTERR, CVTERR
+        EXTERN  IDGCHR, IDSKIP, FDRVI, FDRVO, FRMSCN
+        EXTERN  RINPT, RKLFMT, RPRTV
+        EXTERN  BEGLVB, COUNTT, CTR, DRSTG, FLSCHR, IPEP, ISCDG1, ISCEXP
+        EXTERN  LAST, LEAD, LENG, NESTB, NSTFLS, RPEATB, SAVA0, SAVA1
+        EXTERN  SAVA2, SAVLEN, SAVREG, STRSLT, UTPTR, VALIPT, VALRST
+;
+        ENTRY   RIOF, LITFLS, FBSP, SFDP, SFEXP, SFST10
+        ENTRY   SFDGET, FLSHST, STATIC, .FLTCH, ODSPCS, RSVL2, RSST2
+;
+        INTERN  IOBTBL
+;
+;
+;************************************************************
+        SUBTTL  RIOF  CHART RS91
+        DCL     RIOF
+;************************************************************
+;
+;      SET UP FOR FORM I/O, AND JUMP TO THE COMMON I/O
+;       SET UP ROUTINE SETFFL
+;
+;       R1,R2,R3,(R5) HAVE PARAMETERS IN THEM
+;       SET R6 TO FMTFLG, R7 TO DRVADR, AND R10 TO FMTPTR
+;       BEFORE BRANCHING TO SETFFL
+;
+;       SET R11=0 TO INDICATE AN I/O STATEMENT.  IF THIS IS A STR OR
+;       VAL, R11 WILL SO INDICATE, AND R0 WILL ALSO CONTAIN DATA.
+;       IN THIS CASE THE ENTRY POINT RIOF1 WILL BE USED.
+;
+        ENTRY   RIOF1
+;
+        MOVE    R0,@0(R17)        ; LOAD THIS PARAMETER FOR SETFFL
+        SETZ    R11,
+RIOF1:  SETZB   R6,R7
+        MOVE    R10,[POINT 7,0(FMTREG)] ; POINTER TO FORMAT STRING
+        MOVEI   R6,FRMSCN       ; SET SCANNER ADDRESS
+        MOVEI   R7,FDRVI        ; SET DRIVER ADDRESS
+        TRNE    R0,IOBIT        ; SKIP IF INPUT
+        MOVEI   R7,FDRVO        ; OUTPUT
+        JRST    SETFFL          ; BRANCH TO COMMON I/O SET UP ROUTINE
+;
+;
+;
+;************************************************************
+        SUBTTL  LITFLS  CHART R52
+        DCL     LITFLS
+;************************************************************
+;
+; R52.1
+        MOVEI   CONT,1
+;
+; R52.2
+LFLS02:
+;
+; R52.3
+        IGC(FMTPTR,OCB)
+;
+; R52.4
+        SKIPN   ,A0             ;SKIP IF NOT EOS
+        JRST    LFLS06
+        CAME    A0,FLSCHR
+        JRST    LFLS07
+;
+; R52.5
+        SETZ    CONT,
+        JRST    LFLS09
+;
+; R52.6
+LFLS06: CALL    FMTERR,<RSJMSG+6>
+;
+; R52.7
+LFLS07: SKIPE   ,COUNTT          ;DON'T SKIP IF COUNTT=1
+;
+; R52.8
+        OAOS     ,LMIOC
+;
+; R52.9
+LFLS09: JUMPN   CONT,LFLS02             ;JUMP IF CONT=1
+;
+        RETURN  LITFLS
+;
+;************************************************************
+        SUBTTL  FBSP    CHART R54
+        DCL     FBSP
+;************************************************************
+;
+; R54.1
+        JUMPE   A1,FBSP02
+        CAIE    A1,2
+        JRST    FBSP13          ; A1=1
+        JRST    FBSP19
+;
+; R54.2
+FBSP02: OSKIPE  ,NUMFLG
+        JRST    FBSP06
+;
+; R54.3-.5
+        MOVEI   R5,1
+        OMOVEM   R5,FSTLEN
+        OMOVE   R5,FMTPTR
+        OMOVEM   R5,FLDBGN
+        OMOVEM   A0,FSTCHR
+        JRST    FBSP$$
+;
+; R54.6
+FBSP06: OSKIPE  ,NUMFLD
+        JRST    FBSP10
+;
+; R54.7-.9
+        SETO     STAGE,
+        OSETZM  ,NXTCHR
+        OSETZM  ,NUMFLG
+        JRST    FBSP$$
+;
+; R54.10-.12
+FBSP10: OMOVE   R5,NUMFLD
+        OMOVEM   R5,FSTLEN
+        OMOVE   R5,FMTPTR
+        OMOVEM   R5,FLDBGN
+        OMOVEM   A0,FSTCHR
+        JRST    FBSP$$
+;
+; R54.13
+FBSP13: OSKIPE  ,NUMFLG
+        OSKIPE  ,NUMFLD
+        JRST    FBSP17
+;
+; R54.14-.16
+        MOVEI   STAGE,13
+        OSETZM  ,NXTCHR
+        OSETZM  ,NUMFLG
+        JRST    FBSP$$
+;
+; R54.17-.18
+FBSP17: MOVEI   R5,1
+        OMOVEM   R5,FSTLEN
+        MOVEI   R5,"."
+        OMOVEM   R5,FSTCHR
+        JRST    FBSP$$
+;
+; R54.19
+FBSP19: OSKIPE  ,NUMFLG
+        OSKIPE  NUMFLD
+        JRST    FBSP23
+;
+; R54.20-.22
+        MOVEI   STAGE,21
+        OSETZM  ,NXTCHR
+        OSETZM  ,NUMFLG
+        JRST    FBSP$$
+;
+; R54.23
+FBSP23: OSETZM  ,LIP
+        OSETOM  ,LFP
+        OSETZM  ,LMIOC
+;
+FBSP$$: RETURN  FBSP
+;
+;************************************************************
+        SUBTTL  SFDP    CHART R65
+        DCL     SFDP
+;************************************************************
+;
+; R65.1-.2
+        OAOS     ,LMIOC
+;
+; R65.3
+        MOVE    R5,LENG
+        CAIN    R5,1
+        JRST    SFDP05
+;
+; R65.4
+        CALL    FMTERR,<RSJMSG+^D9>
+;
+; R65.5
+SFDP05: OSETZM   ,LFP
+        MOVEI   STAGE,4
+;
+; R65.6
+        MOVEI   R5,1
+        OMOVEM   R5,NUMONY
+;
+        RETURN  SFDP
+;
+;************************************************************
+        SUBTTL  SFEXP   CHART R66
+        DCL     SFEXP
+;************************************************************
+;
+; R66.1-.2
+        OAOS     ,LMIOC
+;
+; R66.3
+        MOVE    R5,LENG
+        CAIN    R5,1
+        JRST    SFEXP5
+;
+; R66.4
+        CALL    FMTERR,<RSJMSG+^D18>
+;
+; R66.5-.7
+SFEXP5: MOVEI   STAGE,7
+        SETOM   ,LAST
+        OSETZM   ,LEP
+;
+        RETURN  SFEXP
+;
+;************************************************************
+        SUBTTL  SFST10  CHART R67
+        DCL     SFST10
+;************************************************************
+;
+; R67.1
+        MOVEI   R5,1
+        CAMN    R5,LENG
+        JRST    ST10.3
+;
+; R67.2
+        CALL    FMTERR          ;A0 ALREADY SET
+;
+; R67.3
+ST10.3: MOVEI   STAGE,10
+;
+; R67.4
+        MOVEM   R5,CTR(I)
+;
+; R67.5
+        CAIE    I,6
+        JRST    ST10.7
+;
+; R67.6
+        MOVEI   R6,PFLG6
+        OORM     R6,PFLG
+;
+; R67.7
+ST10.7: OMOVEM   R5,NUMONY
+;
+        RETURN  SFST10
+;
+;**********************************************************************
+        SUBTTL  SFDGET  CHART R82
+        DCL     SFDGET
+;**********************************************************************
+;
+        MOVEM   A0,SAVA0        ; R82.1
+        MOVEM   A1,SAVA1
+        MOVEM   A2,SAVA2
+        MOVE    R6,LENG
+        MOVEM   R6,SAVLEN
+        MOVEI   A2,1            ; R82.2
+        SETZM   ,LAST           ; R82.3
+        SETZM   ,LENG
+SFGT04:                         ; R82.4
+        SKIPG   ,SAVA0          ; R82.5
+        JRST    SFGT7A
+                                ; R82.6
+        SETZM   ,SAVA0          ; R82.7
+        JRST    SFGT09
+SFGT7A: OSKIPE  ,FSTCHR         ;R82.7A
+        JRST    SFGT8A
+        IGC(FMTPTR,OCB)          ; R82.8
+        JRST    SFGT09
+SFGT8A: OMOVE   A0,FSTCHR       ; R82.8A
+        OSETZM  ,FSTCHR         ; R82.8B
+SFGT09: CAIL    A0,^O60         ; R82.9 (ZERO)
+        CAILE   A0,^O71         ;       (NINE)
+        JRST    SFGT12
+        OAOS    ,NUMFLG         ; R82.10
+        OMOVE   R6,NUMFLD       ; R82.11
+        IMULI   R6,10
+        ADD     R6,A0
+        SUBI    R6,^O60
+        OMOVEM  R6,NUMFLD
+        JRST    SFGT13
+SFGT12:                         ; R82.12  ACCUMULATE AND PROCESS (AAP)
+        CAIL    A0,^O141        ; (LOWER CASE A)
+        CAILE   A0,^O172        ; (LOWER CASE Z)
+        SKIPA
+        SUBI    A0,^O40
+        SKIPE   ,LAST           ; R82.12.1
+        CAMN    A0,LAST         ; R82.12.1
+        SKIPA
+        JRST    AAP10
+        JUMPE   A0,AAP07        ;(EOS)
+        HLRE    R6,IOBTBL-^O40(A0) ; RS82.12.2
+        JUMPGE  R6,AAP09
+        MOVMS   ,R6
+        JRST    @.-1(R6)        ; (2<=R5<=6)
+        AAP09   ;COMMA,B,BACKSLASH
+        AAP03   ;PRIME OR QUOTE
+        AAP04   ;[
+        AAP06   ;]
+        AAP07   ;SPACE,(,),/  <TERMINATOR>
+;
+AAP03:                          ; R82.12.3      IMBEDDED LITERAL
+                                ; R82.12.3.1    SET LEN
+        MOVEI   R6,1            ; R82.12.3.1.1
+        OSKIPE  ,NUMFLG
+        OMOVE   R6,NUMFLD
+        MOVEM   R6,LENG
+                                ;       RETURN  SET LEN
+;
+        SKIPE   ,LENG            ; R82.12.3.2
+        JRST    IMBL07
+        SETZM   ,COUNTT          ; R82.12.3.3
+        MOVEM   A0,FLSCHR       ; R82.12.3.4
+        CALL    LITFLS          ; R82.12.3.5  R52
+        OSETZM  ,NUMFLG         ; R82.12.3.6
+        JRST    IMBL$$
+IMBL07: SETO    R6,             ; R82.12.3.7
+        CAME    R6,SAVA0
+        JRST    IMBL10
+        MOVEM   A0,LAST         ; R82.12.3.8
+        SETZ    A2,             ; R82.12.3.9
+        JRST    IMBL$$
+IMBL10: MOVE    A1,A0           ; R82.12.3.10
+        MOVEI   R6,1            ; R82.12.3.11
+        CAME    R6,LENG
+        OMOVE   A2,FMTPTR       ; R82.12.3.12
+IMBL13:                         ; R82.12.3.13
+        IGC(FMTPTR,OCB)         ; R82.12.3.14
+        CAME    A1,A0           ; R82.12.3.15
+        JRST    IMBL17
+                                ; R82.12.3.16   ENDLIT
+        SOS     R6,LENG          ; R82.12.3.16.1
+        JUMPLE  R6,.+3
+        OMOVEM  A2,FMTPTR       ; R82.12.3.16.2
+        SKIPA
+        SETZ    A1,             ; R82.12.3.16.3
+        JRST    IMBL18          ;       RETURN  ENDLIT
+;
+IMBL17:                         ; R82.12.3.17   PROCESS CHARACTER
+        OSKIPN  ,INOUT          ; R82.12.3.17.1 (SKIP IF INOUT=1)
+        JRST    PCHR10
+        SKIPL   ,SAVA0          ; R82.12.3.17.2
+        JRST    PCHR07
+        MOVN    A0,SAVA0        ; R82.12.3.17.3
+        JUMPE   A0,.+3          ; R82.12.3.17.4
+        MOVEI   R6,3            ; R82.12.3.17.5
+        MOVEM   R6,TERFLG(FCBREG)
+        SETZM   ,SAVA0          ; R82.12.3.17.6
+        JRST    PCHR08
+PCHR07: CALL    IDGCHR          ; R82.12.3.17.7  R78
+PCHR08: MOVEI   R6,3            ; R82.12.3.17.8
+        CAME    R6,TERFLG(FCBREG)
+        JRST    PCHR$$
+        CALL    CVTERR,<RSJMSG+^D35> ; R82.12.3.17.9
+;
+PCHR10: CALL    .OTCAR          ; R82.12.3.17.10  E32
+PCHR$$:                         ;       RETURN  PROCESS CHARACTER
+;
+IMBL18: JUMPN   A1,IMBL13       ; R82.12.3.18
+        MOVEI   A2,1            ; R82.12.3.19
+        OSETZM  ,NUMFLG         ; R82.12.3.20
+        OSETZM  ,NUMFLD
+IMBL$$: JRST    AAP$$           ;       RETURN  IMBEDDED LITERAL
+;
+AAP04:  CALL    LBRAC           ; R82.12.4  R88
+        OSETZM  ,NUMFLG         ; R82.12.5
+        OSETZM  ,NUMFLD
+        JRST    AAP$$
+AAP06:  CALL    RBRAC           ; R82.12.6  R89
+        JRST    AAP$$
+AAP07:  SETO    R6,
+        CAME    R6,SAVA0
+        JRST    .+4
+        MOVEM   A0,LAST
+        SETZ    A2,
+        JRST    AAP$$
+        MOVEI   I,^O377         ; R82.12.7
+        SETZ    A2,             ; R82.12.8
+        JRST    AAP$$
+AAP09:                          ; R82.12.9      ACCUMULATE
+        MOVEM   A0,LAST         ; R82.12.9.1
+        SETO    R6,             ; R82.12.9.2
+        CAMN    R6,SAVA0
+        CAIN    A0,^O54         ; (COMMA)
+        JRST    ACCU04
+        OSKIPE  INOUT
+        JRST    ACCU04          ; On input, ignore -1 input arg
+        SETZ    A2,             ; R82.12.9.3
+        JRST    ACCU$$
+ACCU04: OSKIPE  ,NUMFLG         ; R82.12.9.4
+        JRST    ACCU06
+        AOS     ,LENG            ; R82.12.9.5
+        JRST    ACCU08
+ACCU06: OMOVE   R6,NUMFLD       ; R82.12.9.6
+        ADDM    R6,LENG
+        OSETZM  ,NUMFLG         ; R82.12.9.7
+        OSETZM  ,NUMFLD
+ACCU08: CAIE    A0,^O54         ; (COMMA)
+        CAIN    A0,"B"          
+        JRST    ACCU$$
+        CAIE    A0,^O134        ; (BACKSLASH)
+        JRST    AAP15           ; (RETURN CHARACTER)
+ACCU$$: JRST    AAP$$           ;       RETURN  ACCUMULATE
+;
+AAP10:  OMOVEM  A0,FSTCHR       ; R82.12.10
+        MOVE    A0,LAST         ; R82.12.11
+        CAIN    A0,^O54         ; R82.12.12 (COMMA)
+        JRST    AAP13
+        CAIE    A0,"B"
+        CAIN    A0,^O134        ; (BACKSLASH)
+        JRST    AAP14
+        JRST    AAP15           ; (OTHER)
+AAP13:                          ; R82.12.13     IMBEDDED COMMA
+        SKIPE   ,LENG            ; R82.12.13.1
+        JRST    IMBC03
+        OSETZM  ,NUMFLG         ; R82.12.13.2
+        SETZM   ,LAST
+        JRST    IMBC$$
+IMBC03: OSKIPN  ,INOUT          ; R82.12.13.3  (SKIP IF INOUT=1)
+        JRST    IMBC06
+        SETZB   A2,I            ; R82.12.13.4-.5
+        JRST    IMBC$$
+IMBC06:                         ; R82.12.13.6
+        MOVE    R6,DRSTG        ; R82.12.13.7
+        CAIE    R6,2
+        CAIN    R6,6
+        CAIN    I,7
+        JRST    IMBC11
+        CAIN    I,9             ; R82.12.13.8
+        JRST    IMBC12
+        MOVE    A0,LEAD         ; R82.12.13.9
+        CALL    .OTCAR          ; R82.12.13.10  E32
+        JRST    IMBC12
+IMBC11: CAIN    R6,1
+        MOVEI   A0,^O40         ; (LEADING COMMA)
+        CALL    .OTCAR          ; R82.12.13.11
+IMBC12: SOSE    ,LENG            ; R82.12.13.12-.13
+        JRST    IMBC06
+        SETZM   ,LAST
+        SETO    R6,             ; R82.12.13.14
+        CAME    R6,SAVA0
+        JRST    IMBC$$
+        SETZ    A2,             ; R82.12.13.15-.16
+IMBC$$: JRST    AAP$$           ;       RETURN  IMBEDDED COMMA
+;
+AAP14:                          ; R82.12.14     B FIELD
+        SKIPE   ,LENG            ; R82.12.14.1
+        JRST    BFLD03
+        OSETZM  ,NUMFLG         ; R82.12.14.2
+        JRST    BFLD$$
+BFLD03: OSKIPN  ,INOUT          ; R82.12.14.3 (SKIP IF INOUT=1)
+        JRST    BFLD05
+                                ; R82.12.14.4   SKIP CHARACTERS
+        SKIPL   ,SAVA0          ; R82.12.14.4.1
+        JRST    SKPC07
+        MOVN    A0,SAVA0        ; R82.12.14.4.2-.4
+        JUMPN   A0,SKPC05
+        CALL    CVTERR,<RSJMSG+^D35> 
+;
+SKPC05: MOVE    A0,LENG          ; R82.12.14.4.5
+        SUBI    A0,1
+        SETZM   ,SAVA0          ; R82.12.14.4.6
+        JRST    SKPC08
+SKPC07: MOVE    A0,LENG          ; R82.12.14.4.7
+SKPC08: JUMPLE  A0,SKPC$$       ; R82.12.14.4.8
+        CALL    IDSKIP          ; R82.12.14.4.9  R76
+SKPC$$: JRST    BFLD$$          ;       RETURN  SKIP CHARACTERS
+;
+BFLD05: MOVE    A1,LENG          ; R82.12.14.5
+        CAIE    A0,"B"          ; R82.12.14.5A
+        JRST    BFLD07
+        CALL    ODBLNK          ; R82.12.14.6  R73
+        JRST    BFLD$$
+BFLD07:                         ; R82.12.14.7
+        MOVEI   A0,^O12         ; R82.12.14.8 (LINE FEED)
+        CALL    .OTCAR          ;       E32
+        SOJG    A1,BFLD07       ; R82.12.14.9-.10
+BFLD$$: SETZM   ,LAST
+        SETZM   ,LENG
+        JRST    AAP$$
+;
+AAP15:                          ; R82.12.15     RETURN CHARACTER
+        SKIPE   ,LENG            ; R82.12.15.1
+        JRST    RETC03
+        OSETZM  ,NUMFLG         ; R82.12.15.2
+        SETZM   LAST            ;FORGET ABOUT THE LAST CHARACTER
+        JRST    RETC$$
+RETC03: HLRZ    I,IOBTBL-^O40(A0) ; R82.12.15.3
+        SETZ    A2,             ; R82.12.15.4
+RETC$$:                         ;       RETURN  RETURN CHARACTER
+AAP$$:                          ;       RETURN  ACCUMULATE AND PROCESS
+;
+SFGT13: CAIN    A2,1            ; R82.13
+        JRST    SFGT04
+        SETO    R6,             ; R82.14
+        CAMN    R6,SAVA0
+        OSKIPE  INOUT
+        JRST    SFGT16
+        MOVE    R6,SAVLEN       ; R82.15
+        MOVEM   R6,LENG
+        MOVE    A0,LAST
+        JRST    SFGT17
+SFGT16: MOVE    A0,SAVA0        ; R82.16
+SFGT17: MOVE    A1,SAVA1        ; R82.17
+        MOVE    A2,SAVA2
+;
+        RETURN  SFDGET
+;
+;
+;******************************************************************
+        SUBTTL  FLSHST  CHART R83
+        DCL     FLSHST
+;******************************************************************
+;
+        MOVE    A3,DRSTG        ; R83.1
+FLSH02:                         ; R83.2
+        OMOVE    R6,PFLG         ; R83.3
+        CAIN    R6,PFLG2
+        JRST    FLSH04
+        CAIE    R6,PFLG5
+        CAIN    R6,PFLG2+PFLG3
+        SKIPA
+        JRST    FLSH07
+FLSH04: SKIPG   ,LENG            ; R83.4
+        JRST    FLSH06
+        SOS     ,LENG            ; R83.5
+        CAILE   A3,8            ; (SKIP IF LEADING P)
+        AOS     ,IPEP           ; (TRAILING P)
+        JRST    FLSH08
+FLSH06: SETZ    A0,             ; R83.6
+        CALL    SFDGET          ;       R82
+        JRST    FLSH08
+FLSH07: CAIN    I,^O377          ; R83.7
+        JRST    FLSH08
+        SETZ    A0,
+        CALL    SFDGET          ;       R82
+FLSH08: CAILE   I,6             ; R83.8
+        JRST    FLSH12
+        OMOVE   R0,FMTPTR       ; R83.9
+        HRRZ    R6,OCB
+        ADD     R6,IPEP
+        CAME    R0,FLFBGN(R6)
+        JRST    FLSH11
+        AOS     ,DRSTG          ; R83.10
+        JRST    FLSH13
+FLSH11: CALL    STATIC          ; R83.11
+        JRST    FLSH13
+FLSH12: AOS     ,DRSTG          ; R83.12
+FLSH13: CAMN    A3,DRSTG        ; R83.13
+        JRST    FLSH02
+;
+        RETURN  FLSHST
+;
+;
+;******************************************************************
+        SUBTTL  STATIC  CHART R84
+        DCL     STATIC
+;******************************************************************
+;
+        MOVE    R6,DRSTG        ; R84.1-.3
+        CAIN    R6,8
+        CAIE    I,6
+        JRST    STAT01
+        MOVE    A1,ISCDG1
+        OMOVE   R0,PFLG
+        CAIE    R0,PFLG5
+        CAIN    R0,PFLG4+PFLG6
+        MOVE    A1,ISCEXP
+        JRST    STAT04
+STAT01: MOVE    A1,ISCEXP
+        CAIL    R6,5
+        CAILE   R6,7
+        MOVE    A1,ISCDG1
+STAT04: XCT     .+1(I)          ; R84.4
+        JRST    STAT09
+        MOVEI   A0,"$"          ; R84.5 (I=1)
+        MOVEI   A0,"*"          ; R84.6 (I=2)
+        JRST    STAT07          ; (I=3)
+        JRST    STAT07          ; (I=4)
+        JRST    STAT07          ; (I=5)
+        JRST    STAT08          ; (I=6)
+;
+STAT07:                         ; R84.7 STSIGN
+        MOVEI   A0,^O40         ; R84.7.1  (SPACE)
+        JUMPGE  A1,STSN05
+        CAIE    I,4             ; R84.7.2-.3
+        MOVEI   A0,"-"          ; R84.7.4
+        JRST    STSN$$
+STSN05: CAIE    I,5             ; R84.7.5-.6
+        MOVEI   A0,"+"          ; R84.7.7
+STSN$$: JRST    STAT09          ;       RETURN  STSIGN
+;
+STAT08:                         ; R84.8 PAREN
+        JUMPGE  A1,PARN05       ; R84.8.1
+        MOVEI   A0,^O51         ; R84.8.2-.4 (RIGHT PAREN)
+        MOVE    R6,DRSTG
+        CAIGE   R6,7
+        SUBI    A0,1
+        JRST    PARN$$
+PARN05: MOVEI   40         ; R84.8.5  (SPACE)
+PARN$$:                         ;       RETURN  PAREN
+;
+STAT09: CALL    .OTCAR          ; R84.9  E32
+;
+        RETURN  STATIC
+;
+;
+;******************************************************************
+        SUBTTL  .FLTCH  CHART R85
+        DCL     .FLTCH
+;******************************************************************
+;
+                                ; R85.1  SET COUNTERS
+        MOVE    R6,DRSTG        ; R85.1.1
+        CAIE    R6,2
+        JRST    SETC04
+        OMOVE   A4,LIP          ; R85.1.2-.3
+        MOVE    A3,ISCEXP
+        JRST    SETC06
+SETC04: MOVM    R0,ISCEXP       ; R85.1.4-.5
+        MOVEI   A3,1
+        CAIL    R0,10
+        MOVEI   A3,2
+        OMOVE   A4,LEP
+SETC06: CAIN    R6,2            ;(DON'T SKIP IF DRSTG=2)
+        SKIPGE  ,LEP(OCB)       ;(SKIP IF LEP NOT = -1)
+        SKIPA
+        JRST    SETC10
+        JUMPG   A3,SETC09       ; R85.1.6-.8
+        MOVE    A1,A4
+        HRRZ    R6,OCB            ; A2 <= FLFCTR(IPEP)
+        ADD     R6,IPEP
+        MOVE    A2,FLFCTR(R6)
+        JRST    SETC14
+SETC09: CAMGE   A3,A4           ; R85.1.9
+        JRST    SETC12
+SETC10: SETZB   A1,A2           ; R85.1.10-.11
+        JRST    SETC14
+SETC12: MOVE    A1,A4           ; R85.1.12
+        SUB     A1,A3
+        HRRZ    R6,OCB            ; R85.1.13  A2 <= FLFCTR(IPEP)
+        ADD     R6,IPEP
+        MOVE    A2,FLFCTR(R6)
+        CAMLE   A2,A1
+        MOVE    A2,A1
+SETC14: CAILE   I,6             ; R85.1.14
+        CAIN    I,9
+        SKIPA   
+        JRST    SETC16
+        EXCH    A1,A2           ; R85.1.15
+        JRST    SETC17
+SETC16: SETZ    A2,             ; R85.1.16
+SETC17: MOVEI   R6,^O40         ; R85.1.17
+        MOVEM   R6,LEAD
+                                ;       RETURN  SET COUNTERS
+;
+FLT02:                          ; R85.2
+        JUMPE   A1,FLT07         ; R85.3
+FLT04:                          ; R85.4
+                                ; R85.5  GENERATE FILL CHARACTER (GFIL)
+        SKIPLE  ,LENG            ; R85.5.1
+        JRST    GFIL03
+        SETZ    A0,             ; R85.5.2
+        CALL    SFDGET          ;       R82
+GFIL03: CAIN    I,9             ; R85.5.3
+        JRST    GFIL06
+                                ; R85.5.4  SET FILL
+        MOVEI   R6,^O40         ; R85.5.4.1-.4
+        CAIN    I,2
+        MOVEI   R6,"*"
+        CAIN    I,7
+        MOVEI   R6,"0"          ;       (ZERO)
+;
+        MOVEM   R6,LEAD         ;       RETURN  SET FILL
+;
+        MOVE    A0,LEAD         ; R85.5.5
+        CALL    .OTCAR
+GFIL06: SUBI    A2,1            ; R85.5.6
+        SUBI    A1,1
+        SUBI    A4,1            ; R85.5.7-.8
+        SOS     ,LENG
+                                ;       RETURN  GFIL
+;
+        JUMPG   A1,FLT04                ; R85.6
+FLT07:                          ; R85.7  GENERATE FLOAT CHARACTER (GFLT)
+        SKIPLE  ,LENG            ; R85.7.1
+        JRST    GFLT03
+        SETZ    A0,             ; R85.7.2
+        CALL    SFDGET
+GFLT03: MOVE    R6,LENG          ; R85.7.3
+        CAIG    R6,1
+        CAILE   I,6
+        JRST    GFLT06
+        SETO    A0,             ; R85.7.4
+        CALL    SFDGET
+        MOVEM   A0,SAVA0         ; R85.7.5
+GFLT06: CAILE   I,6             ; R85.7.6
+        JRST    GFLT$$
+        CALL    STATIC          ; R85.7.7  R84
+        SOSLE   ,LENG            ; R85.7.8-.10
+        JRST    GFLT$$
+        MOVE    A0,SAVA0
+        CALL    SFDGET          ; R85.7.11  R82
+GFLT$$:                         ;       RETURN  GFLT
+;
+        MOVE    A1,A2           ; R85.8
+        JUMPG   A1,FLT02        ; R85.9
+                                ; R85.10  RESET COUNTERS
+        MOVEI   R6,2            ; R85.10.1
+        CAME    R6,DRSTG
+        JRST    RSET03
+        OMOVEM  A4,LIP          ; R85.10.2
+        SKIPA
+RSET03: OMOVEM  A4,LEP
+                                ;       RETURN  RESET COUNTERS
+;
+        AOS     ,DRSTG          ; R85.11
+;
+        RETURN  .FLTCH
+;
+;
+;*****************************************************************
+        SUBTTL  ODSPCS  CHART  R86
+        DCL     ODSPCS
+;*****************************************************************
+;
+        OMOVE   R6,NUMONY       ; R86.1
+        CAIE    R6,1
+        JRST    OSPS03
+        CALL    CVTERR,<RSJMSG+^D7> ; R86.2
+;
+OSPS03: OHRRZ   R6,IOTYP        ; R86.3
+        CAIN    R6,STRING
+        JRST    OSPS05
+        CALL    CVTERR,<RSJMSG+^D37> ; R86.4
+;
+OSPS05: MOVEI   R6,9            ; R86.5
+        MOVEM   R6,DRSTG
+        SETZM   ,LENG
+
+        OSETZM  LIP             ;USE LIP FOR COUNT OF LEADING ZEROES
+        EXTERN  SPFCHR
+        MOVE    R5,SPFCHR               ;GET FIRST CHAR OF FIELD
+        CAIE    R5,FRM.C
+        CAIN    R5,FRM.J
+        SKIPA
+        JRST    OSPS06          ;NOT FROM C OR J
+        OMOVE   A1,LMIOC                ;TOTAL FIELD LENGTH
+        OMOVE   A0,OCBOP1               ;ADDRESS OF STRING TO PRINT
+        HLRZ    A0,1(A0)                ;GET CURRENT LENGTH
+        SUB     A1,A0
+        JUMPLE  A1,OSPS06               ;NO PADDING NEEDED
+        CAIE    R5,FRM.J
+        IDIVI   A1,2            ;# LEADING SPACES NEEDED FOR CENTERING
+        OMOVEM  A1,LIP
+
+OSPS06:                         ; R86.6-.7
+        SKIPLE  ,LENG    
+        JRST    OSPS09
+        SETZ    A0,             ; R86.8
+        CALL    SFDGET
+OSPS09: CAIN    I,^O377         ; R86.9
+        JRST    OSPS12
+
+        OSKIPG  LIP
+        JRST    OSGETC
+        OSOS    LIP
+        MOVEI   A0," "
+        JRST    OSGOTC
+
+OSGETC: IGC(UTPTR)              ; R86.10
+                                ; R86.11  OUTPUT STRING CHARACTER
+OSGOTC: CAIGE   I,FRM.D         ; R86.11.1
+        JRST    OSC06
+        CAIG    I,FRM.Y
+        JRST    OSC02           ;FORMS D OR Y
+        CAIL    I,FRM.A
+        CAILE   I,FRM.J
+        JRST    OSC06           ;ERROR
+        JRST    @.-14(I)
+        OSC03
+        OSC04
+        OSC5A
+        OSC04
+        OSC04
+;
+OSC02:                          ; R86.11.2  DIGITS ONLY
+        CAIL    A0,^O60         ; R86.11.2.1  (ZERO)
+        CAILE   A0,^O71         ; R86.11.2.2  (NINE)
+        SKIPA
+        JRST    DONY06
+        JUMPE   A0,DONY04       ; R86.11.2.2  (ZERO)
+        CAIE    A0,^O40
+        JRST    DONY05
+        MOVEI   A0,^O60         ; R86.11.2.3
+        JRST    DONY06
+DONY04: MOVEI   A0,^O40         ; R86.11.2.4
+        CAIN    I,7
+        MOVEI   A0,^O60
+        JRST    DONY06
+DONY05: CALL    CVTERR,<RSJMSG+^D30> ; R86.11.2.5
+;
+DONY06: CAIN    A0,^O60         ; R86.11.2.6
+        CAIE    I,8
+        SKIPA
+        MOVEI   A0,^O40         ; R86.11.2.7
+        JRST    OSC07           ;       RETURN  DIGITS ONLY
+;
+OSC03:                          ; R86.11.3  ALPHA ONLY
+        CAIGE   A0,^O101        ; R86.11.3.1  (A)
+        JRST    AONY02
+        CAIG    A0,^O132        ;             (Z)
+        JRST    AONY$$
+        CAIL    A0,^O141        ; (LOWER CASE A)
+        CAILE   A0,^O172        ; (LOWER CASE Z)
+        SKIPA
+        JRST    AONY$$
+AONY02: CAIE    A0,^O40         ; R86.11.3.2
+        SKIPN   ,A0
+        JRST    AONY04
+        CALL    CVTERR,<RSJMSG+^D30> ; R86.11.3.3
+;
+AONY04: MOVEI   A0,^O40         ; R86.11.3.4
+AONY$$: JRST    OSC07           ;       RETURN  ALPHA ONLY
+;
+OSC04:  SKIPN   ,A0             ; R86.11.4
+        MOVEI   A0,^O40     ; R86.11.5
+        JRST    OSC07
+OSC5A:  CAIL    A0,^O141        ; R86.11.5A
+        CAILE   A0,^O172
+        JRST    OSC5C
+        SUBI    A0,^O40         ; R86.11.5B
+        JRST    OSC07
+OSC5C:  SKIPN   ,A0             ; R86.11.5C
+        MOVEI   A0,^O40         ; R86.11.5D
+        JRST    OSC07
+OSC06:  CALL    CVTERR,<RSJMSG+^D30> ; R86.11.6
+;
+OSC07:  CALL    .OTCAR          ; R86.11.7  E32
+OSC08:  SOS     ,LENG
+                                ;   RETURN  OUTPUT STRING CHARACTER
+;
+OSPS12: CAIE    I,^O377         ; R86.12
+        JRST    OSPS06
+        RETURN  ODSPCS
+;
+;
+;************************************************************
+        SUBTTL  LBRAC   CHART R88
+        DCL     LBRAC
+;************************************************************
+;
+; R88.1-.2
+        MOVEM   R0,SAVREG       ; SAVE THIS REGISTER BECAUSE.
+        AOS     R6,NESTB
+        CAIG    R6,3
+        JRST    LBRC04
+;
+; R88.3
+        CALL    FMTERR,<RSJMSG+^D17>
+;
+; R88.4
+LBRC04: OMOVE   R0,FMTPTR
+        MOVEM   R0,BEGLVB(R6)
+;
+; R88.5
+        OSKIPG  ,NUMFLG
+        JRST    LBRC12
+;
+; R88.6
+        OSKIPE  ,NUMFLD
+        JRST    LBRC09
+;
+; R88.7
+        MOVEM   R6,NSTFLS
+;
+;************************************************************
+; R88.8 BRFLSH
+;************************************************************
+;
+; R88.8.1
+        MOVEI   CONT,1          ;CONT==R6
+;
+; R88.8.2
+BRFL02:
+;
+; R88.8.3
+        IGC(FMTPTR,OCB)
+;
+; R88.8.4
+        CAIN    A0,"["
+        JRST    BRFL05
+        CAIN    A0,"]"
+        JRST    BRFL06
+        JUMPE   A0,BRFL10
+        JRST    BRFL11
+;
+; R88.8.5
+BRFL05: AOS     ,NSTFLS
+        JRST    BRFL11
+;
+; R88.8.6-.7
+BRFL06: MOVE    R6,NSTFLS
+        SOS     ,NSTFLS
+        CAME    R6,NESTB
+        JRST    BRFL11
+;
+; R88.8.8-.9
+        SOS     ,NESTB
+        SETZ    CONT,
+;
+; R88.8.10
+BRFL10: CALL    ERROR,<RSJMSG+^D16>
+;
+; R88.8.11
+BRFL11: CAIN    CONT,1
+        JRST    BRFL02
+;
+; RETURN
+        JRST    LBRC11
+;
+; R88.9
+LBRC09: OMOVE   R0,NUMFLD
+        MOVE    R6,NESTB
+        MOVEM   R0,RPEATB(R6)
+;
+; R88.10
+        OSETZM  ,NUMFLD
+;
+; R88.11
+LBRC11: OSETZM  ,NUMFLG
+        JRST    LBRC$$
+;
+; R88.12
+LBRC12: MOVEI   R0,1
+        MOVE    R6,NESTB
+        MOVEM   R0,RPEATB(R6)
+;
+LBRC$$: MOVE    R0,SAVREG
+        RETURN  LBRAC
+
+;
+;************************************************************
+        SUBTTL  RBRAC   CHART R89
+        DCL     RBRAC
+;************************************************************
+;
+; R89.1
+        OSKIPN  ,NUMFLG
+        JRST    RBRC03
+;
+; R89.2
+        CALL    FMTERR,<RSJMSG+^D5>
+;
+; R89.3-.4
+RBRC03: MOVE     R6,NESTB
+        SOSLE   ,RPEATB(R6)
+        JRST    RBRC08
+;
+; R89.5-.6
+        SOS     R6,NESTB
+        CAML    R6,[-1]
+        JRST    RBRC$$
+;
+; R89.7
+        CALL    FMTERR,<RSJMSG+^D15>
+;
+; R89.8
+RBRC08: MOVE    R6,BEGLVB(R6)
+        OMOVEM  R6,FMTPTR
+;
+RBRC$$: RETURN  RBRAC
+;
+; FORM I/O BRANCH TABLE, USED BY FRMBSC/R51.7 AND THE FORM DRIVERS
+; LEFT HALF IS THE INDEX I; RIGHT HALF IS THE BRANCH ADDRESS FOR FRMBSC
+;
+; NOTE:  I<0 IS EQUIVALENT TO I=0.  IN THOSE CASES THE VALUE
+;        OF I IS USED TO SPEED UP INDEXING
+;
+;********************************************************
+        SUBTTL  FORM I/O BRANCH TABLE
+;********************************************************
+;
+        EXTERN  FBSC03, FBSC05, FBSC07, FBSC09, FBSC10, FBSC11
+        EXTERN  FBSC12, FBSC14, FBSC15, FBSC18, FBSC19, FBSC21
+        EXTERN  FBSC23, SETFFL
+;
+IOBTBL: XWD     -6,FBSC21       ;SPACE(^O40)
+        XWD      0,FBSC23       ;!
+        XWD     -3,FBSC09       ;"
+        XWD      0,FBSC03       ;#
+        XWD      1,FBSC15       ;$
+        XWD      0,FBSC05       ;%
+        XWD      0,FBSC23       ;&
+        XWD     -3,FBSC09       ;'
+        XWD     -6,FBSC18       ;(  (^O50)
+        XWD     -6,FBSC19       ;)
+        XWD      2,FBSC15       ;*
+        XWD      4,FBSC15       ;+
+        XWD     -2,FBSC15       ;,
+        XWD      5,FBSC15       ;-
+        XWD     11,FBSC12       ;.
+        XWD     -6,FBSC14       ;/
+        XWD     -1,FBSC10       ;0  (^O60)
+        XWD     -1,FBSC10       ;1
+        XWD     -1,FBSC10       ;2
+        XWD     -1,FBSC10       ;3
+        XWD     -1,FBSC10       ;4
+        XWD     -1,FBSC10       ;5
+        XWD     -1,FBSC10       ;6
+        XWD     -1,FBSC10       ;7
+        XWD     -1,FBSC10       ;8  (^O70)
+        XWD     -1,FBSC10       ;9
+        XWD      0,FBSC23       ;:
+        XWD      0,FBSC23       ;;
+        XWD      0,FBSC23       ;<
+        XWD      0,FBSC23       ;=
+        XWD      0,FBSC23       ;>
+        XWD      0,FBSC23       ;?
+        XWD      0,FBSC23       ;@  (^O100)
+        XWD     15,FBSC15       ;A
+        XWD     -2,FBSC07       ;B
+        XWD  FRM.C,FBSC15       ;C
+        XWD      7,FBSC15       ;D
+        XWD     13,FBSC15       ;E
+        XWD      0,FBSC23       ;F
+        XWD      0,FBSC23       ;G
+        XWD  FRM.H,FBSC15       ;H  (^O110)
+        XWD      0,FBSC23       ;I
+        XWD  FRM.J,FBSC15       ;J
+        XWD     14,FBSC15       ;K
+        XWD      0,FBSC23       ;L
+        XWD      0,FBSC23       ;M
+        XWD      0,FBSC23       ;N
+        XWD  FRM.O,FBSC15       ;O
+        XWD      6,FBSC15       ;P  (^O120)
+        XWD      9,FBSC15       ;Q
+        XWD      0,FBSC11       ;R
+        XWD      3,FBSC15       ;S
+        XWD      0,FBSC23       ;T
+        XWD     17,FBSC15       ;U
+        XWD     12,FBSC15       ;V
+        XWD  FRM.W,FBSC15       ;W
+        XWD     16,FBSC15       ;X  (^O130)
+        XWD      8,FBSC15       ;Y
+        XWD     10,FBSC15       ;Z
+        XWD     -4,FBSC15       ;[
+        XWD     -2,FBSC15       ;\
+        XWD     -5,FBSC23       ;]
+;
+;*****************************************************************
+        SUBTTL  RSVL2      CHART RS17
+        DCL     RSVL2
+;*****************************************************************
+;
+;       VAL(S1,S2)
+;
+        MOVEM   R1,VALIPT
+        MOVEM   R5,SAVREG+R5    ; SAVE STRING CODE
+        ANDI    R5,1            ; send only the code for the format string
+        MOVEI   R0,1            ; INPFF FOR RIOF: TERM, FORM INPUT
+        HRLZI   R11,FCBVAL      ; INDICATE VAL FUNCTION
+        PUSHJ   R17,RIOF1       ; SET UP FOR 'INPUT'
+        0
+        MOVEI   R13,REAL         ; HW1,,HW2 FOR RINPT: REAL SCALAR
+        MOVEI   R1,VALRST       ; ADDR OF VAL RESULT
+        MOVE    R5,SAVREG+R5    ; STRING CODE
+        ANDI    R5,4            ; send only the code for S1 string
+        PUSHJ   R17,RINPT
+        0
+        PUSHJ   R17,RKLFMT
+        RETURN  RSVL2
+;
+;*******************************************************
+        SUBTTL  RAVL2
+        DCL     RAVL2,<SR0>
+;*******************************************************
+;
+;       VAL(STRING ARRAY,FMT)
+;
+        MOVEM   R3,VALIPT
+        MOVEM   R4,VALRST       ; ADDR OF RESULT ARRAY
+        MOVEI   R0,1            ; INPFF FOR RIOF - TERM, FORM INPUT
+        HRLZI   R11,FCBVAL      ; INDICATE VAL FUNCTION
+        PUSHJ   R17,RIOF1       ; SET UP FOR 'INPUT'
+        0
+        HRLZI   R13,^O2000      ; CLASS AND TYPE
+        HRRI    R13,REAL
+        MOVE    R0,SR0          ; ARRAY CODE
+        MOVE    R1,VALRST       ; ADDR OF STRING ARRAY
+        PUSHJ   R17,RINPT
+        0
+        PUSHJ   R17,RKLFMT
+        RETURN  RAVL2
+;
+;*****************************************************************
+        SUBTTL  RSST2    CHART RS18
+        DCL     RSST2,<SR0,SR1,SR2,SR3,SR4,SR5>
+
+; STR(X,S)
+;
+;       R0,R1   X  string in R1
+;       R2      S  the format string
+;       R3      type
+;       R4      address of result
+;       R5      string code(s) for S in R2 and maybe X in R1
+
+;******************************************************************
+;
+;       STR(X,S)
+;
+        MOVEM   R4,STRSLT       ; ADDR OF RESULT
+        TRZ     R5,^O6  ; zero posible string code for X in bit 33
+        MOVEI   R0,IOBIT+1      ; PRTFF FOR RIOF: TERM, FORM OUTPUT
+        HRLZI   R11,FCBSTF      ; INDICATE STR FUNCTION
+        PUSHJ   R17,RIOF1       ; SET UP FOR 'PRINT'
+        0
+        MOVE    R13,SR3          ; VAR. TYPE FOR RPRTV
+        MOVE    R1,SR0          ; VALUE TO 'OUTPUT'
+        MOVE    R2,SR1
+        MOVE    R5,SR5          ; restore string code
+        LSH     R5,-2           ; we want the string code for X only
+        PUSHJ   R17,RPRTV
+        0
+        PUSHJ   R17,RKLFMT
+        RETURN  RSST2
+;
+;*****************************************************************
+        SUBTTL  RAST2
+        DCL     RAST2,<SR0,SR1,SR2,SR3>
+;****************************************************************
+;
+;       STR(NUMERIC ARRAY,FMT)
+;
+        MOVEM   R4,STRSLT       ; ADDR OF RESULT
+        MOVEI   R0,IOBIT+1      ; PRTFF FOR RIOF - TERM FORM OUTPUT
+        HRLZI   R11,FCBSTF      ; INDICATE STR FUNCTION
+        PUSHJ   R17,RIOF1       ; SET UP FOR 'PRINT'
+        0
+        MOVE    R0,SR0          ; ARRAY CODE
+        MOVE    R3,SR3          ; ADDR OF ARRAY DESCRIPTOR
+        MOVEI   R13,^O2000      ; CLASS AND TYPE
+        PUSHJ   R17,RPRTV
+        0
+        PUSHJ   R17,RKLFMT
+        RETURN  RAST2
+;
+        END
+[,&t¾
