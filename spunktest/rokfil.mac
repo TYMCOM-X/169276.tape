@@ -1,0 +1,21 @@
+        TITLE   ROKFIL
+
+        TWOSEG
+        RELOC   400000
+
+        ENTRY   ROKFIL
+
+        EXTERN  VIRTAB
+
+ROKFIL: camg    r6,[filmin]
+        ERROR   ^D100                   ;File number must be -8<=<=20
+OKFIL3: CAILE   R6,FILMAX               ;ROKFIL.3
+        ERROR   ^D100                   ;File number must be -8<=<=20
+        MOVE    R7,VIRTAB(R6)           ;ROKFIL.5
+        JUMPN   R7,OKFIL8               ;ROKFIL.6
+        JRST    [MOVE   R1,R6           ;ROKFIL.7
+                 FILE   RGSMSG+^D15]
+OKFIL8: POPJ    P,                    ;ROKFIL.8
+
+        LIT
+        END
